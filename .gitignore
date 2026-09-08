@@ -7,7 +7,7 @@ __pycache__/
 *.py[cod]
 *.pyo
 
-# Base de données locale
+# Base de donnï¿½es locale
 *.sqlite3
 *.sqlite3-journal
 *.sqlite3.backup*
@@ -29,12 +29,14 @@ env/
 .vscode/
 .idea/
 
-# PythonAnywhere / déploiement local
+# PythonAnywhere / dï¿½ploiement local
 .pythonanywhere_config.env
 
-# Fichiers statiques générés
+# Fichiers statiques gï¿½nï¿½rï¿½s
 staticfiles/
 
-# Playwright / tests générés
+# Playwright / tests gï¿½nï¿½rï¿½s
 test-results/
 playwright-report/
+playwright_diagnostic_debug.py
+SDI_STORE_1_pyanywhere.zip
