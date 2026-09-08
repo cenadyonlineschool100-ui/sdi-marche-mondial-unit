@@ -1,0 +1,29 @@
+{% extends "admin/base_site.html" %}
+
+{% block content %}
+  <div class="app-approve-requests">
+    <h1>Approuver les demandes de revendeurs</h1>
+    <p>Demandes sélectionnées: {{ requests.count }}</p>
+
+    <form method="post">
+      {% csrf_token %}
+      <input type="hidden" name="ids" value="{{ ids }}" />
+      <div>
+        <label for="commission_type">Type de commission</label>
+        <select name="commission_type" id="commission_type">
+          <option value="percent">Pourcentage (%)</option>
+          <option value="fixed">Montant fixe</option>
+        </select>
+      </div>
+      <div style="margin-top:8px;">
+        <label for="commission_value">Valeur (ex: 10 pour 10% ou 100 pour 100 HTG)</label>
+        <input type="text" name="commission_value" id="commission_value" />
+      </div>
+
+      <div style="margin-top:12px;">
+        <button type="submit" class="default">Approuver et copier</button>
+        <a href="{{ request.META.PATH_INFO|default:'' }}" class="button">Annuler</a>
+      </div>
+    </form>
+  </div>
+{% endblock %}

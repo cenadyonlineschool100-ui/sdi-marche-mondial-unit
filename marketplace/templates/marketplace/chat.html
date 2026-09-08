@@ -1,0 +1,204 @@
+{% extends 'marketplace/base.html' %}
+
+{% block content %}
+<div class="section">
+    <div class="section-header">
+        <h2>Chat Ensemble — Marché Mondial SDI</h2>
+        <p>Discuter avec la communauté, partager des produits et recevoir des suggestions automatisées.</p>
+    </div>
+    <div class="chat-wrapper">
+        <aside class="chat-sidebar">
+            <div class="chat-group-card">
+                <h3>{{ group.name }}</h3>
+                <p>{{ group.description }}</p>
+                <p><strong>Participants :</strong> {{ group.participants.count }}</p>
+                <p><strong>Accès :</strong> ouvert à tous les comptes inscrits</p>
+                <p style="margin-top: 12px; color:#2563eb; font-weight:700;">Publicité intelligente et partages de produits.</p>
+            </div>
+            <div class="chat-product-card">
+                <h4>Envoyer un produit</h4>
+                <p>Choisissez un produit à partager, ou utilisez le bouton "Partager dans Chat Ensemble" depuis une fiche produit.</p>
+                <p style="margin: 0.8rem 0 0; color: #475569; font-size: 0.95rem;">Les vendeurs peuvent promouvoir leur offre directement dans la conversation.</p>
+            </div>
+            {% if private_contacts %}
+            <div class="chat-product-card">
+                <h4>Messages privés</h4>
+                <p>Accédez rapidement à vos conversations privées depuis l’espace Chat Ensemble.</p>
+                <ul class="private-contact-list">
+                    {% for contact in private_contacts %}
+                        <li>
+                            <a href="{% url 'private_chat' contact.contact_id %}" class="contact-card">
+                                <div class="contact-avatar">
+                                    {% if contact.partner_photo_url %}
+                                        <img src="{{ contact.partner_photo_url }}" alt="{{ contact.partner_name }}" />
+                                    {% else %}
+                                        <span>{{ contact.partner_name|slice:":1" }}</span>
+                                    {% endif %}
+                                </div>
+                                <div class="contact-body">
+                                    <div class="contact-top">
+                                        <span class="contact-name">{{ contact.partner_name }}</span>
+                                        {% if contact.last_message_time %}
+                                            <span class="contact-time">{{ contact.last_message_time|date:'H:i' }}</span>
+                                        {% endif %}
+                                    </div>
+                                    <p class="contact-snippet">{{ contact.last_message_text|truncatechars:30 }}</p>
+                                </div>
+                                {% if contact.unread_count > 0 %}
+                                    <span class="contact-unread">{{ contact.unread_count }}</span>
+                                {% endif %}
+                            </a>
+                        </li>
+                    {% endfor %}
+                </ul>
+            </div>
+            {% endif %}
+            <div class="chat-product-card">
+                <h4>Conseil</h4>
+                <p>Les messages publicitaires apparaissent automatiquement avec image, prix et lien de commande.</p>
+            </div>
+        </aside>
+
+        <section class="chat-panel">
+            <div class="chat-header">
+                <div>
+                    <h2>{{ group.name }}</h2>
+                    <p class="chat-header-subtitle">{{ group.description }}</p>
+                </div>
+                <div class="chat-status">
+                    <span>{{ group.participants.count }} participants</span>
+                    {% if unread_message_count and unread_message_count > 0 %}
+                        <span>{{ unread_message_count }} non lus</span>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="chat-feed" id="chatFeed">
+                {% for msg in chat_messages %}
+                    <div class="chat-message {% if msg.is_system %}system{% elif msg.sender == request.user %}outgoing{% else %}incoming{% endif %}">
+                        {% if not msg.is_system and msg.sender != request.user %}
+                            <div class="message-avatar">
+                                {% if msg.sender.profile.photo %}
+                                    <img src="{{ msg.sender.profile.photo.url }}" alt="{{ msg.sender.get_full_name|default:msg.sender.username }}" />
+                                {% else %}
+                                    <span>{{ msg.sender.get_full_name|default:msg.sender.username|slice:":1" }}</span>
+                                {% endif %}
+                            </div>
+                        {% endif %}
+                        <div class="message-content">
+                            <div class="message-header">
+                                <span class="message-sender">{% if msg.is_system %}Système{% elif msg.sender == request.user %}Vous{% else %}{{ msg.sender.get_full_name|default:msg.sender.username }}{% endif %}</span>
+                                <span class="message-time">{{ msg.created_at|date:'H:i' }}</span>
+                            </div>
+                            {% if msg.content %}
+                                <div class="message-text">{{ msg.content }}</div>
+                            {% endif %}
+                            {% if msg.product %}
+                                <div class="chat-product-preview">
+                                    {% with image=msg.product.get_primary_image %}
+                                        {% if image %}
+                                            <img src="{{ image }}" alt="{{ msg.product.name }}" />
+                                        {% else %}
+                                            <div class="chat-product-placeholder">Aucune image</div>
+                                        {% endif %}
+                                    {% endwith %}
+                                    <div class="chat-product-details">
+                                        <h4>{{ msg.product.name }}</h4>
+                                        <p class="chat-product-price">{{ current_currency|currency_symbol }}{{ msg.product|format_product_price:current_currency }}</p>
+                                        <p class="chat-product-shop">Vendeur : {{ msg.product.shop.name }}</p>
+                                        <a href="{% url 'product_detail' msg.product.id %}" class="button small">Voir le produit</a>
+                                    </div>
+                                </div>
+                            {% endif %}
+                            {% if msg.image %}
+                                <img src="{{ msg.image.url }}" alt="Image du message" class="chat-message-image" />
+                            {% endif %}
+                            {% if not msg.is_system and msg.sender != request.user and not msg.read_by_user %}
+                                <span class="message-unread-badge">NOUVEAU</span>
+                            {% endif %}
+                        </div>
+                        {% if not msg.is_system and msg.sender == request.user %}
+                            <div class="message-avatar">
+                                {% if request.user.profile.photo %}
+                                    <img src="{{ request.user.profile.photo.url }}" alt="Vous" />
+                                {% else %}
+                                    <span>{{ request.user.get_full_name|default:request.user.username|slice:":1" }}</span>
+                                {% endif %}
+                            </div>
+                        {% endif %}
+                    </div>
+                {% empty %}
+                    <div class="chat-message system">
+                        <div class="message-header">
+                            <span class="message-sender">Système</span>
+                            <span class="message-time">Maintenant</span>
+                        </div>
+                        <div class="message-body">Bienvenue dans le chat global de Marché Mondial SDI ! Tous les membres peuvent discuter et partager des produits.</div>
+                    </div>
+                {% endfor %}
+            </div>
+            <form method="post" enctype="multipart/form-data" class="chat-form">
+                {% csrf_token %}
+                {{ form.content }}
+                <label for="id_product">Produit à partager</label>
+                {{ form.product }}
+                <label for="id_image">Ajouter une image</label>
+                {{ form.image }}
+                <button type="submit">Envoyer dans Chat Ensemble</button>
+            </form>
+        </section>
+    </div>
+</div>
+
+<script>
+    const chatFeed = document.getElementById('chatFeed');
+    if (chatFeed) {
+        chatFeed.scrollTop = chatFeed.scrollHeight;
+    }
+
+    const currentUserName = "{{ request.user.get_full_name|default:request.user.username|escapejs }}";
+    function refreshChat() {
+        fetch('{% url "chat_messages_api" %}')
+            .then(resp => resp.json())
+            .then(data => {
+                const feed = document.getElementById('chatFeed');
+                if (!feed) return;
+                feed.innerHTML = '';
+                data.messages.forEach(msg => {
+                    const item = document.createElement('div');
+                item.className = 'chat-message ' + (msg.is_system ? 'system' : (msg.sender === currentUserName ? 'outgoing' : 'incoming'));
+                const header = document.createElement('div');
+                header.className = 'message-header';
+                header.innerHTML = `<span class="message-sender">${msg.sender}</span><span class="message-time">${new Date(msg.created_at).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</span>`;
+                item.appendChild(header);
+                const content = document.createElement('div');
+                content.className = 'message-content';
+                if (msg.content) {
+                    const text = document.createElement('div');
+                    text.className = 'message-text';
+                    text.textContent = msg.content;
+                    content.appendChild(text);
+                }
+                if (msg.product) {
+                    const productBlock = document.createElement('div');
+                    productBlock.className = 'chat-product-preview';
+                    productBlock.innerHTML = `
+                            <img src="${msg.product.image || 'https://via.placeholder.com/96'}" alt="${msg.product.name}" />
+                            <div class="chat-product-details"><h4>${msg.product.name}</h4><p class="chat-product-price">${msg.product.price}</p><p class="chat-product-shop">Produit partagé</p><a href="/product/${msg.product.id}/" class="button small">Voir le produit</a></div>`;
+                    content.appendChild(productBlock);
+                }
+                if (msg.image_url) {
+                    const img = document.createElement('img');
+                    img.className = 'chat-message-image';
+                    img.src = msg.image_url;
+                    content.appendChild(img);
+                }
+                item.appendChild(content);
+                feed.appendChild(item);
+                });
+                feed.scrollTop = feed.scrollHeight;
+            });
+    }
+
+    setInterval(refreshChat, 8000);
+</script>
+{% endblock %}

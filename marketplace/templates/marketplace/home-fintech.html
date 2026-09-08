@@ -1,0 +1,348 @@
+{% extends 'marketplace/base.html' %}
+{% load static %}
+
+{% block content %}
+<link rel="stylesheet" href="{% static 'css/fintech-dashboard.css' %}">
+
+<style>
+    /* Import Premium Fonts */
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Poppins:wght@300;400;500;600;700;800&display=swap');
+
+    :root {
+        --font-primary: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        --font-secondary: 'Poppins', sans-serif;
+    }
+
+    * {
+        font-family: var(--font-primary);
+    }
+
+    .hero-section {
+        background:
+            linear-gradient(135deg, #0f4c81 0%, #0066ff 50%, #003d99 100%),
+            linear-gradient(45deg, rgba(0, 212, 255, 0.1) 0%, rgba(255, 255, 255, 0.05) 100%);
+        color: white;
+        padding: 100px 20px;
+        text-align: center;
+        position: relative;
+        overflow: hidden;
+        backdrop-filter: blur(0.5px);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .hero-section::before {
+        content: '';
+        position: absolute;
+        top: -50%;
+        right: -10%;
+        width: 800px;
+        height: 800px;
+        background:
+            radial-gradient(circle, rgba(0, 212, 255, 0.2) 0%, transparent 50%),
+            radial-gradient(circle, rgba(0, 102, 255, 0.1) 25%, transparent 75%);
+        border-radius: 50%;
+        animation: hero-shimmer 10s ease-in-out infinite;
+    }
+
+    .hero-section::after {
+        content: '';
+        position: absolute;
+        bottom: -30%;
+        left: -10%;
+        width: 600px;
+        height: 600px;
+        background:
+            radial-gradient(circle, rgba(0, 102, 255, 0.15) 0%, transparent 50%),
+            radial-gradient(circle, rgba(0, 212, 255, 0.08) 25%, transparent 75%);
+        border-radius: 50%;
+        animation: hero-shimmer 12s ease-in-out infinite reverse;
+    }
+
+    @keyframes hero-shimmer {
+        0%, 100% {
+            transform: scale(1) rotate(0deg);
+            opacity: 0.8;
+        }
+        50% {
+            transform: scale(1.05) rotate(2deg);
+            opacity: 1;
+        }
+    }
+
+    .hero-content {
+        position: relative;
+        z-index: 2;
+        max-width: 900px;
+        margin: 0 auto;
+    }
+
+    .hero-content h1 {
+        color: white;
+        font-size: 4rem;
+        font-weight: 800;
+        margin-bottom: 24px;
+        font-family: var(--font-secondary);
+        text-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+        letter-spacing: -0.02em;
+    }
+    
+    .hero-content p {
+        color: rgba(255, 255, 255, 0.85);
+        font-size: 1.2rem;
+        margin-bottom: 30px;
+    }
+    
+    .hero-buttons {
+        display: flex;
+        gap: 16px;
+        justify-content: center;
+        flex-wrap: wrap;
+    }
+    
+    .features-section {
+        max-width: 1400px;
+        margin: -60px auto 60px auto;
+        padding: 0 20px;
+        position: relative;
+        z-index: 10;
+    }
+    
+    .features-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 24px;
+    }
+    
+    .feature-card {
+        background: linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(248, 250, 252, 0.8) 100%);
+        border-radius: var(--radius-2xl);
+        border: 1px solid rgba(0, 102, 255, 0.15);
+        padding: 32px;
+        box-shadow: 0 10px 40px rgba(15, 23, 42, 0.1);
+        transition: var(--transition);
+        text-align: center;
+    }
+    
+    .feature-card:hover {
+        transform: translateY(-8px);
+        box-shadow: 0 20px 60px rgba(0, 102, 255, 0.15);
+    }
+    
+    .feature-icon {
+        font-size: 3rem;
+        margin-bottom: 16px;
+    }
+    
+    .feature-title {
+        font-size: 1.3rem;
+        font-weight: 700;
+        margin-bottom: 12px;
+        color: var(--text-primary);
+    }
+    
+    .feature-description {
+        color: var(--text-secondary);
+        line-height: 1.6;
+    }
+    
+    .main-content {
+        max-width: 1400px;
+        margin: 0 auto;
+        padding: 60px 20px;
+    }
+    
+    .section-title-large {
+        text-align: center;
+        font-size: 2.5rem;
+        font-weight: 800;
+        margin-bottom: 12px;
+        color: var(--text-primary);
+    }
+    
+    .section-subtitle {
+        text-align: center;
+        color: var(--text-secondary);
+        font-size: 1.1rem;
+        margin-bottom: 60px;
+    }
+    
+    .how-it-works {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 30px;
+        margin: 60px 0;
+    }
+    
+    .work-step {
+        text-align: center;
+    }
+    
+    .step-number {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 60px;
+        height: 60px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, var(--primary-blue), var(--cyan-accent));
+        color: white;
+        font-size: 1.8rem;
+        font-weight: 800;
+        margin-bottom: 20px;
+    }
+    
+    .work-step h3 {
+        font-size: 1.3rem;
+        margin-bottom: 12px;
+    }
+    
+    .work-step p {
+        color: var(--text-secondary);
+        line-height: 1.6;
+    }
+    
+    .cta-section {
+        background: linear-gradient(135deg, rgba(0, 102, 255, 0.1) 0%, rgba(0, 212, 255, 0.1) 100%);
+        border-radius: var(--radius-2xl);
+        border: 2px solid rgba(0, 102, 255, 0.2);
+        padding: 60px 20px;
+        text-align: center;
+        margin: 80px 0;
+    }
+    
+    .cta-section h2 {
+        font-size: 2rem;
+        margin-bottom: 16px;
+        color: var(--primary-blue);
+    }
+    
+    .cta-section p {
+        font-size: 1.1rem;
+        color: var(--text-secondary);
+        margin-bottom: 30px;
+    }
+</style>
+
+<!-- HERO SECTION -->
+<div class="hero-section">
+    <div class="hero-content">
+        <h1>🚀 MicroSDICash</h1>
+        <p>Votre Portefeuille Fintech Premium</p>
+        <p style="font-size: 1.05rem; color: rgba(255, 255, 255, 0.75);">Gestion sécurisée de vos fonds, transactions rapides et support 24/7</p>
+        <div class="hero-buttons">
+            {% if user.is_authenticated %}
+                <button class="btn-fintech btn-primary" onclick="location.href='{% url 'dashboard' %}'">📊 Accéder au Dashboard</button>
+                <button class="btn-fintech btn-secondary" onclick="location.href='{% url 'profile' %}'">👤 Mon Profil</button>
+            {% else %}
+                <button class="btn-fintech btn-primary" onclick="location.href='{% url 'signup' %}'">S'inscrire</button>
+                <button class="btn-fintech btn-secondary" onclick="location.href='{% url 'login' %}'">Se Connecter</button>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- FEATURES SECTION -->
+<div class="features-section">
+    <div class="features-grid">
+        <div class="feature-card">
+            <div class="feature-icon">🔐</div>
+            <div class="feature-title">Sécurité Maximale</div>
+            <div class="feature-description">
+                Chiffrement AES-256, authentification 2FA et surveillance 24/7 de votre compte
+            </div>
+        </div>
+        
+        <div class="feature-card">
+            <div class="feature-icon">⚡</div>
+            <div class="feature-title">Transactions Rapides</div>
+            <div class="feature-description">
+                Confirmations instantanées et transferts en temps réel à travers le monde
+            </div>
+        </div>
+        
+        <div class="feature-card">
+            <div class="feature-icon">🌍</div>
+            <div class="feature-title">Multi-Devises</div>
+            <div class="feature-description">
+                Gérez vos fonds en USD, HTG, EUR, DOP avec des taux de change réels
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- MAIN CONTENT -->
+<div class="main-content">
+    <!-- HOW IT WORKS -->
+    <h2 class="section-title-large">Comment Ça Marche</h2>
+    <p class="section-subtitle">Trois étapes simples pour commencer</p>
+    
+    <div class="how-it-works">
+        <div class="work-step">
+            <div class="step-number">1</div>
+            <h3>Créer un Compte</h3>
+            <p>Inscrivez-vous gratuitement en quelques minutes avec votre email ou numéro de téléphone</p>
+        </div>
+        
+        <div class="work-step">
+            <div class="step-number">2</div>
+            <h3>Recharger votre Portefeuille</h3>
+            <p>Versez des fonds via MonCash, NatCash ou d'autres méthodes de paiement sécurisées</p>
+        </div>
+        
+        <div class="work-step">
+            <div class="step-number">3</div>
+            <h3>Commencer à Transférer</h3>
+            <p>Envoyez de l'argent instantanément à vos amis, famille ou partenaires commerciaux</p>
+        </div>
+    </div>
+    
+    <!-- BENEFITS SECTION -->
+    <div style="background: var(--bg-tertiary); border-radius: var(--radius-2xl); padding: 40px; margin: 80px 0;">
+        <h2 class="section-title-large" style="margin-bottom: 40px;">Avantages MicroSDICash</h2>
+        
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 24px;">
+            <div style="padding: 20px;">
+                <h4 style="font-size: 1.2rem; margin-bottom: 10px;">💳 Frais Compétitifs</h4>
+                <p style="color: var(--text-secondary); margin: 0;">Nos frais de transaction sont les plus bas du marché</p>
+            </div>
+            
+            <div style="padding: 20px;">
+                <h4 style="font-size: 1.2rem; margin-bottom: 10px;">📱 Mobile-First</h4>
+                <p style="color: var(--text-secondary); margin: 0;">Accédez à votre portefeuille depuis n'importe quel appareil</p>
+            </div>
+            
+            <div style="padding: 20px;">
+                <h4 style="font-size: 1.2rem; margin-bottom: 10px;">🎯 Limites Élevées</h4>
+                <p style="color: var(--text-secondary); margin: 0;">Augmentez progressivement vos limites de transaction</p>
+            </div>
+            
+            <div style="padding: 20px;">
+                <h4 style="font-size: 1.2rem; margin-bottom: 10px;">🤝 Support 24/7</h4>
+                <p style="color: var(--text-secondary); margin: 0;">Notre équipe est toujours disponible pour vous aider</p>
+            </div>
+            
+            <div style="padding: 20px;">
+                <h4 style="font-size: 1.2rem; margin-bottom: 10px;">📊 Rapports Détaillés</h4>
+                <p style="color: var(--text-secondary); margin: 0;">Suivez toutes vos transactions en détail</p>
+            </div>
+            
+            <div style="padding: 20px;">
+                <h4 style="font-size: 1.2rem; margin-bottom: 10px;">🌐 Intégration API</h4>
+                <p style="color: var(--text-secondary); margin: 0;">Intégrez MicroSDICash à vos applications</p>
+            </div>
+        </div>
+    </div>
+    
+    <!-- CTA SECTION -->
+    <div class="cta-section">
+        <h2>Prêt à Commencer?</h2>
+        <p>Rejoignez des milliers d'utilisateurs satisfaits dans toute la région</p>
+        {% if user.is_authenticated %}
+            <button class="btn-fintech btn-primary" style="font-size: 1.05rem; padding: 14px 32px;" onclick="location.href='{% url 'dashboard' %}'">Accéder au Dashboard</button>
+        {% else %}
+            <button class="btn-fintech btn-primary" style="font-size: 1.05rem; padding: 14px 32px;" onclick="location.href='{% url 'signup' %}'">S'inscrire Maintenant</button>
+        {% endif %}
+    </div>
+</div>
+
+{% endblock %}

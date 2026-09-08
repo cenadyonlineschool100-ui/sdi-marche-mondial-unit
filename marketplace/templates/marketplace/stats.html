@@ -1,0 +1,15 @@
+{% extends 'marketplace/base.html' %}
+{% block content %}
+<div class="card">
+    <h2>Statistiques</h2>
+    <p>Total ventes HT : <strong>${{ total_sales }}</strong></p>
+</div>
+<div class="card">
+    <h3>Produits les plus vendus</h3>
+    {% for item in top_products %}
+        <p>{{ item.product__name }} — {{ item.total_sold }} unité(s)</p>
+    {% empty %}
+        <p>Aucune vente enregistrée.</p>
+    {% endfor %}
+</div>
+{% endblock %}

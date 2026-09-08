@@ -1,0 +1,30 @@
+{% extends 'base.html' %}
+
+{% block content %}
+  <h2>Plans d'Épargne</h2>
+  <div>
+    {% if active_savings %}
+      <div style="border:1px solid #f5c6cb;background:#f8d7da;padding:12px;margin:8px 0;">
+        <strong>Plan actif :</strong> {{ active_savings.plan.name }} — se termine le {{ active_savings.end_date }}
+        <div>Montant : {{ active_savings.amount }} {{ active_savings.plan.currency }}</div>
+        <div>Ce plan est verrouillé administrativement et ne peut pas être remplacé sans intervention d'un administrateur.</div>
+      </div>
+    {% endif %}
+    {% for plan in plans %}
+      <div style="border:1px solid #ddd;padding:8px;margin:8px 0;">
+        <strong>{{ plan.name }}</strong> — {{ plan.duration_days }} jours — {{ plan.currency }}
+        <div>Montant minimum: {{ plan.min_amount }}{% if plan.max_amount %} — maximum: {{ plan.max_amount }}{% endif %}</div>
+        <div>Commission: {{ plan.commission_percent }}%</div>
+        <div>
+          {% if not active_savings %}
+            <a href="{% url 'savings:choose_plan' plan.id %}" class="btn">Choisir ce plan</a>
+          {% else %}
+            <span style="color:#888;">Choix bloqué tant que le plan actif n'est pas supprimé par un administrateur.</span>
+          {% endif %}
+        </div>
+      </div>
+    {% empty %}
+      <p>Aucun plan disponible pour le moment.</p>
+    {% endfor %}
+  </div>
+{% endblock %}

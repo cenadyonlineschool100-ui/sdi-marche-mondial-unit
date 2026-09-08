@@ -1,0 +1,670 @@
+{% extends 'marketplace/base.html' %}
+
+{% block title %}🚚 Système de Livraison - Tableau de Bord{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="row">
+        <!-- Sidebar -->
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">🔥 SDI STORE - Livraison</h5>
+                </div>
+                <div class="card-body">
+                    <nav class="nav flex-column">
+                        <a class="nav-link active" href="#dashboard">
+                            <i class="fas fa-tachometer-alt"></i> Tableau de Bord
+                        </a>
+                        <a class="nav-link" href="#orders">
+                            <i class="fas fa-shopping-cart"></i> Commandes
+                        </a>
+                        <a class="nav-link" href="#drivers">
+                            <i class="fas fa-truck"></i> Livreurs
+                        </a>
+                        <a class="nav-link" href="#tracking">
+                            <i class="fas fa-map-marker-alt"></i> Suivi GPS
+                        </a>
+                        <a class="nav-link" href="#returns">
+                            <i class="fas fa-undo"></i> Retours
+                        </a>
+                    </nav>
+                </div>
+            </div>
+
+            <!-- Stats Rapides -->
+            <div class="card mt-3">
+                <div class="card-header">
+                    <h6 class="mb-0">📊 Stats Rapides</h6>
+                </div>
+                <div class="card-body">
+                    <div class="row text-center">
+                        <div class="col-6">
+                            <div class="h4 text-primary">{{ total_orders|default:0 }}</div>
+                            <small class="text-muted">Commandes</small>
+                        </div>
+                        <div class="col-6">
+                            <div class="h4 text-success">{{ active_deliveries|default:0 }}</div>
+                            <small class="text-muted">En cours</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="col-md-9">
+            <!-- Header -->
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2>🚚 Système de Livraison Avancé</h2>
+                <button class="btn btn-primary" onclick="refreshData()">
+                    <i class="fas fa-sync"></i> Actualiser
+                </button>
+            </div>
+
+            <!-- Alertes -->
+            <div id="alerts" class="mb-4">
+                {% if messages %}
+                    {% for message in messages %}
+                        <div class="alert alert-{{ message.tags }} alert-dismissible fade show">
+                            {{ message }}
+                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                        </div>
+                    {% endfor %}
+                {% endif %}
+            </div>
+
+            <!-- Commandes Récentes -->
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">📦 Commandes Récentes</h5>
+                    <a href="{% url 'order_history' %}" class="btn btn-sm btn-outline-primary">Voir Tout</a>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Client</th>
+                                    <th>Montant</th>
+                                    <th>Statut</th>
+                                    <th>Livreur</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="recent-orders">
+                                <!-- Les données seront chargées via AJAX -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Zones Géographiques -->
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">🗺️ Zones Géographiques</h5>
+                    <button class="btn btn-sm btn-outline-info" onclick="showZoneMap()">
+                        <i class="fas fa-map"></i> Voir Carte
+                    </button>
+                </div>
+                <div class="card-body">
+                    <div class="row" id="zones-overview">
+                        <!-- Les zones seront affichées ici -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Livreurs Actifs -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">🚗 Livreurs par Zone</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row" id="active-drivers">
+                        <!-- Les livreurs seront affichés ici -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Carte de Suivi (Placeholder) -->
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">🗺️ Suivi GPS Temps Réel</h5>
+                </div>
+                <div class="card-body">
+                    <div id="map-container" style="height: 400px; background: #f8f9fa; border: 2px dashed #dee2e6; display: flex; align-items: center; justify-content: center;">
+                        <div class="text-center text-muted">
+                            <i class="fas fa-map-marked-alt fa-3x mb-3"></i>
+                            <h5>Carte Interactive</h5>
+                            <p>Intégration Google Maps / Mapbox à venir</p>
+                            <small>Les coordonnées GPS sont déjà stockées en base</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal pour la carte des zones -->
+<div class="modal fade" id="zoneMapModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">🗺️ Carte des Zones de Livraison</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="zone-map-container" style="height: 600px; background: linear-gradient(45deg, #f8f9fa 25%, transparent 25%), linear-gradient(-45deg, #f8f9fa 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #f8f9fa 75%), linear-gradient(-45deg, transparent 75%, #f8f9fa 75%); background-size: 20px 20px; background-position: 0 0, 0 10px, 10px -10px, -10px 0px; border: 2px dashed #dee2e6; display: flex; align-items: center; justify-content: center;">
+                    <div class="text-center text-muted">
+                        <i class="fas fa-map-marked-alt fa-4x mb-3 text-primary"></i>
+                        <h4>Carte Interactive des Zones</h4>
+                        <p class="mb-3">Intégration Google Maps / Mapbox à venir</p>
+                        <div class="row" id="zone-details">
+                            <!-- Détails des zones affichés ici -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<div class="modal fade" id="deliveryModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">📍 Détails de Livraison</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="delivery-details">
+                <!-- Les détails seront chargés ici -->
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Actualiser les données automatiquement
+function refreshData() {
+    loadZonesOverview();
+    loadRecentOrders();
+    loadActiveDrivers();
+}
+
+function loadRecentOrders() {
+    fetch('/api/delivery-api/')
+        .then(response => response.json())
+        .then(data => {
+            const tbody = document.getElementById('recent-orders');
+            tbody.innerHTML = '';
+
+            data.results.slice(0, 5).forEach(assignment => {
+                const row = `
+                    <tr>
+                        <td>#${assignment.order.id}</td>
+                        <td>${assignment.order.buyer.username}</td>
+                        <td>${assignment.order.total_amount}€</td>
+                        <td>
+                            <span class="badge bg-${getStatusColor(assignment.status)}">
+                                ${getStatusText(assignment.status)}
+                            </span>
+                        </td>
+                        <td>${assignment.employee.user.username}</td>
+                        <td>
+                            <button class="btn btn-sm btn-outline-primary" onclick="showDeliveryDetails(${assignment.id})">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                        </td>
+                    </tr>
+                `;
+                tbody.innerHTML += row;
+            });
+        })
+        .catch(error => console.error('Erreur chargement commandes:', error));
+}
+
+function loadZonesOverview() {
+    fetch('/api/delivery-api/')
+        .then(response => response.json())
+        .then(data => {
+            const container = document.getElementById('zones-overview');
+            container.innerHTML = '';
+
+            // Grouper par zone
+            const zones = {};
+            data.results.forEach(assignment => {
+                const zone = assignment.employee.assigned_zone;
+                if (!zones[zone]) {
+                    zones[zone] = {
+                        name: zone,
+                        drivers: new Set(),
+                        activeDeliveries: 0,
+                        totalDeliveries: 0
+                    };
+                }
+                zones[zone].drivers.add(assignment.employee.id);
+                if (['assigned', 'picked_up', 'in_transit'].includes(assignment.status)) {
+                    zones[zone].activeDeliveries++;
+                }
+                zones[zone].totalDeliveries++;
+            });
+
+            // Afficher chaque zone
+            Object.values(zones).forEach(zone => {
+                const card = `
+                    <div class="col-md-4 mb-3">
+                        <div class="card h-100 border-primary zone-card">
+                            <div class="card-body text-center">
+                                <i class="fas fa-map-marker-alt fa-2x text-primary mb-2"></i>
+                                <h6 class="card-title">${zone.name}</h6>
+                                <div class="row text-center">
+                                    <div class="col-6">
+                                        <div class="h5 text-primary">${zone.drivers.size}</div>
+                                        <small class="text-muted">Livreur(s)</small>
+                                    </div>
+                                    <div class="col-6">
+                                        <div class="h5 text-success">${zone.activeDeliveries}</div>
+                                        <small class="text-muted">En cours</small>
+                                    </div>
+                                </div>
+                                <div class="mt-2">
+                                    <small class="text-muted">Total livraisons: ${zone.totalDeliveries}</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                container.innerHTML += card;
+            });
+
+            // Si aucune zone, afficher message
+            if (Object.keys(zones).length === 0) {
+                container.innerHTML = `
+                    <div class="col-12">
+                        <div class="alert alert-info text-center">
+                            <i class="fas fa-info-circle fa-2x mb-2"></i>
+                            <h5>Aucune livraison active</h5>
+                            <p>Les zones apparaîtront ici quand des livraisons seront assignées.</p>
+                        </div>
+                    </div>
+                `;
+            }
+        })
+        .catch(error => console.error('Erreur chargement zones:', error));
+}
+
+function loadActiveDrivers() {
+    fetch('/api/delivery-api/')
+        .then(response => response.json())
+        .then(data => {
+            const container = document.getElementById('active-drivers');
+            container.innerHTML = '';
+
+            // Grouper par zone
+            const zones = {};
+            data.results.forEach(assignment => {
+                const zone = assignment.employee.assigned_zone;
+                if (!zones[zone]) {
+                    zones[zone] = {
+                        name: zone,
+                        drivers: {}
+                    };
+                }
+                const driverId = assignment.employee.id;
+                if (!zones[zone].drivers[driverId]) {
+                    zones[zone].drivers[driverId] = {
+                        driver: assignment.employee,
+                        assignments: []
+                    };
+                }
+                zones[zone].drivers[driverId].assignments.push(assignment);
+            });
+
+            // Afficher par zone
+            Object.values(zones).forEach(zoneData => {
+                const zoneCard = `
+                    <div class="col-12 mb-3">
+                        <div class="card">
+                            <div class="card-header bg-light">
+                                <h6 class="mb-0">
+                                    <i class="fas fa-map-marker-alt text-primary"></i>
+                                    Zone: ${zoneData.name}
+                                </h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="row" id="drivers-zone-${zoneData.name.replace(/\s+/g, '-')}">
+                `;
+
+                container.innerHTML += zoneCard;
+
+                const zoneContainer = document.getElementById(`drivers-zone-${zoneData.name.replace(/\s+/g, '-')}`);
+
+                Object.values(zoneData.drivers).forEach(driverData => {
+                    const driver = driverData.driver;
+                    const activeCount = driverData.assignments.filter(a =>
+                        ['assigned', 'picked_up', 'in_transit'].includes(a.status)
+                    ).length;
+
+                    const driverCard = `
+                        <div class="col-md-6 col-lg-4 mb-3">
+                            <div class="card h-100 driver-card ${activeCount > 0 ? 'border-success' : 'border-secondary'}">
+                                <div class="card-body text-center">
+                                    <div class="position-relative">
+                                        <i class="fas fa-truck fa-2x ${activeCount > 0 ? 'text-success' : 'text-secondary'} mb-2"></i>
+                                        ${activeCount > 0 ? '<span class="badge bg-success position-absolute top-0 end-0">Actif</span>' : ''}
+                                    </div>
+                                    <h6 class="card-title">${driver.user.first_name} ${driver.user.last_name}</h6>
+                                    <small class="text-muted d-block">${driver.identifier}</small>
+                                    <div class="mt-2">
+                                        <span class="badge bg-info">${activeCount} livraison(s)</span>
+                                    </div>
+                                    <div class="mt-2">
+                                        <small class="text-muted">
+                                            📍 ${driver.current_location || 'Position inconnue'}
+                                        </small>
+                                    </div>
+                                    <div class="mt-2">
+                                        <small class="text-muted">
+                                            Rayon: ${driver.max_delivery_radius}km
+                                        </small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    zoneContainer.innerHTML += driverCard;
+                });
+
+                container.innerHTML += `
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+
+            // Si aucune zone, afficher message
+            if (Object.keys(zones).length === 0) {
+                container.innerHTML = `
+                    <div class="col-12">
+                        <div class="alert alert-warning text-center">
+                            <i class="fas fa-truck fa-2x mb-2"></i>
+                            <h5>Aucun livreur actif</h5>
+                            <p>Les livreurs apparaîtront ici quand des livraisons seront assignées.</p>
+                        </div>
+                    </div>
+                `;
+            }
+        })
+        .catch(error => console.error('Erreur chargement livreurs:', error));
+}
+    fetch('/api/delivery-api/')
+        .then(response => response.json())
+        .then(data => {
+            const container = document.getElementById('active-drivers');
+            container.innerHTML = '';
+
+            // Grouper par livreur
+            const drivers = {};
+            data.results.forEach(assignment => {
+                const driverId = assignment.employee.id;
+                if (!drivers[driverId]) {
+                    drivers[driverId] = {
+                        driver: assignment.employee,
+                        assignments: []
+                    };
+                }
+                drivers[driverId].assignments.push(assignment);
+            });
+
+            Object.values(drivers).forEach(driverData => {
+                const driver = driverData.driver;
+                const activeCount = driverData.assignments.filter(a =>
+                    ['assigned', 'picked_up', 'in_transit'].includes(a.status)
+                ).length;
+
+                const card = `
+                    <div class="col-md-4 mb-3">
+                        <div class="card h-100">
+                            <div class="card-body text-center">
+                                <i class="fas fa-truck fa-2x text-primary mb-2"></i>
+                                <h6>${driver.user.first_name} ${driver.user.last_name}</h6>
+                                <small class="text-muted">${driver.assigned_zone}</small>
+                                <div class="mt-2">
+                                    <span class="badge bg-success">${activeCount} livraison(s)</span>
+                                </div>
+                                <div class="mt-2">
+                                    <small class="text-muted">
+                                        📍 ${driver.current_location || 'Position inconnue'}
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                container.innerHTML += card;
+            });
+        })
+        .catch(error => console.error('Erreur chargement livreurs:', error));
+}
+
+function showZoneMap() {
+    // Charger les détails des zones dans le modal
+    fetch('/api/delivery-api/')
+        .then(response => response.json())
+        .then(data => {
+            const container = document.getElementById('zone-details');
+            container.innerHTML = '';
+
+            // Grouper par zone avec détails
+            const zones = {};
+            data.results.forEach(assignment => {
+                const zone = assignment.employee.assigned_zone;
+                if (!zones[zone]) {
+                    zones[zone] = {
+                        name: zone,
+                        drivers: new Set(),
+                        activeDeliveries: 0,
+                        totalDeliveries: 0,
+                        locations: new Set()
+                    };
+                }
+                zones[zone].drivers.add(assignment.employee.id);
+                zones[zone].locations.add(assignment.employee.current_location);
+                if (['assigned', 'picked_up', 'in_transit'].includes(assignment.status)) {
+                    zones[zone].activeDeliveries++;
+                }
+                zones[zone].totalDeliveries++;
+            });
+
+            // Afficher les détails des zones
+            Object.values(zones).forEach(zone => {
+                const locations = Array.from(zone.locations).filter(loc => loc).join(', ');
+                const zoneCard = `
+                    <div class="col-md-6 mb-3">
+                        <div class="card h-100 border-primary">
+                            <div class="card-header bg-primary text-white">
+                                <h6 class="mb-0">
+                                    <i class="fas fa-map-marker-alt"></i> ${zone.name}
+                                </h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="row text-center">
+                                    <div class="col-4">
+                                        <div class="h4 text-primary">${zone.drivers.size}</div>
+                                        <small>Livreurs</small>
+                                    </div>
+                                    <div class="col-4">
+                                        <div class="h4 text-success">${zone.activeDeliveries}</div>
+                                        <small>Actives</small>
+                                    </div>
+                                    <div class="col-4">
+                                        <div class="h4 text-info">${zone.totalDeliveries}</div>
+                                        <small>Total</small>
+                                    </div>
+                                </div>
+                                <hr>
+                                <div class="text-start">
+                                    <small class="text-muted">
+                                        <strong>Localisations:</strong><br>
+                                        ${locations || 'Non spécifiées'}
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                container.innerHTML += zoneCard;
+            });
+
+            $('#zoneMapModal').modal('show');
+        })
+        .catch(error => console.error('Erreur chargement carte zones:', error));
+}
+    fetch(`/api/delivery-api/${assignmentId}/`)
+        .then(response => response.json())
+        .then(data => {
+            const details = document.getElementById('delivery-details');
+            details.innerHTML = `
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6>📦 Commande</h6>
+                        <p><strong>ID:</strong> #${data.order.id}</p>
+                        <p><strong>Client:</strong> ${data.order.buyer.username}</p>
+                        <p><strong>Montant:</strong> ${data.order.total_amount}€</p>
+                        <p><strong>Adresse:</strong> ${data.order.delivery_address}</p>
+                    </div>
+                    <div class="col-md-6">
+                        <h6>🚚 Livreur</h6>
+                        <p><strong>Nom:</strong> ${data.employee.user.first_name} ${data.employee.user.last_name}</p>
+                        <p><strong>Zone:</strong> ${data.employee.assigned_zone}</p>
+                        <p><strong>Statut:</strong> <span class="badge bg-${getStatusColor(data.status)}">${getStatusText(data.status)}</span></p>
+                    </div>
+                </div>
+                <hr>
+                <h6>📍 Suivi GPS</h6>
+                <div id="tracking-points">
+                    <!-- Les points GPS seront affichés ici -->
+                </div>
+            `;
+
+            // Charger les points GPS
+            fetch(`/api/delivery-api/${assignmentId}/tracking/`)
+                .then(response => response.json())
+                .then(tracking => {
+                    const trackingDiv = document.getElementById('tracking-points');
+                    if (tracking.length > 0) {
+                        trackingDiv.innerHTML = '<ul class="list-group">';
+                        tracking.forEach(point => {
+                            trackingDiv.innerHTML += `
+                                <li class="list-group-item">
+                                    <small class="text-muted">${point.created_at}</small><br>
+                                    📍 ${point.location_name}<br>
+                                    <small>${point.latitude}, ${point.longitude}</small>
+                                </li>
+                            `;
+                        });
+                        trackingDiv.innerHTML += '</ul>';
+                    } else {
+                        trackingDiv.innerHTML = '<p class="text-muted">Aucun point GPS enregistré</p>';
+                    }
+                });
+
+            $('#deliveryModal').modal('show');
+        })
+        .catch(error => console.error('Erreur chargement détails:', error));
+}
+
+function getStatusColor(status) {
+    const colors = {
+        'assigned': 'secondary',
+        'picked_up': 'warning',
+        'in_transit': 'info',
+        'arrived': 'primary',
+        'delivered': 'success',
+        'failed': 'danger'
+    };
+    return colors[status] || 'secondary';
+}
+
+function getStatusText(status) {
+    const texts = {
+        'assigned': 'Assigné',
+        'picked_up': 'Récupéré',
+        'in_transit': 'En cours',
+        'arrived': 'Arrivé',
+        'delivered': 'Livré',
+        'failed': 'Échec'
+    };
+    return texts[status] || status;
+}
+
+// Charger les données au démarrage
+document.addEventListener('DOMContentLoaded', function() {
+    refreshData();
+    // Actualiser toutes les 30 secondes
+    setInterval(refreshData, 30000);
+});
+</script>
+
+<style>
+.card {
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    border: none;
+}
+
+.badge {
+    font-size: 0.75em;
+}
+
+.table th {
+    border-top: none;
+    font-weight: 600;
+}
+
+.nav-link {
+    color: #666;
+}
+
+.nav-link.active {
+    color: #007bff;
+    font-weight: 500;
+}
+
+.zone-card {
+    transition: transform 0.2s;
+}
+
+.zone-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+}
+
+.driver-card {
+    transition: all 0.2s;
+}
+
+.driver-card:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 3px 6px rgba(0,0,0,0.1);
+}
+
+.position-relative {
+    position: relative;
+}
+
+.position-absolute {
+    position: absolute;
+}
+
+.top-0 {
+    top: 0;
+}
+
+.end-0 {
+    right: 0;
+}
+</style>
+{% endblock %}

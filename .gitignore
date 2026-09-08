@@ -1,0 +1,40 @@
+.env
+.env.*
+!.env.example
+
+# Django / Python
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Base de données locale
+*.sqlite3
+*.sqlite3-journal
+*.sqlite3.backup*
+*.db
+
+# Environnement virtuel
+venv/
+.venv/
+env/
+
+# Logs
+*.log
+
+# Fichiers temporaires
+*.tmp
+*.bak
+
+# IDE
+.vscode/
+.idea/
+
+# PythonAnywhere / déploiement local
+.pythonanywhere_config.env
+
+# Fichiers statiques générés
+staticfiles/
+
+# Playwright / tests générés
+test-results/
+playwright-report/

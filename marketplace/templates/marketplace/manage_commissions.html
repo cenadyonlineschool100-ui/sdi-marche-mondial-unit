@@ -1,0 +1,94 @@
+{% extends 'marketplace/base.html' %}
+
+{% block content %}
+<section class="fintech-card" style="max-width: 1100px; margin: 32px auto; padding: 32px;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+        <div>
+            <h1>Gestion des commissions</h1>
+            <p style="margin:0; color:#475569;">Vue d'ensemble des commissions par agent.</p>
+        </div>
+    </div>
+
+    <div class="fintech-panel" style="padding:20px; margin-bottom:24px;">
+        <h2 style="margin-bottom:12px;">Résumé</h2>
+        <p>Total d'agents : {{ total_agents }}</p>
+    </div>
+
+    <div class="fintech-panel" style="padding:20px; margin-bottom:24px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; flex-wrap:wrap; gap:12px;">
+            <div>
+                <h2 style="margin:0 0 8px 0;">Commission de dépôt agent (configuration système)</h2>
+                <p style="margin:0; color:#475569;">Affiche la base de commission appliquée aux dépôts agents et permet à l’administrateur de la modifier.</p>
+            </div>
+            <div style="display:flex; gap:12px; flex-wrap:wrap;">
+                <a href="{% url 'commission_peuple_configuration_adm' %}" class="btn-fintech btn-secondary" style="padding: 12px 18px;">Configuration Commission Peuple</a>
+                <a href="{% url 'manage_withdrawal_commissions' %}" class="btn-fintech btn-outline-primary" style="padding: 12px 18px;">Gestion Commission Retrait</a>
+            </div>
+        </div>
+        <div style="overflow-x:auto;">
+            <table style="width:100%; border-collapse: collapse;">
+                <thead>
+                    <tr style="background:#eef2ff; color:#0f172a; text-align:left; border-bottom:2px solid #cbd5e1;">
+                        <th style="padding:12px;">Devise</th>
+                        <th style="padding:12px;">Type</th>
+                        <th style="padding:12px;">Valeur</th>
+                        <th style="padding:12px;">Dépôt min</th>
+                        <th style="padding:12px;">Dépôt max</th>
+                        <th style="padding:12px;">Actif</th>
+                        <th style="padding:12px;">Modifié le</th>
+                        <th style="padding:12px;">Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for config in deposit_commission_configs %}
+                    <tr style="border-bottom:1px solid #e2e8f0;">
+                        <td style="padding:12px;">{{ config.currency }}</td>
+                        <td style="padding:12px;">{{ config.get_commission_type_display }}</td>
+                        <td style="padding:12px;">{{ config.commission_value|floatformat:2 }}</td>
+                        <td style="padding:12px;">{{ config.min_deposit|floatformat:2 }}</td>
+                        <td style="padding:12px;">{{ config.max_deposit|floatformat:2 }}</td>
+                        <td style="padding:12px;">{{ config.is_active|yesno:"Oui,Non" }}</td>
+                        <td style="padding:12px;">{{ config.updated_at|date:'d/m/Y H:i' }}</td>
+                        <td style="padding:12px;"><a href="{% url 'edit_deposit_commission_config' config.id %}" class="btn-fintech btn-primary">Modifier</a></td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="8" style="padding:20px; text-align:center; color:#64748b;">Aucune configuration de commission dépôt trouvée.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div style="overflow-x:auto;">
+        <table style="width:100%; border-collapse: collapse;">
+            <thead>
+                <tr style="background:#eef2ff; color:#0f172a; text-align:left; border-bottom:2px solid #cbd5e1;">
+                    <th style="padding:12px;">Agent</th>
+                    <th style="padding:12px;">Dépôts confirmés</th>
+                    <th style="padding:12px;">Montant total</th>
+                    <th style="padding:12px;">Commission totale</th>
+                    <th style="padding:12px;">Commission gagnée</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for stat in agent_stats %}
+                <tr style="border-bottom:1px solid #e2e8f0;">
+                    <td style="padding:12px;">{{ stat.agent.username }}</td>
+                    <td style="padding:12px;">{{ stat.total_deposits }}</td>
+                    <td style="padding:12px;">{{ stat.total_amount|floatformat:2 }}</td>
+                    <td style="padding:12px;">{{ stat.total_commission|floatformat:2 }}</td>
+                    <td style="padding:12px;">{{ stat.commission_earned|floatformat:2 }}</td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="5" style="padding:20px; text-align:center; color:#64748b;">Aucun agent trouvé.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    
+</section>
+{% endblock %}

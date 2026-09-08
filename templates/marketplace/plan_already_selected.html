@@ -1,0 +1,7 @@
+{% extends 'base.html' %}
+
+{% block content %}
+  <h3>Vous avez déjà choisi un plan</h3>
+  <p>Vous avez déjà un plan actif : {{ existing.plan.name }} — se termine le {{ existing.end_date }}</p>
+  <p>Seul un administrateur peut supprimer ou remplacer ce plan. Contactez un administrateur.</p>
+{% endblock %}

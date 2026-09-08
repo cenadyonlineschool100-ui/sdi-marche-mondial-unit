@@ -1,0 +1,686 @@
+{% extends 'marketplace/base.html' %}
+{% load static %}
+
+{% block title %}Suivi des Livraisons{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2 class="mb-4">
+        <i class="fas fa-truck"></i> Suivi des Livraisons
+    </h2>
+
+    {% if order %}
+        <!-- Suivi détaillé d'une commande spécifique -->
+        <div class="row">
+            <div class="col-md-8">
+                <div class="card">
+                    <div class="card-header">
+                        <h5>Commande #{{ order.id }}</h5>
+                        <small class="text-muted">Passée le {{ order.date_achat|date:"d/m/Y H:i" }}</small>
+                    </div>
+                    <div class="card-body">
+                        {% if assignment %}
+                            <div class="mb-3">
+                                <strong>Livreur:</strong> {{ assignment.employee.user.get_full_name|default:assignment.employee.identifier }}
+                            </div>
+                            <div class="mb-3">
+                                <strong>Statut:</strong>
+                                <span class="badge
+                                    {% if assignment.status == 'assigned' %}bg-secondary
+                                    {% elif assignment.status == 'picked_up' %}bg-info
+                                    {% elif assignment.status == 'in_transit' %}bg-primary
+                                    {% elif assignment.status == 'arrived' %}bg-warning
+                                    {% elif assignment.status == 'delivered' %}bg-success
+                                    {% else %}bg-danger{% endif %}">
+                                    {{ assignment.get_status_display }}
+                                </span>
+                            </div>
+
+                            {% if assignment.estimated_delivery_time %}
+                            <div class="mb-3">
+                                <strong>Livraison estimée:</strong> {{ assignment.estimated_delivery_time|date:"d/m/Y H:i" }}
+                            </div>
+                            {% endif %}
+
+                            {% if assignment.actual_delivery_time %}
+                            <div class="mb-3">
+                                <strong>Livrée le:</strong> {{ assignment.actual_delivery_time|date:"d/m/Y H:i" }}
+                            </div>
+                            {% endif %}
+
+                            <!-- Barre de progression -->
+                            <div class="mb-3">
+                                <div class="progress">
+                                    {% with progress_width=assignment.status|length %}
+                                    <div class="progress-bar
+                                        {% if assignment.status == 'assigned' %}bg-secondary
+                                        {% elif assignment.status == 'picked_up' %}bg-info
+                                        {% elif assignment.status == 'in_transit' %}bg-primary
+                                        {% elif assignment.status == 'arrived' %}bg-warning
+                                        {% elif assignment.status == 'delivered' %}bg-success
+                                        {% else %}bg-danger{% endif %}"
+                                        style="width: {% if assignment.status == 'assigned' %}20%
+                                                     {% elif assignment.status == 'picked_up' %}40%
+                                                     {% elif assignment.status == 'in_transit' %}60%
+                                                     {% elif assignment.status == 'arrived' %}80%
+                                                     {% elif assignment.status == 'delivered' %}100%
+                                                     {% else %}0{% endif %}%">
+                                    </div>
+                                    {% endwith %}
+                                </div>
+                            </div>
+
+                            <!-- Carte Google Maps -->
+                            <div class="mb-3">
+                                <h6><i class="fas fa-map"></i> Suivi en temps réel</h6>
+                                <div id="map" style="height: 500px; width: 100%; border-radius: 8px;"></div>
+                                
+                                <!-- Informations de distance -->
+                                <div class="mt-3">
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <div class="alert alert-info">
+                                                <strong>Distance à parcourir:</strong> <span id="distance-info">Calcul...</span> km
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="alert alert-warning">
+                                                <strong>Temps estimé:</strong> <span id="time-info">Calcul...</span> min
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Boutons Google Maps -->
+                                <div class="mt-3">
+                                    <h6><i class="fas fa-external-link-alt"></i> Ouvrir sur Google Maps:</h6>
+                                    <div class="btn-group" role="group">
+                                        {% if assignment.driver_lat and assignment.driver_lng %}
+                                        <a href="https://maps.google.com/?q={{ assignment.driver_lat }},{{ assignment.driver_lng }}" 
+                                           target="_blank" class="btn btn-primary btn-sm">
+                                            <i class="fas fa-map-pin"></i> Position Livreur
+                                        </a>
+                                        {% endif %}
+                                        
+                                        {% if assignment.buyer_lat and assignment.buyer_lng %}
+                                        <a href="https://maps.google.com/?q={{ assignment.buyer_lat }},{{ assignment.buyer_lng }}" 
+                                           target="_blank" class="btn btn-success btn-sm">
+                                            <i class="fas fa-home"></i> Adresse Livraison
+                                        </a>
+                                        {% endif %}
+
+                                        {% if seller_lat and seller_lng %}
+                                        <a href="https://maps.google.com/?q={{ seller_lat }},{{ seller_lng }}" 
+                                           target="_blank" class="btn btn-info btn-sm">
+                                            <i class="fas fa-store"></i> Position Vendeur
+                                        </a>
+                                        {% endif %}
+                                        
+                                        {% if assignment.driver_lat and assignment.driver_lng and assignment.buyer_lat and assignment.buyer_lng %}
+                                        <a href="https://maps.google.com/maps/dir/{{ assignment.driver_lat }},{{ assignment.driver_lng }}/{{ assignment.buyer_lat }},{{ assignment.buyer_lng }}" 
+                                           target="_blank" class="btn btn-warning btn-sm">
+                                            <i class="fas fa-directions"></i> Itinéraire Actuel
+                                        </a>
+                                        {% endif %}
+
+                                        {% if seller_lat and seller_lng and assignment.buyer_lat and assignment.buyer_lng %}
+                                        <a href="https://www.google.com/maps/dir/?api=1&origin={{ seller_lat }},{{ seller_lng }}&destination={{ assignment.buyer_lat }},{{ assignment.buyer_lng }}&travelmode=driving" 
+                                           target="_blank" class="btn btn-success btn-sm" style="font-weight: bold;">
+                                            <i class="fas fa-route"></i> 📍 Parcours Complet (Vendeur → Acheteur)
+                                        </a>
+                                        {% else %}
+                                        <button class="btn btn-success btn-sm" disabled title="Coordonnées indisponibles">
+                                            <i class="fas fa-route"></i> Parcours non disponible
+                                        </button>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Historique de suivi -->
+                            {% if tracking_data %}
+                            <div class="mt-4">
+                                <h6>Historique de suivi</h6>
+                                <div class="timeline">
+                                    {% for tracking in tracking_data %}
+                                    <div class="timeline-item">
+                                        <div class="timeline-marker"></div>
+                                        <div class="timeline-content">
+                                            <div class="timeline-date">{{ tracking.timestamp|date:"d/m/Y H:i" }}</div>
+                                            <div class="timeline-text">{{ tracking.status_update }}</div>
+                                            {% if tracking.location_name %}
+                                            <small class="text-muted">{{ tracking.location_name }}</small>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                            {% endif %}
+
+                        {% else %}
+                            <div class="alert alert-info">
+                                <i class="fas fa-info-circle"></i> Aucun livreur n'a encore été assigné à cette commande.
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-4">
+                <!-- Notifications -->
+                {% if notifications %}
+                <div class="card">
+                    <div class="card-header">
+                        <h6><i class="fas fa-bell"></i> Notifications</h6>
+                    </div>
+                    <div class="card-body">
+                        {% for notification in notifications %}
+                        <div class="notification-item {% if not notification.is_read %}unread{% endif %} mb-2">
+                            <small class="text-muted">{{ notification.created_at|date:"d/m H:i" }}</small>
+                            <div class="font-weight-bold">{{ notification.title }}</div>
+                            <div class="small">{{ notification.message }}</div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- Informations de livraison -->
+                <div class="card mt-3">
+                    <div class="card-header">
+                        <h6><i class="fas fa-map-marker-alt"></i> Adresse de livraison</h6>
+                    </div>
+                    <div class="card-body">
+                        <p class="mb-0">{{ order.delivery_address }}</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    {% else %}
+        <!-- Liste des livraisons en cours -->
+        {% if deliveries %}
+            <div class="row">
+                {% for delivery in deliveries %}
+                <div class="col-md-6 mb-4">
+                    <div class="card">
+                        <div class="card-header">
+                            <h6>Commande #{{ delivery.order.id }}</h6>
+                            <small class="text-muted">{{ delivery.order.date_achat|date:"d/m/Y H:i" }}</small>
+                        </div>
+                        <div class="card-body">
+                            {% if delivery.assignment %}
+                                <div class="mb-2">
+                                    <strong>Livreur:</strong> {{ delivery.assignment.employee.user.get_full_name|default:delivery.assignment.employee.identifier }}
+                                </div>
+                                <div class="mb-2">
+                                    <strong>Statut:</strong>
+                                    <span class="badge
+                                        {% if delivery.assignment.status == 'assigned' %}bg-secondary
+                                        {% elif delivery.assignment.status == 'picked_up' %}bg-info
+                                        {% elif delivery.assignment.status == 'in_transit' %}bg-primary
+                                        {% elif delivery.assignment.status == 'arrived' %}bg-warning
+                                        {% elif delivery.assignment.status == 'delivered' %}bg-success
+                                        {% else %}bg-danger{% endif %}">
+                                        {{ delivery.assignment.get_status_display }}
+                                    </span>
+                                </div>
+
+                                {% if delivery.latest_tracking %}
+                                <div class="mb-2">
+                                    <small class="text-muted">
+                                        Dernière mise à jour: {{ delivery.latest_tracking.timestamp|date:"d/m H:i" }}<br>
+                                        {{ delivery.latest_tracking.status_update }}
+                                    </small>
+                                </div>
+                                {% endif %}
+
+                                <a href="{% url 'delivery_tracking_detail' delivery.order.id %}" class="btn btn-primary btn-sm">
+                                    <i class="fas fa-eye"></i> Voir détails
+                                </a>
+                            {% else %}
+                                <div class="alert alert-warning">
+                                    <i class="fas fa-clock"></i> En attente d'assignation d'un livreur
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="alert alert-info">
+                <i class="fas fa-check-circle"></i> Aucune livraison en cours.
+            </div>
+        {% endif %}
+    {% endif %}
+
+    <div class="mt-4">
+        <a href="{% url 'order_history' %}" class="btn btn-secondary">
+            <i class="fas fa-history"></i> Voir l'historique des commandes
+        </a>
+    </div>
+</div>
+
+<style>
+.timeline {
+    position: relative;
+    padding-left: 30px;
+}
+
+.timeline-item {
+    position: relative;
+    margin-bottom: 20px;
+}
+
+.timeline-marker {
+    position: absolute;
+    left: -35px;
+    top: 5px;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background-color: #007bff;
+    border: 2px solid #fff;
+    box-shadow: 0 0 0 2px #dee2e6;
+}
+
+.timeline-item:not(:last-child)::before {
+    content: '';
+    position: absolute;
+    left: -29px;
+    top: 17px;
+    width: 2px;
+    height: calc(100% + 3px);
+    background-color: #dee2e6;
+}
+
+.timeline-date {
+    font-size: 0.875rem;
+    color: #6c757d;
+    margin-bottom: 2px;
+}
+
+.timeline-text {
+    font-weight: 500;
+    margin-bottom: 2px;
+}
+
+.notification-item.unread {
+    background-color: #f8f9fa;
+    border-left: 3px solid #007bff;
+    padding-left: 10px;
+}
+</style>
+
+<!-- Audio notifications -->
+<audio id="arrival-sound" preload="auto">
+    <source src="{% static 'sounds/bip.mp3' %}" type="audio/mpeg">
+    <source src="{% static 'sounds/bip.wav' %}" type="audio/wav">
+</audio>
+
+<!-- Google Maps Script -->
+{% if google_maps_api_key and order %}
+<script>
+let map;
+let directionsService;
+let directionsRenderer;
+let driverMarker;
+let buyerMarker;
+let routePolyline;
+
+function initMap() {
+    // Coordonnées
+    const sellerLat = {{ seller_lat|default:'null' }};
+    const sellerLng = {{ seller_lng|default:'null' }};
+    const buyerLat = {{ buyer_lat|default:'null' }};
+    const buyerLng = {{ buyer_lng|default:'null' }};
+    const driverLat = {{ driver_lat|default:'null' }};
+    const driverLng = {{ driver_lng|default:'null' }};
+
+    // Centre de la carte
+    let centerLat, centerLng;
+    if (driverLat && driverLng && buyerLat && buyerLng) {
+        centerLat = (driverLat + buyerLat) / 2;
+        centerLng = (driverLng + buyerLng) / 2;
+    } else if (buyerLat && buyerLng) {
+        centerLat = buyerLat;
+        centerLng = buyerLng;
+    } else {
+        centerLat = 18.5944; // Haïti centre
+        centerLng = -72.3074;
+    }
+
+    map = new google.maps.Map(document.getElementById('map'), {
+        zoom: 12,
+        center: { lat: centerLat, lng: centerLng },
+        mapTypeControl: true,
+        streetViewControl: true
+    });
+
+    // Initialiser les services de directions
+    directionsService = new google.maps.DirectionsService();
+    directionsRenderer = new google.maps.DirectionsRenderer({
+        map: map,
+        suppressMarkers: true, // On gère nos propres marqueurs
+        polylineOptions: {
+            strokeColor: '#4285F4',
+            strokeWeight: 4,
+            strokeOpacity: 0.8
+        }
+    });
+
+    // Marqueur acheteur (destination)
+    if (buyerLat && buyerLng) {
+        buyerMarker = new google.maps.Marker({
+            position: { lat: buyerLat, lng: buyerLng },
+            map: map,
+            title: 'Adresse de livraison',
+            icon: {
+                url: 'http://maps.google.com/mapfiles/ms/icons/red-dot.png',
+                scaledSize: new google.maps.Size(40, 40)
+            },
+            animation: google.maps.Animation.DROP
+        });
+
+        // Info window pour l'acheteur
+        const buyerInfoWindow = new google.maps.InfoWindow({
+            content: `
+                <div style="max-width: 200px;">
+                    <strong>📍 Adresse de livraison</strong><br>
+                    {{ order.delivery_address|escapejs }}<br>
+                    {% if order.buyer_address_details %}
+                    <small>{{ order.buyer_address_details|escapejs }}</small>
+                    {% endif %}
+                </div>
+            `
+        });
+
+        buyerMarker.addListener('click', () => {
+            buyerInfoWindow.open(map, buyerMarker);
+        });
+    }
+
+    // Marqueur livreur (position actuelle)
+    if (driverLat && driverLng) {
+        driverMarker = new google.maps.Marker({
+            position: { lat: driverLat, lng: driverLng },
+            map: map,
+            title: 'Position du livreur',
+            icon: {
+                url: 'http://maps.google.com/mapfiles/ms/icons/blue-dot.png',
+                scaledSize: new google.maps.Size(40, 40)
+            },
+            animation: google.maps.Animation.BOUNCE
+        });
+
+        // Info window pour le livreur
+        const driverInfoWindow = new google.maps.InfoWindow({
+            content: `
+                <div style="max-width: 200px;">
+                    <strong>🚚 Position du livreur</strong><br>
+                    {% if assignment.employee.user.get_full_name %}
+                    {{ assignment.employee.user.get_full_name|escapejs }}<br>
+                    {% else %}
+                    {{ assignment.employee.identifier|escapejs }}<br>
+                    {% endif %}
+                    {% if assignment.driver_address_details %}
+                    <small>{{ assignment.driver_address_details|escapejs }}</small>
+                    {% endif %}
+                </div>
+            `
+        });
+
+        driverMarker.addListener('click', () => {
+            driverInfoWindow.open(map, driverMarker);
+        });
+    }
+
+    // Marqueur vendeur (point de départ)
+    if (sellerLat && sellerLng) {
+        new google.maps.Marker({
+            position: { lat: sellerLat, lng: sellerLng },
+            map: map,
+            title: 'Point de départ (vendeur)',
+            icon: {
+                url: 'http://maps.google.com/mapfiles/ms/icons/green-dot.png',
+                scaledSize: new google.maps.Size(35, 35)
+            }
+        });
+    }
+
+    // Calculer et afficher l'itinéraire si on a la position du livreur et de l'acheteur
+    if (driverLat && driverLng && buyerLat && buyerLng) {
+        calculateAndDisplayRoute(
+            { lat: driverLat, lng: driverLng },
+            { lat: buyerLat, lng: buyerLng }
+        );
+    }
+
+    // Ajuster les bounds pour voir tous les points
+    const bounds = new google.maps.LatLngBounds();
+    if (sellerLat && sellerLng) bounds.extend({ lat: sellerLat, lng: sellerLng });
+    if (buyerLat && buyerLng) bounds.extend({ lat: buyerLat, lng: buyerLng });
+    if (driverLat && driverLng) bounds.extend({ lat: driverLat, lng: driverLng });
+    if (!bounds.isEmpty()) {
+        map.fitBounds(bounds);
+        // Ajuster le zoom si trop zoomé
+        google.maps.event.addListenerOnce(map, 'bounds_changed', function() {
+            if (map.getZoom() > 15) {
+                map.setZoom(15);
+            }
+        });
+    }
+}
+
+function calculateAndDisplayRoute(origin, destination) {
+    const request = {
+        origin: origin,
+        destination: destination,
+        travelMode: google.maps.TravelMode.DRIVING,
+        optimizeWaypoints: false,
+        provideRouteAlternatives: false
+    };
+
+    directionsService.route(request, function(response, status) {
+        if (status === google.maps.DirectionsStatus.OK) {
+            directionsRenderer.setDirections(response);
+
+            // Calculer la distance et le temps estimé
+            const route = response.routes[0];
+            const distance = route.legs[0].distance.text;
+            const duration = route.legs[0].duration.text;
+
+            // Mettre à jour les informations affichées
+            document.getElementById('distance-info').textContent = distance;
+            document.getElementById('time-info').textContent = duration;
+
+        } else {
+            console.error('Erreur lors du calcul de l\'itinéraire:', status);
+            document.getElementById('distance-info').textContent = 'Erreur';
+            document.getElementById('time-info').textContent = 'Erreur';
+        }
+    });
+}
+
+function updateDriverPosition(newLat, newLng, addressDetails) {
+    if (driverMarker) {
+        const newPosition = { lat: newLat, lng: newLng };
+        driverMarker.setPosition(newPosition);
+
+        // Recalculer l'itinéraire si on a la position de l'acheteur
+        const buyerLat = {{ buyer_lat|default:'null' }};
+        const buyerLng = {{ buyer_lng|default:'null' }};
+        if (buyerLat && buyerLng) {
+            calculateAndDisplayRoute(newPosition, { lat: buyerLat, lng: buyerLng });
+        }
+
+        // Centrer la carte sur la nouvelle position
+        map.panTo(newPosition);
+    }
+}
+
+// WebSocket pour notifications temps réel
+let deliveryWebsocket = null;
+
+function initDeliveryWebSocket() {
+    const assignmentId = {{ assignment.id|default:'null' }};
+    if (!assignmentId) return;
+
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = `${protocol}//${window.location.host}/ws/delivery-tracking/${assignmentId}/`;
+
+    deliveryWebsocket = new WebSocket(wsUrl);
+
+    deliveryWebsocket.onopen = function(event) {
+        console.log('WebSocket livraison connecté');
+    };
+
+    deliveryWebsocket.onmessage = function(event) {
+        const data = JSON.parse(event.data);
+        handleDeliveryUpdate(data);
+    };
+
+    deliveryWebsocket.onclose = function(event) {
+        console.log('WebSocket livraison déconnecté');
+        // Reconnexion automatique
+        setTimeout(initDeliveryWebSocket, 5000);
+    };
+
+    deliveryWebsocket.onerror = function(error) {
+        console.error('Erreur WebSocket livraison:', error);
+    };
+}
+
+function handleDeliveryUpdate(data) {
+    if (data.type === 'status_update') {
+        // Mettre à jour le statut affiché
+        const statusElement = document.querySelector('.badge');
+        if (statusElement) {
+            statusElement.textContent = data.status_display;
+            statusElement.className = `badge bg-${getStatusColor(data.status)}`;
+        }
+
+        // Mettre à jour la position du livreur si fournie
+        if (data.driver_lat && data.driver_lng) {
+            updateDriverPosition(data.driver_lat, data.driver_lng, data.driver_address_details);
+        }
+
+        // Jouer le son d'arrivée si nécessaire
+        if (data.status === 'arrived' || data.status === 'picked_up') {
+            playArrivalSound();
+            showBrowserNotification('Livreur arrivé !', 'Le livreur est arrivé à destination.');
+        }
+
+        // Actualiser la page pour voir les changements
+        setTimeout(() => location.reload(), 2000);
+    } else if (data.type === 'location_update') {
+        // Mise à jour de position en temps réel
+        if (data.latitude && data.longitude) {
+            updateDriverPosition(data.latitude, data.longitude, data.location_details);
+        }
+    }
+}
+
+function playArrivalSound() {
+    // Générer un bip sonore simple
+    try {
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const oscillator = audioContext.createOscillator();
+        const gainNode = audioContext.createGain();
+
+        oscillator.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+
+        oscillator.frequency.setValueAtTime(800, audioContext.currentTime); // Fréquence du bip
+        oscillator.type = 'sine';
+
+        gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
+
+        oscillator.start(audioContext.currentTime);
+        oscillator.stop(audioContext.currentTime + 0.5);
+
+        // Répéter 5 fois comme demandé
+        for (let i = 1; i < 5; i++) {
+            setTimeout(() => {
+                const osc = audioContext.createOscillator();
+                const gain = audioContext.createGain();
+                osc.connect(gain);
+                gain.connect(audioContext.destination);
+                osc.frequency.setValueAtTime(800, audioContext.currentTime);
+                osc.type = 'sine';
+                gain.gain.setValueAtTime(0.3, audioContext.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
+                osc.start(audioContext.currentTime);
+                osc.stop(audioContext.currentTime + 0.5);
+            }, i * 600);
+        }
+    } catch (e) {
+        console.log('Web Audio API non supporté, pas de son');
+    }
+}
+
+function showBrowserNotification(title, body) {
+    if ('Notification' in window && Notification.permission === 'granted') {
+        new Notification(title, { body: body, icon: '/static/images/logo.png' });
+    } else if ('Notification' in window && Notification.permission !== 'denied') {
+        Notification.requestPermission().then(permission => {
+            if (permission === 'granted') {
+                new Notification(title, { body: body, icon: '/static/images/logo.png' });
+            }
+        });
+    }
+}
+
+function getStatusColor(status) {
+    const colors = {
+        'assigned': 'secondary',
+        'picked_up': 'info',
+        'in_transit': 'primary',
+        'arrived': 'warning',
+        'delivered': 'success',
+        'failed': 'danger'
+    };
+    return colors[status] || 'secondary';
+}
+
+// Initialiser au chargement
+document.addEventListener('DOMContentLoaded', function() {
+    initDeliveryWebSocket();
+
+    // Auto-refresh location data every 10 seconds
+    const assignmentId = {{ assignment.id|default:'null' }};
+    if (assignmentId) {
+        setInterval(function() {
+            fetch(`/marketplace/delivery-tracking/${assignmentId}/update/`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.driver_lat && data.driver_lng) {
+                        updateDriverPosition(data.driver_lat, data.driver_lng, data.driver_address_details);
+                    }
+                })
+                .catch(error => console.error('Erreur lors de la mise à jour automatique:', error));
+        }, 10000);
+    }
+});
+
+// Charger Google Maps et initialiser
+function loadGoogleMaps() {
+    if (typeof google !== 'undefined' && google.maps) {
+        initMap();
+    } else {
+        // Attendre que Google Maps soit chargé
+        window.googleMapsCallback = function() {
+            initMap();
+        };
+        // Si le script n'est pas encore chargé, attendre
+        setTimeout(loadGoogleMaps, 100);
+    }
+}
+</script>
+<script async defer src="https://maps.googleapis.com/maps/api/js?key={{ google_maps_api_key }}&callback=googleMapsCallback"></script>
+{% endif %}
+
+{% endblock %}

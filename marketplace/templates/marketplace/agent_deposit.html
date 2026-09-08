@@ -1,0 +1,202 @@
+{% extends 'marketplace/base.html' %}
+
+{% block content %}
+<section class="fintech-card" style="max-width: 900px; margin: 32px auto; padding: 28px 32px;">
+    <h1 style="margin-bottom: 16px;">Dépôt MicrosDiCash - Agent</h1>
+    <p style="margin-bottom: 24px; color: #475569;">Saisissez le numéro du client et le montant en HTG, USD, DOP ou EUR. Le dépôt est instantané, sécurisé et traçable.</p>
+
+    <div style="display: grid; gap: 18px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); margin-bottom: 24px;">
+        <div class="fintech-panel" style="padding: 18px;">
+            <h3 style="margin-bottom: 12px;">Solde agent</h3>
+            <p style="margin: 6px 0; font-weight: 600;">USD : {{ agent_wallet.balance_usd|default:0|floatformat:2 }}</p>
+            <p style="margin: 6px 0; font-weight: 600;">HTG : {{ agent_wallet.balance_htg|default:0|floatformat:2 }}</p>
+            <p style="margin: 6px 0; font-weight: 600;">DOP : {{ agent_wallet.balance_dop|default:0|floatformat:2 }}</p>
+            <p style="margin: 6px 0; font-weight: 600;">EUR : {{ agent_wallet.balance_eur|default:0|floatformat:2 }}</p>
+        </div>
+        <div class="fintech-panel" style="padding: 18px;">
+            <h3 style="margin-bottom: 12px;">Commission de dépôt</h3>
+            <ul style="margin:0; padding-left: 16px; color: #334155;">
+                {% for code, values in commissions.items %}
+                    <li>{{ code }} : {{ values.value }} {% if values.type == 'pourcentage' %}%{% else %}HTG{% endif %}</li>
+                {% empty %}
+                    <li>Aucune configuration de commission active.</li>
+                {% endfor %}
+            </ul>
+            <p style="margin-top: 16px; color: #64748b; font-size: 0.95rem;">Le montant de commission est ajouté au compte commissions agent.</p>
+            <p id="deposit-fee-text" style="margin-top: 10px; color: #0f172a; font-size: 0.95rem; font-weight: 600; display:none;"></p>
+        </div>
+        <div class="fintech-panel" style="padding: 18px; background: #fef3c7; border-left: 4px solid #f59e0b;">
+            <h3 style="margin-bottom: 12px; color: #92400e;">Codes de sécurité</h3>
+            <div style="display: flex; gap: 12px; align-items: center; margin: 8px 0;">
+                <span style="font-weight: 600; color: #1f2937;">PIN :</span>
+                <code style="background: #fff; padding: 6px 12px; border-radius: 6px; font-size: 1.1rem; letter-spacing: 2px; color: #1f2937;">{{ agent_security_pin|default:'••••••••' }}</code>
+                <button type="button" class="copy-btn" data-text="{{ agent_security_pin|default:'' }}" style="padding: 6px 12px; background: #f59e0b; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: 0.9rem;">COPY</button>
+            </div>
+            <div style="display: flex; gap: 12px; align-items: center; margin: 8px 0;">
+                <span style="font-weight: 600; color: #1f2937;">Code final :</span>
+                <code style="background: #fff; padding: 6px 12px; border-radius: 6px; font-size: 1.1rem; letter-spacing: 2px; color: #1f2937;">{{ agent_final_code|default:'••••' }}</code>
+                <button type="button" class="copy-btn" data-text="{{ agent_final_code|default:'' }}" style="padding: 6px 12px; background: #f59e0b; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: 0.9rem;">COPY</button>
+            </div>
+            <p style="margin: 12px 0 0; color: #92400e; font-size: 0.85rem;">⚠️ À utiliser uniquement pour valider les dépôts clients</p>
+        </div>
+    </div>
+
+    <form method="post" style="display: grid; gap: 18px;">
+        {% csrf_token %}
+        <div>
+            <label for="account_number" style="display:block; margin-bottom: 8px; font-weight: 600;">Numéro de compte client</label>
+            <input id="account_number" name="account_number" type="text" placeholder="ACC178E50D7" required style="width:100%; padding: 14px 16px; border-radius: 14px; border: 1px solid #cbd5e1; background: #fff;" />
+            <p style="margin: 8px 0 0; color: #64748b; font-size: 0.95rem;">Vérification automatique du compte client lors de l'envoi.</p>
+        </div>
+        <div>
+            <label for="amount" style="display:block; margin-bottom: 8px; font-weight: 600;">Montant</label>
+            <input id="amount" name="amount" type="number" min="0.01" step="0.01" placeholder="500" required style="width:100%; padding: 14px 16px; border-radius: 14px; border: 1px solid #cbd5e1; background: #fff;" />
+        </div>
+        <div>
+            <label for="currency" style="display:block; margin-bottom: 8px; font-weight: 600;">Devise</label>
+            <select id="currency" name="currency" required style="width:100%; padding: 14px 16px; border-radius: 14px; border: 1px solid #cbd5e1; background: #fff;">
+                <option value="HTG">HTG</option>
+                <option value="USD">USD</option>
+                <option value="DOP">DOP</option>
+                <option value="EUR">EUR</option>
+            </select>
+        </div>
+        <div style="display: flex; align-items: center; gap: 10px;">
+            <input id="tikane_deposit" name="tikane_deposit" type="checkbox" value="on" style="width: 18px; height: 18px;" />
+            <label for="tikane_deposit" style="margin: 0; font-weight: 600;">Déposer dans Ti Kanè Digital</label>
+        </div>
+        <div style="color: #475569; font-size: 0.95rem;">Si le client dispose d’un compte Ti Kanè actif, le montant sera ajouté à son carnet d’épargne digital.</div>
+        <div>
+            <label for="agent_pin" style="display:block; margin-bottom: 8px; font-weight: 600;">PIN de sécurité agent</label>
+            <input id="agent_pin" name="agent_pin" type="password" placeholder="PIN agent" required style="width:100%; padding: 14px 16px; border-radius: 14px; border: 1px solid #cbd5e1; background: #fff;" />
+        </div>
+        <div>
+            <label for="final_code" style="display:block; margin-bottom: 8px; font-weight: 600;">Code final de confirmation</label>
+            <input id="final_code" name="final_code" type="password" placeholder="Code final" required style="width:100%; padding: 14px 16px; border-radius: 14px; border: 1px solid #cbd5e1; background: #fff;" />
+        </div>
+        <div style="display:flex; gap: 12px; flex-wrap: wrap; align-items:center;">
+            <button type="button" id="toggle-security-fields" class="btn-fintech btn-secondary" style="padding: 12px 18px;">Afficher PIN + code final</button>
+            <span style="color: #475569; font-size: 0.95rem;">Cliquez pour afficher ou masquer les champs de sécurité.</span>
+        </div>
+        <div style="display:flex; gap: 12px; flex-wrap: wrap; align-items:center; margin-top: 6px; color: #475569; font-size: 0.95rem;">
+            <span style="font-weight: 600;">Étapes :</span>
+            <span>1. Vérifier le compte client</span>
+            <span>2. Vérifier le PIN agent</span>
+            <span>3. Valider le code final</span>
+        </div>
+        <button type="submit" class="btn-fintech btn-primary" style="width: fit-content; padding: 14px 24px;">Valider le Dépôt</button>
+    </form>
+</section>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Toggle security fields visibility
+        var toggleButton = document.getElementById('toggle-security-fields');
+        var agentPinField = document.getElementById('agent_pin');
+        var finalCodeField = document.getElementById('final_code');
+
+        if (toggleButton && agentPinField && finalCodeField) {
+            toggleButton.addEventListener('click', function() {
+                var isPassword = agentPinField.type === 'password';
+                agentPinField.type = isPassword ? 'text' : 'password';
+                finalCodeField.type = isPassword ? 'text' : 'password';
+                toggleButton.textContent = isPassword ? 'Masquer PIN + code final' : 'Afficher PIN + code final';
+            });
+        }
+
+        // Handle COPY buttons
+        var copyButtons = document.querySelectorAll('.copy-btn');
+        copyButtons.forEach(function(button) {
+            button.addEventListener('click', function() {
+                var textToCopy = this.getAttribute('data-text');
+                if (textToCopy) {
+                    // Copy to clipboard using Clipboard API
+                    if (navigator.clipboard && navigator.clipboard.writeText) {
+                        navigator.clipboard.writeText(textToCopy).then(function() {
+                            var originalText = button.textContent;
+                            button.textContent = '✓ COPIÉ';
+                            button.style.background = '#10b981';
+                            setTimeout(function() {
+                                button.textContent = originalText;
+                                button.style.background = '#f59e0b';
+                            }, 2000);
+                        }).catch(function(err) {
+                            console.error('Failed to copy:', err);
+                            fallbackCopy(textToCopy);
+                        });
+                    } else {
+                        fallbackCopy(textToCopy);
+                    }
+                }
+            });
+        });
+
+        // Fallback copy method for older browsers
+        function fallbackCopy(text) {
+            var textarea = document.createElement('textarea');
+            textarea.value = text;
+            document.body.appendChild(textarea);
+            textarea.select();
+            try {
+                document.execCommand('copy');
+                var buttons = document.querySelectorAll('.copy-btn');
+                buttons.forEach(function(btn) {
+                    if (btn.getAttribute('data-text') === text) {
+                        var originalText = btn.textContent;
+                        btn.textContent = '✓ COPIÉ';
+                        btn.style.background = '#10b981';
+                        setTimeout(function() {
+                            btn.textContent = originalText;
+                            btn.style.background = '#f59e0b';
+                        }, 2000);
+                    }
+                });
+            } catch (err) {
+                console.error('Fallback copy failed:', err);
+            }
+            document.body.removeChild(textarea);
+        }
+    });
+
+    function calculateDepositFee(amount, currency, rules) {
+        if (!amount || amount <= 0) {
+            return null;
+        }
+
+        var matchingRule = rules.find(function(rule) {
+            var minAmount = parseFloat(rule.min_amount);
+            var maxAmount = parseFloat(rule.max_amount);
+            var amountValue = parseFloat(amount);
+            return amountValue >= minAmount && amountValue <= maxAmount;
+        });
+
+        return matchingRule ? parseFloat(matchingRule.commission_amount) : null;
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        var depositAmountInput = document.getElementById('amount');
+        var currencySelect = document.getElementById('currency');
+        var feeText = document.getElementById('deposit-fee-text');
+        var commissionRules = JSON.parse('{{ commission_rules_json|escapejs }}');
+
+        if (depositAmountInput && currencySelect && feeText) {
+            function updateDepositFee() {
+                var amount = depositAmountInput.value;
+                var currency = currencySelect.value;
+                var fee = calculateDepositFee(amount, currency, commissionRules);
+
+                if (fee !== null) {
+                    feeText.style.display = 'block';
+                    feeText.textContent = 'Frais estimés : ' + fee.toFixed(2) + ' ' + currency + '. Ce montant correspond à la commission de dépôt prise en charge par le système/admin.';
+                } else {
+                    feeText.style.display = 'block';
+                    feeText.textContent = 'Aucune règle de commission active trouvée pour ce montant. Vérifiez la configuration ou contactez l’administration.';
+                }
+            }
+
+            depositAmountInput.addEventListener('input', updateDepositFee);
+            currencySelect.addEventListener('change', updateDepositFee);
+            updateDepositFee();
+        }
+    });
+</script>
+{% endblock %}

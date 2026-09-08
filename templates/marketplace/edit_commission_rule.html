@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Modifier Règle de Commission{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row">
+        <div class="col-md-8 offset-md-2">
+            <h2>Modifier Règle de Commission</h2>
+            
+            {% if messages %}
+            <div class="alert-container">
+                {% for message in messages %}
+                <div class="alert alert-{{ message.tags }}" role="alert">
+                    {{ message }}
+                    <button type="button" class="close" data-dismiss="alert">
+                        <span>&times;</span>
+                    </button>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+            
+            <div class="card mt-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">{{ rule.agent.username if rule.agent else "Règle Globale" }}</h5>
+                </div>
+                <div class="card-body">
+                    <form method="POST" class="mt-3">
+                        {% csrf_token %}
+                        
+                        <div class="form-group">
+                            <label for="min_amount">Montant Minimum</label>
+                            <input 
+                                type="number" 
+                                id="min_amount" 
+                                name="min_amount" 
+                                class="form-control" 
+                                step="0.01"
+                                value="{{ rule.min_amount }}"
+                                required
+                            >
+                            <small class="form-text text-muted">Montant minimum pour cette règle de commission</small>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="max_amount">Montant Maximum</label>
+                            <input 
+                                type="number" 
+                                id="max_amount" 
+                                name="max_amount" 
+                                class="form-control" 
+                                step="0.01"
+                                value="{{ rule.max_amount }}"
+                                required
+                            >
+                            <small class="form-text text-muted">Montant maximum pour cette règle de commission</small>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="commission_amount">Commission (HTG)</label>
+                            <input 
+                                type="number" 
+                                id="commission_amount" 
+                                name="commission_amount" 
+                                class="form-control" 
+                                step="0.01"
+                                value="{{ rule.commission_amount }}"
+                                required
+                            >
+                            <small class="form-text text-muted">Commission fixe en HTG pour cette plage de montant</small>
+                        </div>
+                        
+                        <div class="form-group">
+                            <button type="submit" class="btn btn-primary">Enregistrer les modifications</button>
+                            <a href="{% url 'manage_agent_commissions' %}" class="btn btn-secondary">Annuler</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.card {
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.alert-container {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 1050;
+    max-width: 400px;
+}
+
+.alert {
+    padding: 1rem;
+    margin-bottom: 0.5rem;
+    border-radius: 0.25rem;
+}
+</style>
+{% endblock %}

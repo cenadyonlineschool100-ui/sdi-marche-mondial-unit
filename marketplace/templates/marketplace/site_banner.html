@@ -1,0 +1,1257 @@
+{% load static %}
+{% if site_banner %}
+<style>
+    .site-top-banner {
+        position: relative;
+        z-index: 30;
+        overflow: hidden;
+        isolation: isolate;
+        width: 100vw;
+        max-width: none;
+        margin: 0;
+        padding: 0;
+        min-height: 150px;
+        background:
+            radial-gradient(ellipse 58% 170% at 96% 8%, rgba(255,255,255,.98) 0%, rgba(255,255,255,.7) 38%, rgba(255,255,255,0) 78%),
+            radial-gradient(ellipse 52% 135% at 70% 112%, rgba(255,255,255,.42) 0%, rgba(255,255,255,0) 74%),
+            radial-gradient(ellipse 34% 105% at 34% -10%, rgba(147,197,253,.26) 0%, rgba(147,197,253,0) 76%),
+            linear-gradient(112deg, #09245f 0%, #123f98 20%, #2e70c9 43%, #8fc3f2 69%, #f9fcff 100%);
+        border: none;
+        border-radius: 0;
+        box-shadow: none;
+        box-sizing: border-box;
+    }
+
+    .site-top-banner-inner {
+        position: relative;
+        width: 100%;
+        max-width: none;
+        height: auto;
+        min-height: 150px;
+        padding: 1.2rem 0 1rem;
+        display: flex;
+        align-items: center;
+        box-sizing: border-box;
+        overflow: hidden;
+    }
+
+    .site-top-banner-copy {
+        position: relative;
+        z-index: 3;
+        width: 46%;
+        min-width: 290px;
+        max-width: 100%;
+        color: #0c1d45;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        justify-content: center;
+        padding: 0.4rem 0 0.8rem;
+    }
+
+    .site-top-banner-kicker {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.7rem 1.2rem;
+        border-radius: 999px;
+        background: linear-gradient(135deg, #0d2a71, #163fa1);
+        color: #fff;
+        font-size: 0.7rem;
+        font-weight: 900;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        box-shadow: 0 8px 14px rgba(16, 47, 124, 0.14);
+        border: 1px solid rgba(255,255,255,0.3);
+        width: fit-content;
+    }
+
+    .site-top-banner-kicker::before {
+        content: '✦';
+        font-size: 0.82rem;
+        line-height: 1;
+    }
+
+    .site-top-banner-title {
+        margin: 1.1rem 0 0.15rem;
+        max-width: 480px;
+        color: #ffffff;
+        font-size: clamp(2.2rem, 3.2vw, 4.8rem);
+        font-weight: 900;
+        line-height: 0.94;
+        letter-spacing: -0.065em;
+        word-break: break-word;
+        text-shadow: none;
+    }
+
+    .site-top-banner-subtitle {
+        margin: 0 0 1.1rem;
+        color: #ffffff;
+        font-size: clamp(1.08rem, 1.65vw, 2rem);
+        line-height: 1.2;
+        font-weight: 600;
+        opacity: 0.96;
+        max-width: 440px;
+    }
+
+    .site-top-banner-features {
+        display: none;
+    }
+
+    .site-top-banner-actions {
+        position: relative;
+        display: flex;
+        align-items: center;
+        justify-content: flex-start;
+        gap: 1rem;
+        flex-wrap: wrap;
+        row-gap: 0.6rem;
+        z-index: 4;
+        margin-top: 0.4rem;
+        width: fit-content;
+        max-width: 100%;
+    }
+
+    .site-top-banner-price {
+        min-width: 165px;
+        max-width: 100%;
+        padding: 0.65rem 1.25rem 0.8rem;
+        border-radius: 18px;
+        background: linear-gradient(180deg, #f8d95f 0%, #f1c63c 100%);
+        color: #0d1b3a;
+        font-size: 0.85rem;
+        font-weight: 800;
+        line-height: 1.1;
+        text-align: center;
+        box-shadow: 0 6px 12px rgba(241, 198, 60, 0.15);
+        border: 1px solid rgba(14, 30, 74, 0.06);
+        flex-shrink: 0;
+    }
+
+    .site-top-banner-price::before {
+        content: 'À partir de';
+        display: block;
+        font-size: 0.76em;
+        font-weight: 700;
+        margin-bottom: 0.2rem;
+        opacity: 0.82;
+    }
+
+    .site-top-banner-price::after {
+        content: '';
+    }
+
+    .site-top-banner-price strong,
+    .site-top-banner-price b {
+        display: block;
+        font-size: 1.5em;
+        line-height: 1;
+        font-weight: 900;
+        letter-spacing: -0.045em;
+    }
+
+    .site-top-banner-button {
+        min-height: 54px;
+        padding: 0.8rem 1.6rem;
+        border-radius: 999px;
+        background: linear-gradient(135deg, #2a73ff, #255fe8);
+        border: 0;
+        box-shadow: 0 8px 14px rgba(28, 95, 222, 0.18);
+        color: #fff;
+        font-size: 1.12rem;
+        font-weight: 800;
+        text-decoration: none;
+        white-space: nowrap;
+        cursor: pointer;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.4rem;
+        flex-shrink: 0;
+        max-width: 100%;
+    }
+
+    .site-top-banner-button:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 12px 20px rgba(28, 95, 222, 0.25);
+    }
+
+    .site-top-banner-button::after {
+        content: '›';
+        font-size: 1.6rem;
+        line-height: 1;
+        transform: translateY(-1px);
+    }
+
+    .site-top-banner-visual {
+        position: absolute;
+        right: 2rem;
+        top: 1.05rem;
+        width: 46%;
+        height: calc(100% - 1.7rem);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1;
+        overflow: visible;
+    }
+
+    .site-top-banner-product-carousel {
+        position: absolute;
+        right: 0;
+        top: 0;
+        bottom: 0;
+        width: 100%;
+        min-width: 0;
+        max-width: 100%;
+        height: 100%;
+        border-radius: 0;
+        background: transparent;
+        border: 0;
+        box-shadow: none;
+        backdrop-filter: none;
+        overflow: hidden;
+        z-index: 4;
+    }
+
+    .site-top-banner-product-track {
+        position: relative;
+        width: 100%;
+        height: 100%;
+        min-height: 100%;
+        overflow: hidden;
+    }
+
+    .site-top-banner-product-slide {
+        position: absolute;
+        inset: 0;
+        opacity: 0;
+        visibility: hidden;
+        transform: translateX(10px) scale(0.98);
+        transition: opacity 0.35s ease, transform 0.35s ease, visibility 0s linear;
+        pointer-events: none;
+        background: transparent;
+    }
+
+    .site-top-banner-product-slide.active {
+        opacity: 1;
+        visibility: visible;
+        transform: translateX(0) scale(1);
+        pointer-events: auto;
+        transition: opacity 0.35s ease, transform 0.35s ease, visibility 0s linear;
+    }
+
+    .site-top-banner-product-slide a {
+        display: flex;
+        align-items: stretch;
+        text-decoration: none;
+        color: inherit;
+        height: 100%;
+        width: 100%;
+    }
+
+    .site-top-banner-product-image {
+        position: relative;
+        width: 46%;
+        min-width: 0;
+        height: 100%;
+        min-height: 100%;
+        background: linear-gradient(135deg, rgba(148, 163, 184, 0.18), rgba(255,255,255,0.06));
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+        border-bottom: 1px solid rgba(148, 163, 184, 0.18);
+    }
+
+    .site-top-banner-product-image img {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+        display: block;
+        background: rgba(248, 250, 252, 0.75);
+        padding: 0.6rem;
+    }
+
+    .site-top-banner-product-copy {
+        padding: 1.2rem 1.1rem 1rem;
+        background: rgba(255, 255, 255, 0.98);
+        color: #0f172a;
+        width: 54%;
+    }
+
+    .site-top-banner-product-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0.25rem 0.5rem;
+        border-radius: 999px;
+        background: rgba(96, 165, 250, 0.15);
+        border: 1px solid rgba(37, 99, 235, 0.2);
+        color: #1d4ed8;
+        font-size: 0.48rem;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        margin-bottom: 0.4rem;
+    }
+
+    .site-top-banner-product-copy h3 {
+        margin: 0;
+        font-size: 0.72rem;
+        line-height: 1.3;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+        color: #0f172a;
+        min-height: 2.7em;
+        overflow: hidden;
+    }
+
+    .site-top-banner-product-meta {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.5rem;
+        margin-top: 0.45rem;
+        font-size: 0.56rem;
+        color: #475569;
+    }
+
+    .site-top-banner-product-meta strong {
+        color: #1d4ed8;
+        font-size: 0.62rem;
+        font-weight: 800;
+    }
+
+    .site-top-banner-product-button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
+        margin-top: 0.6rem;
+        padding: 0.45rem 0.65rem;
+        border-radius: 10px;
+        background: linear-gradient(135deg, #1d4ed8, #2563eb);
+        color: #fff;
+        text-align: center;
+        font-size: 0.58rem;
+        font-weight: 700;
+        letter-spacing: 0.02em;
+        box-shadow: 0 10px 18px rgba(37, 99, 235, 0.14);
+    }
+
+    .site-top-banner-product-controls {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.4rem;
+        padding: 0.5rem 0.55rem 0.65rem;
+        background: rgba(248, 250, 252, 0.92);
+    }
+
+    .site-top-banner-product-controls button {
+        width: 28px;
+        height: 28px;
+        font-size: 1rem;
+        background: rgba(15, 23, 42, 0.06);
+        color: #0f172a;
+    }
+
+    .site-top-banner-product-controls button {
+        appearance: none;
+        box-sizing: border-box;
+        border: 0;
+        border-radius: 999px;
+        background: rgba(255,255,255,0.1);
+        color: #f8fbff;
+        width: 26px;
+        height: 26px;
+        font-size: 1rem;
+        line-height: 1;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        transition: background 0.2s ease, transform 0.2s ease;
+    }
+
+    .site-top-banner-product-controls button:hover {
+        background: rgba(255,255,255,0.18);
+        transform: translateY(-1px);
+    }
+
+    .site-top-banner-media {
+        position: relative;
+        width: min(100%, 760px);
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .site-top-banner-window {
+        position: relative;
+        width: 100%;
+        height: 100%;
+        min-height: 140px;
+        border-radius: 22px 22px 0 0;
+        border: none;
+        box-shadow: none;
+        background: radial-gradient(ellipse 100% 180% at 50% 0%, rgba(255, 255, 255, 0.08), transparent 70%);
+        overflow: hidden;
+    }
+
+    .site-top-banner-window::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(125deg, rgba(255,255,255,0.15) 0%, rgba(255,255,255,0.0) 50%);
+        pointer-events: none;
+    }
+
+    .site-top-banner-window::after {
+        content: '';
+        position: absolute;
+        left: 8%;
+        right: 8%;
+        bottom: -2%;
+        height: 18%;
+        background: transparent;
+        border-top-left-radius: 26px;
+        border-top-right-radius: 26px;
+        filter: blur(2px);
+        pointer-events: none;
+    }
+
+    .site-top-banner-surface {
+        position: absolute;
+        inset: 18px 24px 0 24px;
+        border-radius: 18px;
+        background: transparent;
+        border: none;
+    }
+
+    .site-top-banner-visual img {
+        position: relative;
+        z-index: 2;
+        width: auto;
+        height: 76%;
+        max-width: 90%;
+        object-fit: contain;
+        object-position: center;
+        display: block;
+        filter: drop-shadow(12px 16px 20px rgba(13, 53, 136, 0.18)) saturate(1.06);
+        margin: 0 auto;
+        padding-bottom: 2.8rem;
+    }
+
+    .site-top-banner-media::after {
+        content: '';
+        position: absolute;
+        bottom: 1.5rem;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 140px;
+        height: 14px;
+        border-radius: 50%;
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(245, 248, 252, 0.3));
+        border: 1px solid rgba(147, 197, 253, 0.5);
+        box-shadow: 0 5px 14px rgba(100, 130, 180, 0.1), inset 0 2px 4px rgba(255, 255, 255, 0.6);
+        z-index: 1;
+        backdrop-filter: blur(1px);
+    }
+
+    .site-top-banner-commercial {
+        position: absolute;
+        z-index: 4;
+        top: 1rem;
+        right: 1.2rem;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        width: 154px;
+        height: 92px;
+        padding: 0.8rem 0.6rem;
+        border-radius: 18px;
+        background: linear-gradient(135deg, #fff0a8 0%, #f5cd3f 100%);
+        color: #0d1d44;
+        transform: rotate(9deg);
+        box-shadow: 0 10px 16px rgba(27, 70, 156, 0.14);
+        border: 3px solid rgba(255,255,255,0.82);
+        text-transform: uppercase;
+        line-height: 1;
+    }
+
+    .site-top-banner-commercial strong {
+        font-size: 1.06rem;
+        font-weight: 950;
+        letter-spacing: 0.04em;
+        display: block;
+        color: #0d1e45;
+    }
+
+    .site-top-banner-commercial small {
+        font-size: 0.62rem;
+        font-weight: 800;
+        display: block;
+        opacity: 0.9;
+        margin-top: 0.18rem;
+    }
+
+    .site-top-banner-nav {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        pointer-events: none;
+        z-index: 5;
+    }
+
+    .site-top-banner-nav button {
+        pointer-events: auto;
+        width: 52px;
+        height: 52px;
+        border-radius: 50%;
+        border: 0;
+        background: rgba(255,255,255,0.9);
+        color: #0a2050;
+        font-size: 2rem;
+        font-weight: 700;
+        line-height: 1;
+        box-shadow: 0 8px 18px rgba(7, 23, 74, 0.14);
+        cursor: pointer;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .site-top-banner-nav button:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 10px 20px rgba(7, 23, 74, 0.18);
+    }
+
+    .site-top-banner-dots {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 1.2rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        z-index: 5;
+    }
+
+    .site-top-banner-dots button {
+        width: 10px;
+        height: 10px;
+        padding: 0;
+        border: 0;
+        border-radius: 50%;
+        background: rgba(255,255,255,0.55);
+        cursor: pointer;
+        transition: background 0.2s ease, transform 0.2s ease;
+    }
+
+    .site-top-banner-dots button[aria-current="true"] {
+        background: #fff;
+        transform: scale(1.2);
+    }
+
+    @media (max-width: 1300px) {
+        .site-top-banner-copy { width: 42%; }
+        .site-top-banner-visual { width: 48%; }
+        .site-top-banner-title { max-width: 420px; }
+        .site-top-banner-product-carousel { width: 48%; }
+    }
+
+    @media (max-width: 1024px) {
+        .site-top-banner-inner { padding: 1.6rem 1.4rem 1.2rem; }
+        .site-top-banner-copy { width: 39%; min-width: 200px; }
+        .site-top-banner-title { font-size: clamp(2rem, 4vw, 3.5rem); }
+        .site-top-banner-subtitle { font-size: clamp(1rem, 2vw, 1.6rem); }
+        .site-top-banner-visual { right: 1rem; width: 52%; }
+        .site-top-banner-product-carousel { width: 46%; min-width: 220px; right: 0; }
+        .site-top-banner-product-track { min-height: 180px; }
+        .site-top-banner-product-image { height: 116px; }
+        .site-top-banner-button { font-size: 1rem; }
+        .site-top-banner-commercial { width: 138px; height: 86px; }
+    }
+
+    @media (max-width: 820px) {
+        .site-top-banner { min-height: 150px; }
+        .site-top-banner-inner { min-height: 150px; padding: 0.9rem 1rem 0.8rem; }
+        .site-top-banner-copy { width: 48%; }
+        .site-top-banner-kicker { padding: 0.45rem 0.8rem; font-size: 0.55rem; }
+        .site-top-banner-title { font-size: clamp(1.3rem, 3.8vw, 2.4rem); margin-top: 0.5rem; }
+        .site-top-banner-subtitle { font-size: 0.8rem; margin-bottom: 0.7rem; }
+        .site-top-banner-actions { gap: 0.6rem; }
+        .site-top-banner-price { min-width: 108px; padding: 0.45rem 0.85rem 0.6rem; font-size: 0.62rem; }
+        .site-top-banner-button { min-height: 34px; padding: 0.5rem 0.8rem; font-size: 0.75rem; }
+        .site-top-banner-product-carousel { width: 44%; min-width: 190px; }
+        .site-top-banner-product-track { min-height: 170px; }
+        .site-top-banner-product-image { height: 104px; }
+        .site-top-banner-product-copy h3 { font-size: 0.66rem; }
+        .site-top-banner-commercial { width: 100px; height: 64px; right: 0.7rem; top: 0.8rem; }
+        .site-top-banner-commercial strong { font-size: 0.7rem; }
+        .site-top-banner-commercial small { font-size: 0.5rem; }
+    }
+
+    @media (max-width: 600px) {
+        .site-top-banner { min-height: 140px; }
+        .site-top-banner-inner { min-height: 140px; padding: 0.75rem 0.7rem 0.75rem; }
+        .site-top-banner-copy { width: 58%; min-width: 0; padding-right: 0.3rem; }
+        .site-top-banner-kicker { font-size: 0.48rem; padding: 0.38rem 0.6rem; }
+        .site-top-banner-title { font-size: clamp(1.05rem, 4.3vw, 1.8rem); margin-top: 0.5rem; }
+        .site-top-banner-subtitle { font-size: 0.64rem; margin-bottom: 0.55rem; }
+        .site-top-banner-actions { gap: 0.5rem; max-width: 100%; }
+        .site-top-banner-price { min-width: 86px; padding: 0.4rem 0.6rem 0.55rem; font-size: 0.48rem; }
+        .site-top-banner-button { min-height: 28px; font-size: 0.58rem; padding: 0.4rem 0.65rem; }
+        .site-top-banner-visual { width: 42%; right: 0.3rem; }
+        .site-top-banner-window { min-height: 120px; }
+        .site-top-banner-product-carousel { width: 42%; min-width: 138px; }
+        .site-top-banner-product-track { min-height: 155px; }
+        .site-top-banner-product-image { height: 90px; }
+        .site-top-banner-product-copy { padding: 0.6rem 0.62rem 0.55rem; }
+        .site-top-banner-product-copy h3 { font-size: 0.58rem; }
+        .site-top-banner-product-meta { font-size: 0.48rem; }
+        .site-top-banner-product-button { font-size: 0.5rem; }
+        .site-top-banner-commercial { width: 76px; height: 48px; right: 0.15rem; top: 0.3rem; transform: rotate(8deg); }
+        .site-top-banner-commercial strong { font-size: 0.5rem; }
+        .site-top-banner-commercial small { font-size: 0.36rem; }
+        .site-top-banner-nav button { width: 30px; height: 30px; font-size: 1.2rem; }
+    }
+
+    @media (max-width: 430px) {
+        .site-top-banner { min-height: 130px; }
+        .site-top-banner-inner { min-height: 130px; padding: 0.6rem 0.55rem 0.6rem; }
+        .site-top-banner-copy { width: 58%; }
+        .site-top-banner-kicker { padding: 0.3rem 0.5rem; font-size: 0.4rem; }
+        .site-top-banner-title { font-size: clamp(0.92rem, 4.5vw, 1.5rem); }
+        .site-top-banner-subtitle { font-size: 0.56rem; }
+        .site-top-banner-actions {
+            gap: 0.35rem;
+            width: min(100%, 130px);
+            flex-direction: column;
+            align-items: stretch;
+        }
+        .site-top-banner-price { min-width: 0; width: 100%; font-size: 0.45rem; }
+        .site-top-banner-button { width: 100%; font-size: 0.52rem; padding: 0.38rem 0.6rem; }
+        .site-top-banner-visual { width: 42%; right: 0.2rem; }
+        .site-top-banner-window { min-height: 110px; }
+        .site-top-banner-product-carousel { width: 40%; min-width: 128px; }
+        .site-top-banner-product-track { min-height: 145px; }
+        .site-top-banner-product-image { height: 84px; }
+        .site-top-banner-product-copy { padding: 0.55rem 0.56rem 0.48rem; }
+        .site-top-banner-product-copy h3 { font-size: 0.54rem; min-height: 2.25em; }
+        .site-top-banner-product-meta { font-size: 0.44rem; margin-top: 0.28rem; }
+        .site-top-banner-product-button { margin-top: 0.45rem; padding: 0.34rem 0.42rem; font-size: 0.48rem; }
+        .site-top-banner-product-controls { padding: 0.42rem 0.48rem 0.5rem; }
+        .site-top-banner-product-controls button { width: 24px; height: 24px; font-size: 0.9rem; }
+        .site-top-banner-media img { height: auto; max-height: 110px; }
+        .site-top-banner-commercial { width: 70px; height: 46px; top: 0.2rem; right: 0.1rem; transform: rotate(7deg); }
+        .site-top-banner-commercial strong { font-size: 0.46rem; }
+        .site-top-banner-commercial small { font-size: 0.32rem; }
+    }
+
+    @media (max-width: 390px) {
+        .site-top-banner-copy { width: 60%; }
+        .site-top-banner-title { font-size: clamp(1.05rem, 4.3vw, 1.8rem); }
+        .site-top-banner-subtitle { font-size: 0.62rem; }
+        .site-top-banner-actions { gap: 0.38rem; width: min(100%, 138px); }
+        .site-top-banner-price { min-width: 0; width: 100%; font-size: 0.45rem; }
+        .site-top-banner-button { width: 100%; font-size: 0.54rem; padding: 0.38rem 0.62rem; }
+        .site-top-banner-commercial { width: 74px; height: 50px; top: 0.2rem; right: 0.1rem; }
+        .site-top-banner-commercial strong { font-size: 0.5rem; }
+        .site-top-banner-commercial small { font-size: 0.34rem; }
+        .site-top-banner-nav button { width: 28px; height: 28px; font-size: 1.05rem; }
+    }
+
+    @media (max-width: 450px) {
+        .site-top-banner,
+        .site-top-banner-inner { min-height: clamp(146px, 38.15vw, 164px); }
+        .site-top-banner-inner { padding: 0.35rem 0.55rem; }
+        .site-top-banner-copy { padding: 0; }
+        .site-top-banner-kicker { padding: 0.25rem 0.4rem; font-size: 0.38rem; }
+        .site-top-banner-title { margin-top: 0.35rem; }
+        .site-top-banner-subtitle { margin-bottom: 0.35rem; }
+        .site-top-banner-actions { gap: 0.25rem; width: min(100%, 110px); }
+        .site-top-banner-price { padding: 0.25rem 0.4rem; font-size: 0.4rem; }
+        .site-top-banner-button { min-height: 28px; padding: 0.25rem 0.4rem; font-size: 0.48rem; }
+        .site-top-banner-visual { top: 0.35rem; }
+        .site-top-banner-window { min-height: 120px; }
+        .site-top-banner-media img { max-height: 110px; }
+        .site-top-banner-commercial { width: 68px; height: 44px; padding: 0.4rem 0.3rem; }
+    }
+
+    @media (min-width: 451px) and (max-width: 1199px) {
+        .site-top-banner,
+        .site-top-banner-inner { min-height: 215px; }
+        .site-top-banner-inner { padding-top: 1rem; padding-bottom: 0.8rem; }
+        .site-top-banner-visual { top: 0.7rem; height: calc(100% - 1.2rem); }
+        .site-top-banner-window { min-height: 190px; }
+    }
+
+    @media (min-width: 1200px) {
+        .site-top-banner-copy {
+            margin-left: 2rem;
+            width: calc(46% - 2rem);
+        }
+
+        .site-top-banner,
+        .site-top-banner-inner { min-height: 190px; }
+        .site-top-banner-inner { padding-top: 0.55rem; padding-bottom: 0.55rem; }
+        .site-top-banner-visual { top: 0.35rem; height: calc(100% - 0.6rem); }
+        .site-top-banner-window { min-height: 180px; }
+        .site-top-banner-kicker { font-size: 0.46rem; padding: 0.38rem 0.7rem; }
+        .site-top-banner-title { font-size: clamp(1.05rem, 1.4vw, 1.9rem); margin: 0.4rem 0 0.08rem; }
+        .site-top-banner-subtitle { font-size: clamp(0.62rem, 0.8vw, 0.9rem); margin-bottom: 0.6rem; }
+        .site-top-banner-price { font-size: 0.58rem; padding: 0.42rem 0.72rem 0.55rem; min-width: 116px; }
+        .site-top-banner-button { font-size: 0.68rem; min-height: 30px; padding: 0.42rem 0.82rem; }
+        .site-top-banner-commercial { width: 96px; height: 58px; top: 0.3rem; right: 0.5rem; }
+        .site-top-banner-commercial strong { font-size: 0.58rem; }
+        .site-top-banner-commercial small { font-size: 0.34rem; }
+        .site-top-banner-product-carousel { width: min(100%, 700px); }
+        .site-top-banner-product-copy { padding: 0.45rem 0.8rem 0.2rem; }
+        .site-top-banner-product-badge { padding-top: 0.1rem; padding-bottom: 0.1rem; margin-bottom: 0.2rem; }
+        .site-top-banner-product-copy h3 { line-height: 1.15; min-height: 2.3em; }
+        .site-top-banner-product-meta { margin-top: 0.25rem; }
+        .site-top-banner-product-button { margin-top: 0.4rem; padding-top: 0.35rem; padding-bottom: 0.35rem; }
+    }
+
+    /* Keep the product showcase readable inside the existing compact hero. */
+    .site-top-banner-visual {
+        width: 52%;
+        right: 1.2rem;
+    }
+
+    .site-top-banner-product-carousel {
+        display: flex;
+        flex-direction: column;
+        width: min(100%, 620px);
+        height: 100%;
+        min-height: 0;
+        border-radius: 16px;
+        background: linear-gradient(145deg, rgba(7, 28, 76, 0.92), rgba(22, 73, 154, 0.84));
+        border: 2px solid rgba(255,255,255,0.68);
+        box-shadow: 0 14px 28px rgba(18, 64, 145, 0.22), inset 0 0 0 3px rgba(255,255,255,0.08);
+    }
+
+    .site-top-banner-product-track {
+        flex: 1 1 auto;
+        min-height: 0;
+        height: auto;
+    }
+
+    .site-top-banner-product-slide {
+        inset: 0;
+        height: 100%;
+        padding: 0.45rem;
+        box-sizing: border-box;
+    }
+
+    .site-top-banner-product-slide a {
+        min-height: 0;
+        height: 100%;
+        border-radius: 11px;
+        overflow: hidden;
+        box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.1);
+    }
+
+    .site-top-banner-product-image {
+        width: 56%;
+        min-width: 0;
+        height: 100%;
+        min-height: 0;
+        background: linear-gradient(135deg, #f8fbff, #dcecff);
+        border: 0;
+    }
+
+    .site-top-banner-product-image img {
+        width: 100%;
+        height: 100%;
+        padding: 0.45rem;
+        object-fit: contain;
+        background: transparent;
+    }
+
+    .site-top-banner-product-copy {
+        width: 44%;
+        min-width: 0;
+        padding: 0.72rem 0.8rem 0.6rem;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+    }
+
+    .site-top-banner-product-copy h3 {
+        font-size: clamp(0.62rem, 0.9vw, 0.86rem);
+    }
+
+    .site-top-banner-product-meta {
+        flex-wrap: wrap;
+        margin-top: 0.35rem;
+        align-items: flex-start;
+    }
+
+    .site-top-banner-product-controls {
+        position: relative;
+        z-index: 6;
+        flex: 0 0 38px;
+        min-height: 38px;
+        padding: 0.35rem 0.55rem;
+        background: rgba(3, 16, 48, 0.82);
+        border-top: 1px solid rgba(255,255,255,0.2);
+    }
+
+    .site-top-banner-product-controls button {
+        width: 28px;
+        height: 28px;
+        color: #f8fbff;
+        background: rgba(255,255,255,0.16);
+        border: 1px solid rgba(255,255,255,0.28);
+    }
+
+    @media (max-width: 1199px) {
+        .site-top-banner-visual {
+            width: 54%;
+            right: 0.8rem;
+        }
+
+        .site-top-banner-product-carousel {
+            width: 100%;
+        }
+    }
+
+    @media (max-width: 600px) {
+        .site-top-banner-visual {
+            width: 54%;
+            right: 0.2rem;
+        }
+
+        .site-top-banner-product-carousel {
+            border-radius: 12px;
+        }
+
+        .site-top-banner-product-image {
+            width: 52%;
+        }
+
+        .site-top-banner-product-copy {
+            width: 48%;
+            padding: 0.55rem 0.55rem 0.45rem;
+        }
+
+        .site-top-banner-product-copy h3 {
+            font-size: clamp(0.58rem, 2.2vw, 0.72rem);
+            min-height: 2.6em;
+        }
+
+        .site-top-banner-product-meta {
+            display: block;
+            font-size: 0.5rem;
+            line-height: 1.3;
+        }
+
+        .site-top-banner-product-meta strong {
+            display: block;
+            font-size: 0.56rem;
+            margin-top: 0.12rem;
+        }
+
+        .site-top-banner-product-button {
+            margin-top: 0.35rem;
+            padding: 0.34rem 0.4rem;
+            font-size: 0.52rem;
+        }
+
+        .site-top-banner-product-controls {
+            position: relative;
+            z-index: 6;
+            flex-basis: 34px;
+            min-height: 34px;
+            padding: 0.25rem 0.4rem;
+        }
+
+        .site-top-banner-product-controls button {
+            width: 25px;
+            height: 25px;
+            font-size: 0.95rem;
+        }
+    }
+
+    @media (min-width: 1200px) {
+        .site-top-banner-product-carousel {
+            border: 0;
+            box-shadow: none;
+        }
+
+        .site-top-banner-product-slide a {
+            box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.22), inset 0 -8px 16px rgba(15, 23, 42, 0.08);
+        }
+
+        .site-top-banner-product-image {
+            box-shadow: inset -10px 0 18px rgba(30, 64, 175, 0.08), inset 0 0 0 1px rgba(255, 255, 255, 0.45);
+        }
+
+        .site-top-banner-product-badge {
+            box-shadow: 0 2px 6px rgba(30, 64, 175, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.6);
+        }
+
+        .site-top-banner-product-button {
+            box-shadow: 0 5px 10px rgba(37, 99, 235, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+        }
+
+        .site-top-banner-product-copy { overflow: visible; }
+    }
+
+    @media (min-width: 601px) and (max-width: 1199px) {
+        .site-top-banner-product-carousel {
+            border-color: rgba(255, 255, 255, 0.76);
+            box-shadow: 0 12px 24px rgba(6, 32, 82, 0.2), 0 2px 6px rgba(6, 32, 82, 0.12), inset 0 0 0 2px rgba(255, 255, 255, 0.06);
+        }
+
+        .site-top-banner-product-slide a {
+            box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18), inset 0 -6px 12px rgba(15, 23, 42, 0.06);
+        }
+
+        .site-top-banner-product-image {
+            box-shadow: inset -8px 0 14px rgba(30, 64, 175, 0.06), inset 0 0 0 1px rgba(255, 255, 255, 0.34);
+        }
+
+        .site-top-banner-product-badge {
+            box-shadow: 0 2px 5px rgba(30, 64, 175, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.5);
+        }
+
+        .site-top-banner-product-button {
+            box-shadow: 0 4px 8px rgba(37, 99, 235, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.16);
+        }
+    }
+
+    @media (max-width: 600px) {
+        .site-top-banner-product-carousel {
+            border-color: rgba(255, 255, 255, 0.72);
+            box-shadow: 0 8px 16px rgba(6, 32, 82, 0.16), inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+        }
+
+        .site-top-banner-product-slide a {
+            box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
+        }
+
+        .site-top-banner-product-image {
+            box-shadow: inset -5px 0 9px rgba(30, 64, 175, 0.05);
+        }
+
+        .site-top-banner-product-badge,
+        .site-top-banner-product-button {
+            box-shadow: 0 2px 4px rgba(30, 64, 175, 0.1);
+        }
+    }
+
+    @media (max-width: 450px) {
+        .site-top-banner,
+        .site-top-banner-inner {
+            min-height: 128px;
+        }
+
+        .site-top-banner-inner {
+            padding: 0.3rem 0.55rem;
+        }
+
+        .site-top-banner-actions {
+            width: 100%;
+            flex-direction: row;
+            align-items: center;
+            gap: 0.3rem;
+        }
+
+        .site-top-banner-price,
+        .site-top-banner-button {
+            width: auto;
+            min-width: 0;
+            flex: 1 1 0;
+        }
+
+        .site-top-banner-price {
+            padding: 0.25rem 0.35rem;
+        }
+
+        .site-top-banner-button {
+            min-height: 14px;
+            padding: 0.15rem 0.175rem;
+        }
+
+        .site-top-banner-product-track,
+        .site-top-banner-product-slide {
+            overflow: hidden;
+        }
+
+        .site-top-banner-product-slide {
+            transition: opacity 0.35s ease, transform 0.35s ease, visibility 0s linear;
+        }
+
+        .site-top-banner-product-copy {
+            position: relative;
+            box-sizing: border-box;
+        }
+
+        .site-top-banner-product-button {
+            position: absolute;
+            left: 0.55rem;
+            right: 0.55rem;
+            bottom: 0.45rem;
+            width: auto;
+            margin-top: 0;
+            box-sizing: border-box;
+        }
+    }
+
+    .site-top-banner-expand-toggle {
+        min-height: 44px;
+        padding: 0.65rem 1rem;
+        border: 1px solid rgba(255,255,255,0.55);
+        border-radius: 999px;
+        background: rgba(15, 23, 42, 0.72);
+        color: #fff;
+        font-weight: 800;
+        cursor: pointer;
+        transition: background 0.2s ease, transform 0.2s ease;
+    }
+
+    .site-top-banner-expand-toggle:hover {
+        background: rgba(15, 23, 42, 0.9);
+        transform: translateY(-1px);
+    }
+
+    .site-top-banner.is-expandable .site-top-banner-inner {
+        transition: min-height 0.3s ease;
+    }
+
+    @media (min-width: 768px) {
+        .site-top-banner.is-expandable .site-top-banner-inner {
+            min-height: {{ banner_normal_height|default:150 }}px;
+        }
+
+        .site-top-banner.is-expandable.is-expanded .site-top-banner-inner {
+            min-height: {{ banner_expanded_height|default:220 }}px;
+        }
+    }
+
+    @media (max-width: 767px) {
+        .site-top-banner.is-expandable.is-expanded .site-top-banner-inner {
+            min-height: max(160px, 55vw);
+        }
+    }
+</style>
+<div class="site-top-banner{% if banner_expand_enabled %} is-expandable{% endif %}" aria-label="Promotion du site">
+    <div class="site-top-banner-inner">
+        <div class="site-top-banner-visual">
+            {% with media=site_banner.get_media_items %}
+                {% if media %}
+                    <div class="site-top-banner-media" data-banner-media data-mode="{{ site_banner.display_mode }}" data-autoplay="{{ site_banner.autoplay_seconds }}">
+                        <div class="site-top-banner-window">
+                            <div class="site-top-banner-surface"></div>
+                            {% with sources=site_banner.get_image_sources %}<picture class="site-top-banner-picture">
+                                {% if sources.avif %}<source type="image/avif" srcset="{{ sources.avif }}" sizes="{{ sources.sizes }}">{% endif %}
+                                {% if sources.webp %}<source type="image/webp" srcset="{{ sources.webp }}" sizes="{{ sources.sizes }}">{% endif %}
+                                <img src="{{ sources.fallback|default:media.0 }}" {% if sources.webp %}srcset="{{ sources.webp }}" sizes="{{ sources.sizes }}"{% endif %} alt="{{ site_banner.product.name }}" fetchpriority="high" decoding="async">
+                            </picture>{% endwith %}
+                        </div>
+                        {% if site_banner.display_mode == 'carousel' and media|length > 1 %}
+                            <div class="site-top-banner-nav">
+                                <button type="button" data-banner-prev aria-label="Image précédente">&#8249;</button>
+                                <button type="button" data-banner-next aria-label="Image suivante">&#8250;</button>
+                            </div>
+                            <div class="site-top-banner-dots" role="tablist">
+                                {% for item in media %}<button type="button" data-banner-dot="{{ forloop.counter0 }}" aria-label="Image {{ forloop.counter }}" aria-current="{% if forloop.first %}true{% else %}false{% endif %}"></button>{% endfor %}
+                            </div>
+                            {{ media|json_script:'banner-media-data' }}
+                        {% endif %}
+                    </div>
+                {% endif %}
+            {% endwith %}
+            {% if banner_carousel_products %}
+                <div class="site-top-banner-product-carousel" data-site-product-carousel>
+                    {{ banner_rotation_schedule|json_script:'banner-product-schedule' }}
+                    <div class="site-top-banner-product-track">
+                        {% for product in banner_carousel_products %}
+                            <article class="site-top-banner-product-slide {% if forloop.first %}active{% endif %}" data-product-id="{{ product.id }}" data-slide-index="{{ forloop.counter0 }}" data-product-weight="{{ product.banner_weight|default:1 }}" data-product-group="{{ product.priority_group_id|default:0 }}">
+                                <a href="{% url 'product_detail' product.id %}">
+                                    <div class="site-top-banner-product-image">
+                                        {% if product.get_primary_image %}
+                                            <img src="{{ product.get_primary_image }}" alt="{{ product.name }}" loading="lazy" decoding="async">
+                                        {% elif product.image %}
+                                            <img src="{{ product.image }}" alt="{{ product.name }}" loading="lazy" decoding="async">
+                                        {% else %}
+                                            <span>{{ product.name|truncatewords:2 }}</span>
+                                        {% endif %}
+                                    </div>
+                                    <div class="site-top-banner-product-copy">
+                                        <span class="site-top-banner-product-badge">Produit</span>
+                                        <h3>{{ product.name|truncatechars:42 }}</h3>
+                                        <div class="site-top-banner-product-meta">
+                                            <span>{{ product.shop.name|truncatechars:18 }}</span>
+                                            <strong>{{ product.price_ht }} USD</strong>
+                                        </div>
+                                        <span class="site-top-banner-product-button">Voir le produit</span>
+                                    </div>
+                                </a>
+                            </article>
+                        {% endfor %}
+                    </div>
+                    <div class="site-top-banner-product-controls">
+                        <button type="button" data-site-product-prev aria-label="Produit précédent">&#8249;</button>
+                        <button type="button" data-site-product-next aria-label="Produit suivant">&#8250;</button>
+                    </div>
+                </div>
+            {% endif %}
+        </div>
+        <div class="site-top-banner-copy">
+            <span class="site-top-banner-kicker">✦ Offre en vedette</span>
+            <div class="site-top-banner-title">{{ site_banner.title }}</div>
+            <p class="site-top-banner-subtitle">{{ site_banner.subtitle|default:site_banner.product.name }}</p>
+            <div class="site-top-banner-actions">
+                <div class="site-top-banner-price">{{ site_banner.product.price_ht }} USD</div>
+                {% if site_banner_access_granted %}<a class="site-top-banner-button" href="{% url 'site_banner_click' site_banner.id %}">{{ site_banner.button_text }} &nbsp;›</a>{% elif site_banner.access_mode == 'paid' %}<form method="post" action="{% url 'site_banner_purchase' site_banner.id %}">{% csrf_token %}<button class="site-top-banner-button" type="submit">Accéder · {{ site_banner.access_price }} USD</button></form>{% endif %}
+                {% if banner_expand_enabled %}<button type="button" class="site-top-banner-expand-toggle" data-banner-expand-toggle aria-pressed="false">⭐ Agrandir</button>{% endif %}
+            </div>
+            <div class="site-top-banner-features" aria-label="Caractéristiques du produit">
+                <span class="site-top-banner-feature"><span class="site-top-banner-feature-icon">▣</span>Qualité vérifiée</span>
+                <span class="site-top-banner-feature"><span class="site-top-banner-feature-icon">◈</span>Produit réel</span>
+                <span class="site-top-banner-feature"><span class="site-top-banner-feature-icon">▥</span>Stock disponible</span>
+            </div>
+        </div>
+        <div class="site-top-banner-commercial" aria-label="Argument commercial">QUALITÉ<br><strong>GARANTIE</strong><small>Offre limitée</small></div>
+    </div>
+</div>
+{% if site_banner.display_mode == 'carousel' %}
+<script>
+(() => {
+    const media = document.querySelector('[data-banner-media]');
+    const data = document.getElementById('banner-media-data');
+    if (!media || !data) return;
+    const sources = JSON.parse(data.textContent);
+    if (sources.length < 2) return;
+    const image = media.querySelector('img');
+    const dots = [...media.querySelectorAll('[data-banner-dot]')];
+    let index = 0;
+    let timer = null;
+    const show = next => { index = (next + sources.length) % sources.length; image.src = sources[index]; dots.forEach((dot, i) => dot.setAttribute('aria-current', String(i === index))); };
+    const stop = () => { if (timer) { clearInterval(timer); timer = null; } };
+    const start = () => { stop(); const seconds = Number(media.dataset.autoplay); if (seconds > 0) timer = setInterval(() => show(index + 1), seconds * 1000); };
+    media.querySelector('[data-banner-prev]').addEventListener('click', () => { show(index - 1); start(); });
+    media.querySelector('[data-banner-next]').addEventListener('click', () => { show(index + 1); start(); });
+    dots.forEach(dot => dot.addEventListener('click', () => { show(Number(dot.dataset.bannerDot)); start(); }));
+    media.addEventListener('mouseenter', stop); media.addEventListener('mouseleave', start);
+    media.addEventListener('focusin', stop); media.addEventListener('focusout', start);
+    if ('IntersectionObserver' in window) new IntersectionObserver(entries => entries[0].isIntersecting ? start() : stop()).observe(media); else start();
+})();
+</script>
+{% endif %}
+<script>
+(() => {
+    const carousel = document.querySelector('[data-site-product-carousel]');
+    if (!carousel) return;
+    const slides = [...carousel.querySelectorAll('.site-top-banner-product-slide')];
+    const prevBtn = carousel.querySelector('[data-site-product-prev]');
+    const nextBtn = carousel.querySelector('[data-site-product-next]');
+    if (!slides.length) return;
+
+    let currentIndex = 0;
+    const scheduleData = document.getElementById('banner-product-schedule');
+    const schedule = scheduleData ? JSON.parse(scheduleData.textContent) : [];
+    let scheduleIndex = 0;
+    let autoRotate = null;
+    const groupOf = slide => slide.dataset.productGroup || '0';
+    const weightOf = slide => Math.max(1, Number(slide.dataset.productWeight) || 1);
+    const credits = slides.map(() => 0);
+    let lastGroup = null;
+
+    const nextWeightedIndex = direction => {
+        if (schedule.length) {
+            scheduleIndex = (scheduleIndex + direction + schedule.length) % schedule.length;
+            return schedule[scheduleIndex];
+        }
+        const available = slides.map((slide, index) => ({slide, index}));
+        available.forEach(({index}) => { credits[index] += weightOf(slides[index]); });
+        const candidates = available.filter(({slide}) => available.length === 1 || groupOf(slide) !== lastGroup);
+        const selected = (candidates.length ? candidates : available).reduce((best, item) => {
+            if (!best || credits[item.index] > credits[best.index]) return item;
+            return best;
+        }, null);
+        credits[selected.index] -= slides.reduce((sum, slide) => sum + weightOf(slide), 0);
+        lastGroup = groupOf(selected.slide);
+        return direction > 0 ? selected.index : (selected.index + slides.length - 1) % slides.length;
+    };
+
+    const show = (nextIndex) => {
+        currentIndex = (nextIndex + slides.length) % slides.length;
+        slides.forEach((slide, index) => slide.classList.toggle('active', index === currentIndex));
+    };
+
+    const startAutoRotate = () => {
+        stopAutoRotate();
+        const seconds = Number(5);
+        const autoplayEnabled = {{ site_banner.autoplay_enabled|yesno:'true,false' }};
+        if (autoplayEnabled && seconds > 0) {
+            autoRotate = setInterval(() => {
+                show(nextWeightedIndex(1));
+            }, seconds * 1000);
+        }
+    };
+
+    const stopAutoRotate = () => {
+        if (autoRotate) {
+            clearInterval(autoRotate);
+            autoRotate = null;
+        }
+    };
+
+    prevBtn?.addEventListener('click', () => {
+        show(nextWeightedIndex(-1));
+        startAutoRotate();
+    });
+
+    nextBtn?.addEventListener('click', () => {
+        show(nextWeightedIndex(1));
+        startAutoRotate();
+    });
+
+    carousel.addEventListener('mouseenter', stopAutoRotate);
+    carousel.addEventListener('mouseleave', startAutoRotate);
+    carousel.addEventListener('focusin', stopAutoRotate);
+    carousel.addEventListener('focusout', startAutoRotate);
+
+    startAutoRotate();
+})();
+</script>
+<script>
+(() => {
+    const banner = document.querySelector('.site-top-banner');
+    if (!banner || !('IntersectionObserver' in window)) return;
+    let sent = false;
+    new IntersectionObserver(entries => {
+        if (!sent && entries[0].isIntersecting) {
+            sent = true;
+            fetch('{% url "site_banner_impression" site_banner.id %}', {method: 'POST', headers: {'X-CSRFToken': '{{ csrf_token }}', 'X-Requested-With': 'XMLHttpRequest'}}).catch(() => {});
+        }
+    }, {threshold: 0.5}).observe(banner);
+})();
+</script>
+{% endif %}
+{% if banner_expand_enabled %}
+<script>
+(() => {
+    const banner = document.querySelector('.site-top-banner.is-expandable');
+    const toggle = banner?.querySelector('[data-banner-expand-toggle]');
+    if (!banner || !toggle) return;
+    toggle.addEventListener('click', () => {
+        const expanded = banner.classList.toggle('is-expanded');
+        toggle.setAttribute('aria-pressed', String(expanded));
+        toggle.textContent = expanded ? '⭐ Réduire' : '⭐ Agrandir';
+    });
+})();
+</script>
+{% endif %}

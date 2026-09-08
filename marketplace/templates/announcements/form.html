@@ -1,0 +1,428 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}
+    {% if announcement %}
+        Modifier Annonce - {{ announcement.title }}
+    {% else %}
+        Créer une Annonce Administrateur
+    {% endif %}
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .form-container {
+        background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+        padding: 30px;
+        border-radius: 15px;
+        box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+        margin-top: 20px;
+    }
+
+    .form-section {
+        margin-bottom: 30px;
+        padding-bottom: 20px;
+        border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+    }
+
+    .form-section:last-child {
+        border-bottom: none;
+    }
+
+    .form-section h4 {
+        color: #1a3a52;
+        margin-bottom: 15px;
+        font-weight: bold;
+    }
+
+    .form-group {
+        margin-bottom: 20px;
+    }
+
+    .form-group label {
+        font-weight: 600;
+        color: #333;
+        margin-bottom: 8px;
+    }
+
+    .form-group .form-control,
+    .form-group .form-select {
+        border: 2px solid #e0e0e0;
+        border-radius: 8px;
+        padding: 10px 15px;
+        font-size: 14px;
+        transition: all 0.3s ease;
+    }
+
+    .form-group .form-control:focus,
+    .form-group .form-select:focus {
+        border-color: #667eea;
+        box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
+    }
+
+    .form-group textarea {
+        resize: vertical;
+        min-height: 100px;
+    }
+
+    .color-picker-group {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 15px;
+    }
+
+    .color-input-wrapper {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .color-input-wrapper input[type="color"] {
+        width: 50px;
+        height: 50px;
+        border: 2px solid #e0e0e0;
+        border-radius: 8px;
+        cursor: pointer;
+    }
+
+    .checkbox-group {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 20px;
+    }
+
+    .form-check {
+        display: flex;
+        align-items: center;
+    }
+
+    .form-check input[type="checkbox"] {
+        width: 20px;
+        height: 20px;
+        cursor: pointer;
+        margin-right: 10px;
+    }
+
+    .form-check label {
+        margin-bottom: 0;
+        cursor: pointer;
+        font-weight: 500;
+    }
+
+    .help-text {
+        font-size: 12px;
+        color: #666;
+        margin-top: 5px;
+        font-style: italic;
+    }
+
+    .form-actions {
+        display: flex;
+        gap: 10px;
+        margin-top: 30px;
+        justify-content: flex-end;
+    }
+
+    .btn-submit {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+        padding: 12px 30px;
+        border-radius: 25px;
+        font-weight: bold;
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+
+    .btn-submit:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 12px rgba(102, 126, 234, 0.4);
+    }
+
+    .btn-cancel {
+        background: #6c757d;
+        color: white;
+        border: none;
+        padding: 12px 30px;
+        border-radius: 25px;
+        text-decoration: none;
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+
+    .btn-cancel:hover {
+        background: #5a6268;
+        color: white;
+    }
+
+    .error-list {
+        color: #dc3545;
+        font-size: 12px;
+        margin-top: 5px;
+        list-style: none;
+        padding: 0;
+    }
+
+    .form-group.has-error .form-control {
+        border-color: #dc3545;
+    }
+
+    .preview-banner {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        padding: 30px;
+        border-radius: 10px;
+        color: white;
+        margin-top: 20px;
+        text-align: center;
+        min-height: 100px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 18px;
+    }
+
+    h1 {
+        color: #1a3a52;
+        margin-bottom: 30px;
+        text-align: center;
+    }
+
+    @media (max-width: 768px) {
+        .form-container {
+            padding: 20px;
+        }
+
+        .color-picker-group {
+            grid-template-columns: 1fr;
+        }
+
+        .form-actions {
+            flex-direction: column-reverse;
+        }
+
+        .btn-submit, .btn-cancel {
+            width: 100%;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <h1>
+        {% if announcement %}
+            ✏️ Modifier Annonce
+        {% else %}
+            📢 Créer une Nouvelle Annonce
+        {% endif %}
+    </h1>
+
+    <div class="form-container">
+        <form method="post" class="announcement-form">
+            {% csrf_token %}
+
+            <!-- SECTION: CONTENU -->
+            <div class="form-section">
+                <h4>📝 Contenu de l'Annonce</h4>
+
+                <div class="form-group">
+                    <label for="id_title">Titre *</label>
+                    {{ form.title }}
+                    {% if form.title.errors %}
+                    <ul class="error-list">
+                        {% for error in form.title.errors %}
+                        <li>{{ error }}</li>
+                        {% endfor %}
+                    </ul>
+                    {% endif %}
+                    <div class="help-text">Le titre de l'annonce visible par les utilisateurs</div>
+                </div>
+
+                <div class="form-group">
+                    <label for="id_message">Message *</label>
+                    {{ form.message }}
+                    {% if form.message.errors %}
+                    <ul class="error-list">
+                        {% for error in form.message.errors %}
+                        <li>{{ error }}</li>
+                        {% endfor %}
+                    </ul>
+                    {% endif %}
+                    <div class="help-text">Le texte complet de l'annonce</div>
+                </div>
+
+                <div class="form-group">
+                    <label for="id_icon">Emoji/Icône</label>
+                    {{ form.icon }}
+                    {% if form.icon.errors %}
+                    <ul class="error-list">
+                        {% for error in form.icon.errors %}
+                        <li>{{ error }}</li>
+                        {% endfor %}
+                    </ul>
+                    {% endif %}
+                    <div class="help-text">L'emoji à afficher (ex: 📢, ⭐, 🎉)</div>
+                </div>
+            </div>
+
+            <!-- SECTION: STATUT ET PRIORITÉ -->
+            <div class="form-section">
+                <h4>🎯 Statut et Priorité</h4>
+
+                <div class="form-group">
+                    <label for="id_status">Statut *</label>
+                    {{ form.status }}
+                    {% if form.status.errors %}
+                    <ul class="error-list">
+                        {% for error in form.status.errors %}
+                        <li>{{ error }}</li>
+                        {% endfor %}
+                    </ul>
+                    {% endif %}
+                </div>
+
+                <div class="checkbox-group">
+                    <div class="form-check">
+                        {{ form.is_active }}
+                        <label class="form-check-label" for="id_is_active">
+                            Activée
+                        </label>
+                    </div>
+
+                    <div class="form-check">
+                        {{ form.is_priority }}
+                        <label class="form-check-label" for="id_is_priority">
+                            Prioritaire (affichée en premier)
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SECTION: PLANIFICATION -->
+            <div class="form-section">
+                <h4>📅 Planification</h4>
+
+                <div class="form-group">
+                    <label for="id_start_date">Date de début</label>
+                    {{ form.start_date }}
+                    {% if form.start_date.errors %}
+                    <ul class="error-list">
+                        {% for error in form.start_date.errors %}
+                        <li>{{ error }}</li>
+                        {% endfor %}
+                    </ul>
+                    {% endif %}
+                    <div class="help-text">Laissez vide pour une activation immédiate</div>
+                </div>
+
+                <div class="form-group">
+                    <label for="id_end_date">Date de fin</label>
+                    {{ form.end_date }}
+                    {% if form.end_date.errors %}
+                    <ul class="error-list">
+                        {% for error in form.end_date.errors %}
+                        <li>{{ error }}</li>
+                        {% endfor %}
+                    </ul>
+                    {% endif %}
+                    <div class="help-text">Laissez vide pour pas de date d'expiration</div>
+                </div>
+            </div>
+
+            <!-- SECTION: DESIGN ET COULEURS -->
+            <div class="form-section">
+                <h4>🎨 Design et Couleurs</h4>
+
+                <div class="color-picker-group">
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label for="id_background_color">Couleur de fond</label>
+                        <div class="color-input-wrapper">
+                            {{ form.background_color }}
+                            <span id="bg-color-text">#1a3a52</span>
+                        </div>
+                    </div>
+
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label for="id_text_color">Couleur du texte</label>
+                        <div class="color-input-wrapper">
+                            {{ form.text_color }}
+                            <span id="text-color-text">#ffffff</span>
+                        </div>
+                    </div>
+
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label for="id_accent_color">Couleur d'accent</label>
+                        <div class="color-input-wrapper">
+                            {{ form.accent_color }}
+                            <span id="accent-color-text">#00bcd4</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SECTION: ANIMATION -->
+            <div class="form-section">
+                <h4>✨ Animation et Effets</h4>
+
+                <div class="form-group">
+                    <label for="id_scroll_speed">Vitesse de défilement</label>
+                    {{ form.scroll_speed }}
+                    {% if form.scroll_speed.errors %}
+                    <ul class="error-list">
+                        {% for error in form.scroll_speed.errors %}
+                        <li>{{ error }}</li>
+                        {% endfor %}
+                    </ul>
+                    {% endif %}
+                </div>
+
+                <div class="form-group">
+                    <label for="id_animation_effect">Effet d'animation</label>
+                    {{ form.animation_effect }}
+                    {% if form.animation_effect.errors %}
+                    <ul class="error-list">
+                        {% for error in form.animation_effect.errors %}
+                        <li>{{ error }}</li>
+                        {% endfor %}
+                    </ul>
+                    {% endif %}
+                </div>
+
+                <div class="form-check">
+                    {{ form.enable_loop }}
+                    <label class="form-check-label" for="id_enable_loop">
+                        Activer la boucle d'animation (redémarrer après la fin)
+                    </label>
+                </div>
+            </div>
+
+            <!-- ACTIONS -->
+            <div class="form-actions">
+                <a href="{% url 'announcements_list' %}" class="btn btn-cancel">
+                    ← Annuler
+                </a>
+                <button type="submit" class="btn btn-submit">
+                    {% if announcement %}
+                        💾 Mettre à jour
+                    {% else %}
+                        ➕ Créer l'Annonce
+                    {% endif %}
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    // Mise à jour des valeurs de couleur affichées
+    document.getElementById('id_background_color').addEventListener('change', function() {
+        document.getElementById('bg-color-text').textContent = this.value;
+    });
+    document.getElementById('id_text_color').addEventListener('change', function() {
+        document.getElementById('text-color-text').textContent = this.value;
+    });
+    document.getElementById('id_accent_color').addEventListener('change', function() {
+        document.getElementById('accent-color-text').textContent = this.value;
+    });
+</script>
+{% endblock %}

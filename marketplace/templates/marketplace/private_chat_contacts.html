@@ -1,0 +1,52 @@
+{% extends 'marketplace/base.html' %}
+
+{% block content %}
+<div class="section">
+    <div class="section-header">
+        <h2>Messagerie privée</h2>
+        <p>Choisissez un contact et commencez une conversation privée.</p>
+    </div>
+
+    <div class="section" style="padding-top: 0;">
+        {% if contacts %}
+            <ul class="private-contact-list">
+                {% for contact in contacts %}
+                    <li>
+                        <a href="{% url 'private_chat' contact.user.id %}" class="contact-card">
+                            <div class="contact-avatar">
+                                {% if contact.user.profile.photo %}
+                                    <img src="{{ contact.user.profile.photo.url }}" alt="{{ contact.user.get_full_name|default:contact.user.username }}" />
+                                {% else %}
+                                    <span>{{ contact.user.get_full_name|default:contact.user.username|slice:":1" }}</span>
+                                {% endif %}
+                            </div>
+                            <div class="contact-body">
+                                <div class="contact-top">
+                                    <span class="contact-name">{{ contact.user.get_full_name|default:contact.user.username }}</span>
+                                    {% if contact.last_message %}
+                                        <span class="contact-time">{{ contact.last_message.created_at|date:'H:i' }}</span>
+                                    {% endif %}
+                                </div>
+                                <p class="contact-snippet">
+                                    {% if contact.last_message %}
+                                        {{ contact.last_message.content|default:'Message partagé'|truncatechars:40 }}
+                                    {% else %}
+                                        Démarrez la conversation
+                                    {% endif %}
+                                </p>
+                            </div>
+                            {% if contact.unread_count > 0 %}
+                                <span class="contact-unread">{{ contact.unread_count }}</span>
+                            {% endif %}
+                        </a>
+                    </li>
+                {% endfor %}
+            </ul>
+        {% else %}
+            <div class="card">
+                <p>Aucun utilisateur trouvé pour le moment.</p>
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

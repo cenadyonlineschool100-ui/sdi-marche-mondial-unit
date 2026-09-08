@@ -1,0 +1,60 @@
+{% extends 'marketplace/base.html' %}
+
+{% block content %}
+<style>
+  .gp-dashboard { max-width: 1400px; margin: 32px auto 48px; padding: 0 16px; color: #0f172a; }
+  .gp-header, .gp-section-header, .gp-card-row { display: flex; gap: 16px; }
+  .gp-header { justify-content: space-between; align-items: flex-start; margin-bottom: 24px; flex-wrap: wrap; }
+  .gp-header-title { flex: 1; min-width: 260px; }
+  .gp-header h1 { margin: 0; color: #0c1d45; font-size: clamp(1.8rem, 4vw, 2.6rem); }
+  .gp-header p, .gp-section-subtitle, .gp-help { color: #64748b; }
+  .gp-header p { margin: 8px 0 0; }
+  .gp-btn { border: 0; border-radius: 8px; padding: 10px 16px; cursor: pointer; font-weight: 600; text-decoration: none; display: inline-flex; align-items: center; justify-content: center; gap: 6px; background: #e2e8f0; color: #0f172a; }
+  .gp-btn.primary { background: #1d4ed8; color: #fff; }
+  .gp-btn.danger { background: #dc2626; color: #fff; }
+  .gp-section { margin-bottom: 24px; padding: 20px; border: 1px solid #dbeafe; border-radius: 12px; background: #fff; }
+  .gp-section-header { align-items: flex-start; margin-bottom: 18px; }
+  .gp-section-icon { font-size: 1.6rem; }
+  .gp-section-title { margin: 0; color: #0c1d45; }
+  .gp-section-subtitle { margin: 6px 0 0; }
+  .gp-form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+  .gp-form-group { display: flex; flex-direction: column; gap: 5px; }
+  .gp-form-group input, .gp-form-group select { width: 100%; min-width: 0; box-sizing: border-box; padding: 9px; border: 1px solid #cbd5e1; border-radius: 6px; }
+  .gp-help { font-size: .8rem; }
+  .gp-info { margin: 16px 0; padding: 14px; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; }
+  .gp-info p { margin: 6px 0; }
+  .gp-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+  .gp-card { min-width: 0; overflow: hidden; border: 1px solid #e2e8f0; border-radius: 10px; background: #fff; box-shadow: 0 2px 8px rgba(15, 23, 42, .06); }
+  .gp-card-body { padding: 16px; }
+  .gp-card-row { align-items: center; justify-content: space-between; }
+  .gp-card-title { margin: 0; color: #0c1d45; font-size: 1rem; }
+  .gp-stat-row { display: flex; justify-content: space-around; gap: 12px; margin: 14px 0; text-align: center; }
+  .gp-stat-value { font-size: 1.3rem; font-weight: 700; color: #1d4ed8; }
+  .gp-stat-label { font-size: .75rem; color: #64748b; }
+  .gp-tag { padding: 4px 8px; border-radius: 999px; font-size: .75rem; white-space: nowrap; }
+  .gp-tag.active { background: #dcfce7; color: #166534; }
+  .gp-tag.inactive { background: #f1f5f9; color: #475569; }
+  .gp-tag.scheduled { background: #fef3c7; color: #92400e; }
+  .gp-tag.expired { background: #fee2e2; color: #991b1b; }
+  .gp-empty { padding: 28px; text-align: center; color: #64748b; }
+  .gp-rules { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+  .gp-rule { padding: 14px; border-radius: 8px; background: #f8fafc; border: 1px solid #e2e8f0; }
+  @media (max-width: 600px) { .gp-dashboard { margin-top: 20px; padding: 0 10px; } .gp-section { padding: 14px; } .gp-header .gp-btn { width: 100%; } .gp-grid { grid-template-columns: 1fr; } }
+</style>
+
+<div class="gp-dashboard">
+  {% if messages %}{% for message in messages %}<div class="gp-info">{{ message }}</div>{% endfor %}{% endif %}
+  <header class="gp-header"><div class="gp-header-title"><h1>⭐ GP — Gestion des Priorités</h1><p>Configurez les groupes, cartes, priorités, poids et périodes de diffusion.</p></div><a href="{% url 'dashboard' %}" class="gp-btn primary">← Retour</a></header>
+
+  <section class="gp-section" id="groupes">
+    <div class="gp-section-header"><span class="gp-section-icon">🎯</span><div><h2 class="gp-section-title">Groupes de Priorité</h2><p class="gp-section-subtitle">Organisez les cartes par importance et fréquence de diffusion.</p></div></div>
+    <form method="post" class="gp-info">{% csrf_token %}<input type="hidden" name="group_action" value="1"><div class="gp-form-grid"><label class="gp-form-group">Nom du groupe<input type="text" name="name" required></label><label class="gp-form-group">Priorité<input type="number" name="priority" min="1" value="100" required><span class="gp-help">Plus bas = plus prioritaire.</span></label><label class="gp-form-group">Poids<input type="number" name="weight" min="1" max="100" value="5" required><span class="gp-help">1 faible, 5 moyen, 10 fort.</span></label><label class="gp-form-group">Début<input type="datetime-local" name="start_date"></label><label class="gp-form-group">Fin<input type="datetime-local" name="end_date"></label><label><input type="checkbox" name="is_active" value="1" checked> Actif</label></div><button type="submit" class="gp-btn primary" style="margin-top:12px">➕ Créer</button></form>
+    <div class="gp-info"><strong>États :</strong> 🟢 Actif · 🟡 Programmé · ⚪ Désactivé · 🔴 Expiré</div>
+    {% if priority_groups %}<div class="gp-grid">{% for group in priority_groups %}<article class="gp-card"><div class="gp-card-body"><div class="gp-card-row"><h3 class="gp-card-title">{{ group.name }}</h3>{% if group.is_expired %}<span class="gp-tag expired">🔴 Expiré</span>{% elif group.is_scheduled_active %}<span class="gp-tag active">🟢 Actif</span>{% elif not group.is_active %}<span class="gp-tag inactive">⚪ Désactivé</span>{% else %}<span class="gp-tag scheduled">🟡 Programmé</span>{% endif %}</div><div class="gp-stat-row"><div><div class="gp-stat-value">{{ group.priority }}</div><div class="gp-stat-label">Priorité</div></div><div><div class="gp-stat-value">{{ group.weight }}</div><div class="gp-stat-label">Poids</div></div><div><div class="gp-stat-value">{{ group.products.count }}</div><div class="gp-stat-label">Cartes</div></div></div><form method="post">{% csrf_token %}<input type="hidden" name="group_action" value="1"><input type="hidden" name="group_id" value="{{ group.id }}"><div class="gp-form-grid"><label class="gp-form-group">Nom<input name="name" value="{{ group.name }}"></label><label class="gp-form-group">Priorité<input type="number" name="priority" min="1" value="{{ group.priority }}"></label><label class="gp-form-group">Poids<input type="number" name="weight" min="1" max="100" value="{{ group.weight }}"></label><label class="gp-form-group">Début<input type="datetime-local" name="start_date" value="{% if group.start_date %}{{ group.start_date|date:'Y-m-d\TH:i' }}{% endif %}"></label><label class="gp-form-group">Fin<input type="datetime-local" name="end_date" value="{% if group.end_date %}{{ group.end_date|date:'Y-m-d\TH:i' }}{% endif %}"></label><label><input type="checkbox" name="is_active" value="1" {% if group.is_active %}checked{% endif %}> Actif</label></div><button type="submit" class="gp-btn primary" style="margin-top:10px;width:100%">✏️ Modifier</button></form><form method="post" style="margin-top:8px">{% csrf_token %}<input type="hidden" name="group_action" value="delete"><input type="hidden" name="group_id" value="{{ group.id }}"><button type="submit" class="gp-btn danger" style="width:100%" onclick="return confirm('Supprimer ce groupe ?')">🗑️ Supprimer</button></form></div></article>{% endfor %}</div>{% else %}<div class="gp-empty">Aucun groupe configuré.</div>{% endif %}
+  </section>
+
+  <section class="gp-section" id="cartes"><div class="gp-section-header"><span class="gp-section-icon">🃏</span><div><h2 class="gp-section-title">Gestion des cartes</h2><p class="gp-section-subtitle">Affectez chaque carte à un groupe, ou choisissez Aucun.</p></div></div>{% if banner_products %}<div class="gp-grid">{% for product in banner_products %}<article class="gp-card"><div class="gp-card-body"><div class="gp-card-row"><h3 class="gp-card-title">{{ product.name|truncatewords:5 }}</h3><span class="gp-tag {% if product.banner_display_allowed %}active{% else %}inactive{% endif %}">{% if product.banner_display_allowed %}🟢 Actif{% else %}⚪ Désactivé{% endif %}</span></div><p>Groupe : {{ product.priority_group.name|default:'Aucun' }}</p><form method="post">{% csrf_token %}<input type="hidden" name="product_priority_action" value="1"><input type="hidden" name="product_id" value="{{ product.id }}"><div class="gp-form-grid"><label class="gp-form-group">Groupe<select name="priority_group"><option value="">Aucun</option>{% for group in priority_groups %}<option value="{{ group.id }}" {% if product.priority_group_id == group.id %}selected{% endif %}>{{ group.name }}</option>{% endfor %}</select></label><label class="gp-form-group">Priorité<input type="number" name="banner_priority" min="1" value="{{ product.banner_priority }}"></label><label class="gp-form-group">Poids<input type="number" name="banner_weight" min="1" max="100" value="{{ product.banner_weight }}"></label></div><button type="submit" class="gp-btn primary" style="margin-top:10px;width:100%">💾 Enregistrer</button></form><form method="post" action="{% url 'site_banner_product_toggle' product.id %}" style="margin-top:8px">{% csrf_token %}<input type="hidden" name="return_to" value="gp"><button type="submit" class="gp-btn {% if product.banner_display_allowed %}danger{% else %}primary{% endif %}" style="width:100%">{% if product.banner_display_allowed %}🚫 Désactiver{% else %}✅ Activer{% endif %}</button></form></div></article>{% endfor %}</div>{% else %}<div class="gp-empty">Aucune carte disponible.</div>{% endif %}</section>
+
+  <section class="gp-section" id="rotation"><div class="gp-section-header"><span class="gp-section-icon">🔄</span><div><h2 class="gp-section-title">Rotation intelligente</h2><p class="gp-section-subtitle">Ces règles sont celles du moteur public existant.</p></div></div><div class="gp-rules"><div class="gp-rule"><strong>Priorité</strong><br>Le niveau d’importance, plus bas = plus prioritaire.</div><div class="gp-rule"><strong>Poids</strong><br>La fréquence relative : 1 faible, 5 moyenne, 10 forte.</div><div class="gp-rule"><strong>Programmation</strong><br>Les périodes futures, actives et expirées sont respectées.</div><div class="gp-rule"><strong>Éligibilité</strong><br>Les cartes désactivées et groupes inactifs sont exclus.</div></div></section>
+</div>
+{% endblock %}

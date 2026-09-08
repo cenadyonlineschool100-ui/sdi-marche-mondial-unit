@@ -1,0 +1,339 @@
+{% extends 'marketplace/base.html' %}
+{% load static %}
+
+{% block title %}Historique des Commandes{% endblock %}
+
+{% block content %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2><i class="fas fa-history"></i> Historique des Commandes</h2>
+            <p class="text-muted">Commandes terminées (plus de 30 minutes après confirmation de réception)</p>
+        </div>
+        <div>
+            <a href="{% url 'delivery_tracking' %}" class="btn btn-primary">
+                <i class="fas fa-truck"></i> Suivre mes livraisons
+            </a>
+        </div>
+    </div>
+
+    {% for order in history_orders %}
+        <div class="card mb-3">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Commande #{{ order.id }}</h5>
+                <span class="badge
+                    {% if order.status == 'delivered' %}bg-success
+                    {% elif order.status == 'paid' %}bg-info
+                    {% else %}bg-secondary{% endif %}">
+                    {{ order.get_status_display }}
+                </span>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <p class="mb-1"><strong>Montant total:</strong> {{ order.total_amount }} €</p>
+                        <p class="mb-1"><strong>Achat effectué le:</strong> {{ order.date_achat|date:'d/m/Y H:i' }}</p>
+                        {% if order.date_reception_confirmee %}
+                            <p class="mb-1"><strong>Réception confirmée le:</strong> {{ order.date_reception_confirmee|date:'d/m/Y H:i' }}</p>
+                        {% endif %}
+                    </div>
+                    <div class="col-md-6">
+                        <p class="mb-1"><strong>Adresse de livraison:</strong></p>
+                        <p class="mb-3 text-muted small">{{ order.delivery_address }}</p>
+                    </div>
+                </div>
+
+                <!-- Produits de la commande -->
+                {% if order.items.all %}
+                <div class="mb-3">
+                    <strong>Produits:</strong>
+                    <div class="mt-2">
+                        {% for item in order.items.all %}
+                        <div class="d-flex justify-content-between align-items-center border-bottom py-1">
+                            <div>
+                                <span class="fw-medium">{{ item.product.name }}</span>
+                                <small class="text-muted ms-2">x{{ item.quantity }}</small>
+                            </div>
+                            <span class="text-muted">{{ current_currency|currency_symbol }}{{ item.price_ht|format_currency:current_currency }}</span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+
+                <div class="d-flex gap-2">
+                    <a href="{% url 'order_confirm' order.id %}" class="btn btn-outline-primary btn-sm">
+                        <i class="fas fa-eye"></i> Voir les détails
+                    </a>
+
+                    {% if order.assignment %}
+                        <button type="button" class="btn btn-outline-success btn-sm" onclick="loadOrderMap({{ order.assignment.id }}, '{{ order.assignment.order.id }}')">
+                            <i class="fas fa-map-marked-alt"></i> Voir sur la carte
+                        </button>
+                    {% endif %}
+
+                    {% if order.status == 'delivered' %}
+                        <!-- Vérifier s'il y a déjà une demande de retour -->
+                        {% if not order.return_requests.exists %}
+                            <a href="{% url 'return_request' order.id %}" class="btn btn-outline-warning btn-sm">
+                                <i class="fas fa-undo"></i> Demander un retour
+                            </a>
+                        {% else %}
+                            <span class="badge bg-info">
+                                <i class="fas fa-clock"></i> Demande de retour en cours
+                            </span>
+                        {% endif %}
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    {% empty %}
+        <div class="alert alert-info">
+            <i class="fas fa-info-circle"></i> Aucune commande dans l'historique pour le moment.
+        </div>
+    {% endfor %}
+
+    <div class="card mb-4" id="delivery-map-card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <div>
+                <h5 class="mb-0">Suivi de livraison</h5>
+                <small class="text-muted" id="map-order-label">Sélectionnez une commande pour afficher la carte</small>
+            </div>
+            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="hideOrderMap()">
+                <i class="fas fa-times"></i> Fermer
+            </button>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-lg-8 mb-3">
+                    <div id="order-map" style="height: 420px; min-height: 420px; border: 1px solid #dee2e6; border-radius: 8px;"></div>
+                </div>
+                <div class="col-lg-4">
+                    <div class="mb-3">
+                        <h6>Informations</h6>
+                        <p><strong>Statut :</strong> <span id="map-order-status"></span></p>
+                        <p><strong>Zone :</strong> <span id="map-delivery-zone"></span></p>
+                        <p><strong>Adresse de livraison :</strong><br><span id="map-order-address"></span></p>
+                        <p><strong>Livraison estimée :</strong><br><span id="map-order-eta"></span></p>
+                    </div>
+                    <div class="mb-3">
+                        <h6>Positions</h6>
+                        <p><strong>Vendeur :</strong><br><span id="map-seller-coords"></span></p>
+                        <p><strong>Acheteur :</strong><br><span id="map-buyer-coords"></span></p>
+                        <p><strong>Livreur :</strong><br><span id="map-driver-coords"></span></p>
+                    </div>
+                    <div class="mb-3">
+                        <h6>Route</h6>
+                        <p id="map-route-info"></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="mt-4">
+        <a href="{% url 'profile' %}" class="btn btn-secondary">
+            <i class="fas fa-arrow-left"></i> Retour au profil
+        </a>
+    </div>
+</div>
+
+<script>
+let orderMap = null;
+let orderMarkers = {};
+let orderRoute = null;
+let orderPolling = null;
+let currentAssignmentId = null;
+
+function initOrderMap() {
+    if (orderMap) {
+        return;
+    }
+
+    orderMap = L.map('order-map').setView([48.8566, 2.3522], 12);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(orderMap);
+
+    setTimeout(() => {
+        orderMap.invalidateSize();
+    }, 200);
+}
+
+function clearOrderMap() {
+    if (!orderMap) return;
+    Object.values(orderMarkers).forEach(marker => {
+        orderMap.removeLayer(marker);
+    });
+    orderMarkers = {};
+    if (orderRoute) {
+        orderMap.removeLayer(orderRoute);
+        orderRoute = null;
+    }
+}
+
+function hideOrderMap() {
+    document.getElementById('delivery-map-card').style.display = 'none';
+    document.getElementById('map-order-label').textContent = 'Sélectionnez une commande pour afficher la carte';
+    document.getElementById('map-order-status').textContent = '';
+    document.getElementById('map-delivery-zone').textContent = '';
+    document.getElementById('map-order-address').textContent = '';
+    document.getElementById('map-order-eta').textContent = '';
+    document.getElementById('map-seller-coords').textContent = '';
+    document.getElementById('map-buyer-coords').textContent = '';
+    document.getElementById('map-driver-coords').textContent = '';
+    document.getElementById('map-route-info').textContent = 'Sélectionnez une commande pour voir le trajet.';
+    clearOrderMap();
+    if (orderPolling) {
+        clearInterval(orderPolling);
+        orderPolling = null;
+    }
+}
+
+function formatCoords(lat, lng) {
+    if (!lat || !lng) return 'Coordonnées non disponibles';
+    return `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+}
+
+function setMapInfo(info) {
+    document.getElementById('map-order-label').textContent = `Commande #${info.order_id}`;
+    document.getElementById('map-order-status').textContent = info.current_status || 'N/A';
+    document.getElementById('map-delivery-zone').textContent = info.delivery_zone || 'N/A';
+    document.getElementById('map-order-address').textContent = info.order_address || 'N/A';
+    document.getElementById('map-order-eta').textContent = info.eta ? new Date(info.eta).toLocaleString() : 'N/A';
+    document.getElementById('map-seller-coords').textContent = formatCoords(info.seller_location.latitude, info.seller_location.longitude);
+    document.getElementById('map-buyer-coords').textContent = formatCoords(info.buyer_location.latitude, info.buyer_location.longitude);
+    document.getElementById('map-driver-coords').textContent = formatCoords(info.driver_location.latitude, info.driver_location.longitude);
+    document.getElementById('map-route-info').textContent = info.route_info || 'Trajet en cours de génération...';
+}
+
+function drawOrderRoute(info) {
+    if (!orderMap) return;
+
+    clearOrderMap();
+    const markers = [];
+
+    if (info.seller_location.latitude && info.seller_location.longitude) {
+        const sellerMarker = L.marker([info.seller_location.latitude, info.seller_location.longitude], {
+            icon: L.icon({
+                iconUrl: 'https://cdn.jsdelivr.net/gh/pointhi/leaflet-color-markers@master/img/marker-icon-blue.png',
+                shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+                iconSize: [25, 41],
+                iconAnchor: [12, 41],
+            })
+        }).addTo(orderMap).bindPopup('Vendeur');
+        orderMarkers.seller = sellerMarker;
+        markers.push([info.seller_location.latitude, info.seller_location.longitude]);
+    }
+
+    if (info.buyer_location.latitude && info.buyer_location.longitude) {
+        const buyerMarker = L.marker([info.buyer_location.latitude, info.buyer_location.longitude], {
+            icon: L.icon({
+                iconUrl: 'https://cdn.jsdelivr.net/gh/pointhi/leaflet-color-markers@master/img/marker-icon-green.png',
+                shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+                iconSize: [25, 41],
+                iconAnchor: [12, 41],
+            })
+        }).addTo(orderMap).bindPopup('Acheteur');
+        orderMarkers.buyer = buyerMarker;
+        markers.push([info.buyer_location.latitude, info.buyer_location.longitude]);
+    }
+
+    if (info.driver_location.latitude && info.driver_location.longitude) {
+        const driverMarker = L.marker([info.driver_location.latitude, info.driver_location.longitude], {
+            icon: L.icon({
+                iconUrl: 'https://cdn.jsdelivr.net/gh/pointhi/leaflet-color-markers@master/img/marker-icon-red.png',
+                shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+                iconSize: [25, 41],
+                iconAnchor: [12, 41],
+            })
+        }).addTo(orderMap).bindPopup(`Livreur: ${info.driver_location.name}`);
+        orderMarkers.driver = driverMarker;
+        markers.push([info.driver_location.latitude, info.driver_location.longitude]);
+    }
+
+    if (markers.length >= 2 && info.seller_location.latitude && info.seller_location.longitude && info.buyer_location.latitude && info.buyer_location.longitude) {
+        orderRoute = L.polyline([
+            [info.seller_location.latitude, info.seller_location.longitude],
+            [info.buyer_location.latitude, info.buyer_location.longitude]
+        ], { color: '#007bff', weight: 4, opacity: 0.7 }).addTo(orderMap);
+    }
+
+    if (markers.length > 0) {
+        const bounds = L.latLngBounds(markers);
+        orderMap.fitBounds(bounds.pad(0.3));
+    }
+}
+
+function estimateRouteInfo(info) {
+    if (!info.seller_location.latitude || !info.seller_location.longitude || !info.buyer_location.latitude || !info.buyer_location.longitude) {
+        return 'Coordonnées du vendeur ou de l’acheteur manquantes pour le calcul du trajet.';
+    }
+
+    const R = 6371;
+    const toRad = degrees => degrees * Math.PI / 180;
+    const lat1 = toRad(info.seller_location.latitude);
+    const lon1 = toRad(info.seller_location.longitude);
+    const lat2 = toRad(info.buyer_location.latitude);
+    const lon2 = toRad(info.buyer_location.longitude);
+    const dLat = lat2 - lat1;
+    const dLon = lon2 - lon1;
+    const a = Math.sin(dLat/2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon/2) ** 2;
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    const distance = R * c;
+    const duration = distance / 25 * 60;
+
+    return `Distance estimée: ${distance.toFixed(1)} km · Durée estimée: ${Math.round(duration)} min`;
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('delivery-map-card').style.display = 'block';
+    initOrderMap();
+    document.getElementById('map-route-info').textContent = 'Sélectionnez une commande pour voir le trajet.';
+});
+
+function loadOrderMap(assignmentId, orderId) {
+    currentAssignmentId = assignmentId;
+    document.getElementById('delivery-map-card').style.display = 'block';
+    document.getElementById('map-order-label').textContent = `Commande #${orderId}`;
+    initOrderMap();
+    if (orderMap) {
+        setTimeout(() => { orderMap.invalidateSize(); }, 200);
+    }
+
+    const fetchAndRender = () => {
+        fetch(`/api/delivery-api/${assignmentId}/`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.status !== 'success') {
+                    document.getElementById('map-order-status').textContent = 'Erreur de chargement';
+                    return;
+                }
+                data.route_info = estimateRouteInfo(data);
+                setMapInfo(data);
+                drawOrderRoute(data);
+            })
+            .catch(error => {
+                console.error('Erreur chargement carte de livraison:', error);
+            });
+    };
+
+    fetchAndRender();
+    if (orderPolling) {
+        clearInterval(orderPolling);
+    }
+    orderPolling = setInterval(fetchAndRender, 6000);
+}
+</script>
+
+<style>
+#order-map {
+    border-radius: 12px;
+    overflow: hidden;
+}
+</style>
+</div>
+{% endblock %}

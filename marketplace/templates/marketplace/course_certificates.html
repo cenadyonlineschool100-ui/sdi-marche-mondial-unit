@@ -1,0 +1,42 @@
+{% extends 'marketplace/base.html' %}
+
+{% block title %}Diplômes - {{ course.title }}{% endblock %}
+
+{% block content %}
+<section class="section-header">
+    <h2>Diplômes et certificats</h2>
+    <p>Consultez vos résultats, diplômes et attestations associés à ce cours.</p>
+</section>
+
+<div class="learning-grid" style="margin-top:24px;">
+    <div class="learning-card">
+        <h3>{{ course.title }}</h3>
+        <p>Complétez les modules, réussissez les évaluations et obtenez votre certificat.</p>
+        <p><a href="{% url 'course_detail' course.id %}" class="button alt" style="color:#0f172a; background:#eff6ff; border-color:rgba(37,99,235,.18);">Retour au cours</a></p>
+    </div>
+    <div class="learning-card">
+        <h3>Actions</h3>
+        <ul class="feature-list">
+            <li>Imprimer le certificat</li>
+            <li>Télécharger en PDF</li>
+            <li>Partager sur LinkedIn</li>
+        </ul>
+    </div>
+</div>
+
+<div class="learning-grid" style="margin-top:24px;">
+    {% for certificate in course.certificates %}
+        <article class="learning-card">
+            <h3>{{ certificate.title }}</h3>
+            <p><strong>Date de délivrance :</strong> {{ certificate.issued_date|date:"d/m/Y" }}</p>
+            <p><strong>Statut :</strong> {{ certificate.get_status_display }}</p>
+            <p><a href="{% url 'course_certificate_pdf' course.id certificate.id %}" class="button">Télécharger le PDF</a></p>
+        </article>
+    {% empty %}
+        <article class="learning-card">
+            <h3>Aucun certificat disponible</h3>
+            <p>Poursuivez vos évaluations pour débloquer votre diplôme.</p>
+        </article>
+    {% endfor %}
+</div>
+{% endblock %}

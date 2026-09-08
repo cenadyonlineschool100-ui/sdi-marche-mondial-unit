@@ -1,0 +1,40 @@
+{% extends 'marketplace/base.html' %}
+{% block content %}
+<div class="card" style="padding:24px; border-radius:18px; background:#fff;">
+    <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap;">
+        <div>
+            <h2 style="margin:0; color:#0f172a;">Reçu de transfert {{ receipt.receipt_number }}</h2>
+            <p style="margin:8px 0 0 0; color:#475569;">Détails du transfert et informations de validation.</p>
+        </div>
+        <div style="display:flex; gap:10px; flex-wrap:wrap;">
+            <a href="{% url 'transfer_receipts' %}" class="fintech-btn btn-secondary" style="padding:10px 16px;">Retour aux reçus</a>
+            <button onclick="window.print();" class="fintech-btn btn-primary" style="padding:10px 16px;">Imprimer</button>
+        </div>
+    </div>
+
+    <div style="margin-top:24px; display:grid; grid-template-columns:1fr 1fr; gap:18px;">
+        <div style="padding:22px; border-radius:18px; background:#f8fafc;">
+            <h4 style="margin:0 0 12px 0; color:#0f172a;">Informations du transfert</h4>
+            <p><strong>Numéro de transaction :</strong> {{ receipt.transfer.transaction_id }}</p>
+            <p><strong>Montant :</strong> {{ receipt.transfer.amount|floatformat:2 }} {{ receipt.transfer.currency }}</p>
+            <p><strong>Frais total :</strong> {{ receipt.transfer.fee|floatformat:2 }} {{ receipt.transfer.currency }}</p>
+            <p><strong>Commission système :</strong> {{ receipt.transfer.system_fee|floatformat:2 }} {{ receipt.transfer.currency }}</p>
+            <p><strong>Commission agent :</strong> {{ receipt.transfer.agent_fee|floatformat:2 }} {{ receipt.transfer.currency }}</p>
+            <p><strong>Compte source :</strong> {{ receipt.transfer.get_sender_account_type_display }}</p>
+            <p><strong>Date :</strong> {{ receipt.created_at|date:'d F Y H:i' }}</p>
+        </div>
+        <div style="padding:22px; border-radius:18px; background:#f8fafc;">
+            <h4 style="margin:0 0 12px 0; color:#0f172a;">Parties impliquées</h4>
+            <p><strong>Expéditeur :</strong> {{ receipt.transfer.sender.username }}</p>
+            <p><strong>Destinataire :</strong> {{ receipt.transfer.receiver.username }}</p>
+            <p><strong>Rôle de ce reçu :</strong> {{ receipt.get_role_display }}</p>
+            <p><strong>Utilisateur lié :</strong> {{ receipt.user.username }}</p>
+            <p><strong>Note :</strong> {{ receipt.notes|default:'Aucune note' }}</p>
+        </div>
+    </div>
+
+    <div style="margin-top:24px; padding:20px; border-radius:18px; background:#eef2ff; color:#0f172a;">
+        <p style="margin:0; font-weight:600;">Ce reçu a été généré automatiquement pour ce transfert MicroSDICash. Il peut être partagé avec l'admin, le client ou l'agent concerné.</p>
+    </div>
+</div>
+{% endblock %}

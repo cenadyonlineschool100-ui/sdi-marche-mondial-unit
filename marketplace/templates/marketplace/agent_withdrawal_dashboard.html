@@ -1,0 +1,154 @@
+{% extends "marketplace/base.html" %}
+
+{% block title %}
+    Dashboard Retrait - Agent
+{% endblock %}
+
+{% block content %}
+<div class="content-container" style="max-width: 1200px; margin: 0 auto; padding: 20px;">
+    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 30px;">
+        <h1>💰 Dashboard Retrait Agent</h1>
+        <a href="{% url 'agent_process_withdrawal' %}" class="btn btn-primary">+ Nouveau Retrait</a>
+    </div>
+
+    {% if messages %}
+        <div style="margin-bottom: 20px;">
+            {% for message in messages %}
+                <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    <div style="background: white; border-radius: 8px; padding: 20px; margin-bottom: 30px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+        <h2>📊 Statistiques</h2>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px;">
+            <div style="padding: 15px; background: #f8f9fa; border-radius: 6px; border-left: 4px solid #0066cc;">
+                <div style="color: #666; font-size: 0.9rem; margin-bottom: 5px;">Total Retraits</div>
+                <div style="font-size: 1.8rem; font-weight: bold; color: #0066cc;">{{ total_withdrawals }}</div>
+            </div>
+        </div>
+    </div>
+
+    <div style="background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+        <div style="padding: 20px; border-bottom: 1px solid #e0e0e0;">
+            <h2>📋 Historique des Retraits</h2>
+        </div>
+        
+        {% if agent_withdrawals %}
+            <div style="overflow-x: auto;">
+                <table style="width: 100%; border-collapse: collapse;">
+                    <thead>
+                        <tr style="background: #f8f9fa; border-bottom: 2px solid #dee2e6;">
+                            <th style="padding: 12px; text-align: left; font-weight: 600;">Utilisateur</th>
+                            <th style="padding: 12px; text-align: left; font-weight: 600;">Montant</th>
+                            <th style="padding: 12px; text-align: left; font-weight: 600;">Devise</th>
+                            <th style="padding: 12px; text-align: left; font-weight: 600;">Type Compte</th>
+                            <th style="padding: 12px; text-align: left; font-weight: 600;">Statut</th>
+                            <th style="padding: 12px; text-align: left; font-weight: 600;">Date</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for withdrawal in agent_withdrawals %}
+                            <tr style="border-bottom: 1px solid #e0e0e0; transition: background 0.2s;">
+                                <td style="padding: 12px;">
+                                    <strong>{{ withdrawal.user.username }}</strong>
+                                    {% if withdrawal.user.get_full_name %}
+                                        <br><small style="color: #999;">{{ withdrawal.user.get_full_name }}</small>
+                                    {% endif %}
+                                </td>
+                                <td style="padding: 12px; font-weight: 500;">{{ withdrawal.amount }}</td>
+                                <td style="padding: 12px;">
+                                    <span style="background: #e3f2fd; color: #1976d2; padding: 4px 8px; border-radius: 4px; font-size: 0.85rem;">
+                                        {{ withdrawal.currency }}
+                                    </span>
+                                </td>
+                                <td style="padding: 12px;">
+                                    {% if withdrawal.account_type == 'principal' %}
+                                        <span style="background: #fff3cd; color: #856404; padding: 4px 8px; border-radius: 4px; font-size: 0.85rem;">Principal</span>
+                                    {% else %}
+                                        <span style="background: #d4edda; color: #155724; padding: 4px 8px; border-radius: 4px; font-size: 0.85rem;">Multi-device</span>
+                                    {% endif %}
+                                </td>
+                                <td style="padding: 12px;">
+                                    {% if withdrawal.status == 'completed' %}
+                                        <span style="background: #d4edda; color: #155724; padding: 4px 8px; border-radius: 4px; font-size: 0.85rem;">✓ Complété</span>
+                                    {% elif withdrawal.status == 'pending' %}
+                                        <span style="background: #fff3cd; color: #856404; padding: 4px 8px; border-radius: 4px; font-size: 0.85rem;">⏳ En attente</span>
+                                    {% else %}
+                                        <span style="background: #f8d7da; color: #721c24; padding: 4px 8px; border-radius: 4px; font-size: 0.85rem;">✗ {{ withdrawal.status }}</span>
+                                    {% endif %}
+                                </td>
+                                <td style="padding: 12px; color: #999; font-size: 0.9rem;">
+                                    {{ withdrawal.created_at|date:"d/m/Y H:i" }}
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <div style="padding: 40px; text-align: center; color: #999;">
+                <p style="font-size: 1.1rem; margin: 0;">Aucun retrait trouvé.</p>
+            </div>
+        {% endif %}
+    </div>
+
+    <div style="margin-top: 20px;">
+        <a href="{% url 'home' %}" class="btn btn-secondary">← Retour</a>
+    </div>
+</div>
+
+<style>
+    .btn {
+        padding: 10px 20px;
+        border-radius: 6px;
+        border: none;
+        cursor: pointer;
+        font-weight: 500;
+        text-decoration: none;
+        display: inline-block;
+        transition: all 0.3s ease;
+    }
+
+    .btn-primary {
+        background: #0066cc;
+        color: white;
+    }
+
+    .btn-primary:hover {
+        background: #0052a3;
+    }
+
+    .btn-secondary {
+        background: #6c757d;
+        color: white;
+    }
+
+    .btn-secondary:hover {
+        background: #5a6268;
+    }
+
+    .alert {
+        border-radius: 6px;
+        border: none;
+        padding: 12px 20px;
+    }
+
+    .alert-success {
+        background: #d4edda;
+        color: #155724;
+    }
+
+    .alert-error {
+        background: #f8d7da;
+        color: #721c24;
+    }
+
+    .content-container {
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+</style>
+{% endblock %}

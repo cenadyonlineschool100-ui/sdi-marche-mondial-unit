@@ -1,0 +1,189 @@
+{% extends 'marketplace/base.html' %}
+{% block extra_css %}
+<style>
+.login-page {
+    min-height: calc(100vh - 120px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 16px;
+}
+.login-card {
+    max-width: 420px;
+    width: 100%;
+    background: rgba(255,255,255,0.96);
+    border: 1px solid rgba(30, 64, 175, 0.16);
+    border-radius: 28px;
+    box-shadow: 0 28px 80px rgba(15, 23, 42, 0.12);
+    padding: 32px 28px;
+    backdrop-filter: blur(18px);
+}
+.login-card h2 {
+    margin: 0 0 18px;
+    font-size: clamp(2rem, 2.4vw, 2.4rem);
+    letter-spacing: -0.02em;
+    color: #0f172a;
+}
+.login-card p.lead {
+    margin: 0 0 24px;
+    color: #475569;
+    line-height: 1.6;
+}
+.form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 18px;
+}
+.form-group label {
+    font-weight: 600;
+    color: #334155;
+    font-size: 0.95rem;
+}
+.form-control {
+    width: 100%;
+    padding: 14px 16px;
+    border-radius: 14px;
+    border: 1px solid rgba(148, 163, 184, 0.28);
+    background: #f8fafc;
+    color: #0f172a;
+    font-size: 0.96rem;
+    outline: none;
+    transition: border-color .2s ease, box-shadow .2s ease;
+}
+.form-control:focus {
+    border-color: #2563eb;
+    box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.12);
+}
+.actions-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 18px;
+    flex-wrap: wrap;
+}
+.checkbox-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    color: #475569;
+    font-size: 0.95rem;
+}
+.checkbox-label input {
+    width: 18px;
+    height: 18px;
+    border-radius: 6px;
+    border: 1px solid rgba(148, 163, 184, 0.3);
+}
+.button-primary {
+    width: 100%;
+    background: linear-gradient(135deg, #1d4ed8, #2563eb);
+    color: white;
+    border: none;
+    border-radius: 14px;
+    padding: 14px 18px;
+    font-size: 1rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: transform .2s ease, box-shadow .2s ease;
+}
+.button-primary:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 18px 40px rgba(37, 99, 235, 0.22);
+}
+.button-primary:disabled {
+    opacity: 0.65;
+    cursor: not-allowed;
+}
+.small-link {
+    color: #2563eb;
+    font-weight: 600;
+}
+.small-link:hover {
+    text-decoration: underline;
+}
+.login-footer {
+    margin-top: 18px;
+    color: #64748b;
+    font-size: 0.95rem;
+}
+.login-footer a {
+    color: #2563eb;
+}
+@media (max-width: 520px) {
+    .login-card {
+        padding: 26px 20px;
+    }
+}
+@media (max-width: 1024px) {
+    .login-page {
+        min-height: calc(100vh - 160px);
+        padding: clamp(20px, 4vh, 40px) 16px;
+    }
+    .login-card {
+        max-width: 440px;
+        border-radius: var(--card-radius, 16px);
+        box-shadow: 0 14px 36px rgba(15, 23, 42, 0.10);
+        padding: clamp(20px, 3vw, 28px);
+    }
+    .login-card h2 { margin-bottom: 10px; font-size: clamp(1.55rem, 3vw, 2rem); }
+    .login-card p.lead { margin-bottom: 18px; line-height: 1.45; font-size: .94rem; }
+    .form-group { gap: 6px; margin-bottom: 14px; }
+    .form-control { padding: 11px 12px; border-radius: 10px; }
+    .button-primary { padding: 11px 16px; }
+    .actions-row {
+        flex-wrap: wrap;
+        row-gap: 8px;
+    }
+    .checkbox-label,
+    .small-link {
+        max-width: 100%;
+        white-space: normal;
+        font-size: .86rem;
+    }
+    .login-footer { margin-top: 14px; }
+}
+@media (max-width: 480px) {
+    .actions-row {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+}
+@media (max-width: 360px) {
+    .login-card { padding: 20px 16px; }
+    .login-card p.lead { font-size: .88rem; }
+    .actions-row { gap: 6px; }
+    .checkbox-label, .small-link { font-size: .76rem; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="login-page">
+    <div class="login-card">
+        <h2>Connexion</h2>
+        <p class="lead">Connectez-vous pour accéder à votre espace et gérer vos commandes.</p>
+        <form method="post" novalidate>
+            {% csrf_token %}
+            <div class="form-group">
+                <label for="username">Nom d'utilisateur</label>
+                <input class="form-control" type="text" id="username" name="username" value="{{ username|default:'' }}" required autocomplete="username" autofocus>
+            </div>
+            <div class="form-group">
+                <label for="password">Mot de passe</label>
+                <input class="form-control" type="password" id="password" name="password" required autocomplete="current-password">
+            </div>
+            <div class="actions-row">
+                <label class="checkbox-label">
+                    <input type="checkbox" name="remember" {% if remember %}checked{% endif %}>
+                    Se souvenir de moi
+                </label>
+                <a class="small-link" href="{% url 'password_reset' %}">Mot de passe oublié ?</a>
+            </div>
+            <button type="submit" class="button-primary">Se connecter</button>
+        </form>
+        <p class="login-footer">Pas encore de compte ? <a href="{% url 'signup' %}">Créer un compte</a></p>
+    </div>
+</div>
+{% endblock %}

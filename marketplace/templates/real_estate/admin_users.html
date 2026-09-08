@@ -1,0 +1,53 @@
+{% extends "marketplace/base.html" %}
+
+{% block title %}Agents et Livreurs - Admin Immobilier{% endblock %}
+
+{% block content %}
+<div class="container" style="max-width: 1100px; margin: 40px auto; padding: 20px;">
+    <div class="section-header">
+        <h1 style="color: var(--primary-dark); margin-bottom: 10px;">👥 Gestion des agents et livreurs</h1>
+        <p style="color: var(--text-secondary); font-size: 1rem;">Attribuer ou retirer les privilèges d'agent et de livreur.</p>
+    </div>
+
+    {% if users %}
+        <div style="overflow-x:auto; background: var(--bg-light); border: 1px solid var(--border-color); border-radius: 12px;">
+            <table style="width: 100%; border-collapse: collapse;">
+                <thead>
+                    <tr style="background: var(--bg-secondary); text-align: left;">
+                        <th style="padding: 12px;">Utilisateur</th>
+                        <th style="padding: 12px;">Rôle actuel</th>
+                        <th style="padding: 12px;">Agent</th>
+                        <th style="padding: 12px;">Livreur</th>
+                        <th style="padding: 12px;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for user in users %}
+                        <tr style="border-bottom: 1px solid var(--border-color);">
+                            <td style="padding: 12px;">{{ user.get_full_name|default:user.username }}<br><small style="color: var(--text-secondary);">{{ user.email }}</small></td>
+                            <td style="padding: 12px;">{{ user.get_role_display }}</td>
+                            <td style="padding: 12px;">{% if user.is_agent %}Oui{% else %}Non{% endif %}</td>
+                            <td style="padding: 12px;">{% if user.is_delivery_employee %}Oui{% else %}Non{% endif %}</td>
+                            <td style="padding: 12px; display:flex; gap:8px; flex-wrap: wrap; align-items: center;">
+                                <form method="post" action="{% url 'real_estate:toggle_agent_status' user.id %}" style="margin:0;">
+                                    {% csrf_token %}
+                                    <button type="submit" style="padding: 8px 12px; border:none; border-radius:6px; color:white; background: {% if user.is_agent %}#fb8c00{% else %}#43a047{% endif %}; cursor:pointer;">{% if user.is_agent %}Retirer agent{% else %}Donner agent{% endif %}</button>
+                                </form>
+                                <form method="post" action="{% url 'real_estate:toggle_delivery_status' user.id %}" style="margin:0;">
+                                    {% csrf_token %}
+                                    <button type="submit" style="padding: 8px 12px; border:none; border-radius:6px; color:white; background: {% if user.is_delivery_employee %}#fb8c00{% else %}#29b6f6{% endif %}; cursor:pointer;">{% if user.is_delivery_employee %}Retirer livreur{% else %}Donner livreur{% endif %}</button>
+                                </form>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% else %}
+        <div style="text-align: center; padding: 50px; background: var(--bg-light); border-radius: 12px; border: 1px dashed var(--border-color);">
+            <h2 style="color: var(--primary-dark); margin-bottom: 15px;">Aucun agent ou livreur trouvé</h2>
+            <p style="color: var(--text-secondary);">Il n'y a pas d'utilisateur agent ou livreur à gérer pour le moment.</p>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,146 @@
+{% extends 'marketplace/base.html' %}
+{% load static %}
+
+{% block title %}Demande de Retour{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h4><i class="fas fa-undo"></i> Demande de Retour</h4>
+                    <small class="text-muted">Commande #{{ order.id }}</small>
+                </div>
+                <div class="card-body">
+                    <!-- Informations de la commande -->
+                    <div class="mb-4">
+                        <h6>Informations de la commande</h6>
+                        <div class="row">
+                            <div class="col-sm-6">
+                                <strong>Date de commande:</strong><br>
+                                {{ order.date_achat|date:"d/m/Y H:i" }}
+                            </div>
+                            <div class="col-sm-6">
+                                <strong>Montant total:</strong><br>
+                                {{ order.total_amount }} €
+                            </div>
+                        </div>
+                        <div class="mt-2">
+                            <strong>Adresse de livraison:</strong><br>
+                            {{ order.delivery_address }}
+                        </div>
+                    </div>
+
+                    <!-- Produits commandés -->
+                    <div class="mb-4">
+                        <h6>Produits commandés</h6>
+                        {% for item in order.items.all %}
+                        <div class="border rounded p-2 mb-2">
+                            <div class="row align-items-center">
+                                <div class="col-md-8">
+                                    <strong>{{ item.product.name }}</strong><br>
+                                    <small class="text-muted">Quantité: {{ item.quantity }} | Prix: {{ current_currency|currency_symbol }}{{ item.price_ht|format_currency:current_currency }}</small>
+                                </div>
+                                <div class="col-md-4 text-end">
+                                    <strong>{{ item.get_total_price }} €</strong>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+
+                    <!-- Formulaire de demande de retour -->
+                    <form method="post">
+                        {% csrf_token %}
+                        <div class="mb-3">
+                            <label for="reason" class="form-label">Raison du retour *</label>
+                            <select class="form-select" id="reason" name="reason" required>
+                                <option value="">Sélectionnez une raison</option>
+                                <option value="damaged">Produit endommagé</option>
+                                <option value="wrong_item">Mauvais produit reçu</option>
+                                <option value="not_as_described">Produit différent de la description</option>
+                                <option value="defective">Produit défectueux</option>
+                                <option value="changed_mind">Changement d'avis</option>
+                                <option value="other">Autre</option>
+                            </select>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="description" class="form-label">Description détaillée *</label>
+                            <textarea class="form-control" id="description" name="description" rows="4"
+                                      placeholder="Veuillez décrire en détail le problème avec votre commande..."
+                                      required></textarea>
+                            <div class="form-text">
+                                Soyez le plus précis possible pour nous aider à traiter votre demande rapidement.
+                            </div>
+                        </div>
+
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle"></i>
+                            <strong>Important:</strong> Les demandes de retour doivent être faites dans les 30 jours suivant la livraison.
+                            Nous examinerons votre demande et vous contacterons dans les plus brefs délais.
+                        </div>
+
+                        <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                            <a href="{% url 'order_history' %}" class="btn btn-secondary me-md-2">
+                                <i class="fas fa-times"></i> Annuler
+                            </a>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-paper-plane"></i> Soumettre la demande
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Validation du formulaire
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.querySelector('form');
+    const reasonSelect = document.getElementById('reason');
+    const descriptionTextarea = document.getElementById('description');
+
+    form.addEventListener('submit', function(e) {
+        let isValid = true;
+
+        // Vérifier la raison
+        if (!reasonSelect.value) {
+            reasonSelect.classList.add('is-invalid');
+            isValid = false;
+        } else {
+            reasonSelect.classList.remove('is-invalid');
+        }
+
+        // Vérifier la description
+        if (!descriptionTextarea.value.trim()) {
+            descriptionTextarea.classList.add('is-invalid');
+            isValid = false;
+        } else {
+            descriptionTextarea.classList.remove('is-invalid');
+        }
+
+        if (!isValid) {
+            e.preventDefault();
+            alert('Veuillez remplir tous les champs obligatoires.');
+        }
+    });
+
+    // Retirer la classe d'erreur lors de la saisie
+    reasonSelect.addEventListener('change', function() {
+        if (this.value) {
+            this.classList.remove('is-invalid');
+        }
+    });
+
+    descriptionTextarea.addEventListener('input', function() {
+        if (this.value.trim()) {
+            this.classList.remove('is-invalid');
+        }
+    });
+});
+</script>
+{% endblock %}

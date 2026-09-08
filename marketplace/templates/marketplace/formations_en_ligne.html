@@ -1,0 +1,460 @@
+{% extends 'marketplace/base.html' %}
+
+{% block title %}Formations en ligne - SDI{% endblock %}
+
+{% block content %}
+<style>
+    .learning-hero {
+        padding: 40px 0 24px;
+    }
+    .learning-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 24px;
+        margin-top: 32px;
+    }
+    .learning-card {
+        background: rgba(255,255,255,0.98);
+        border: 1px solid rgba(37,99,235,0.14);
+        border-radius: 28px;
+        box-shadow: 0 28px 50px rgba(15,23,42,0.08);
+        padding: 28px;
+        min-height: 260px;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+    }
+    .learning-card h3 {
+        margin: 0;
+        font-size: 1.25rem;
+        color: #0f172a;
+    }
+    .learning-card p {
+        margin: 0;
+        color: #334155;
+        line-height: 1.7;
+    }
+    .feature-list {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+        display: grid;
+        gap: 12px;
+    }
+    .feature-list li {
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        color: #0f172a;
+        font-weight: 600;
+    }
+    .feature-list li::before {
+        content: '✔';
+        color: #10b981;
+        font-weight: 800;
+        margin-top: 2px;
+        flex-shrink: 0;
+    }
+    .section-highlight {
+        display: grid;
+        grid-template-columns: minmax(0, 1.2fr) minmax(320px, 1fr);
+        gap: 24px;
+        align-items: start;
+        margin-top: 40px;
+    }
+    .section-highlight .card {
+        padding: 28px;
+        border-radius: 28px;
+        border: 1px solid rgba(37,99,235,0.14);
+        background: rgba(255,255,255,0.98);
+        box-shadow: 0 22px 40px rgba(15,23,42,0.08);
+    }
+    .training-cta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 14px;
+        margin-top: 24px;
+    }
+    .training-cta .button {
+        min-width: 180px;
+    }
+    .course-list {
+        display: grid;
+        gap: 20px;
+        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+        margin-top: 24px;
+    }
+    .course-card {
+        background: rgba(255,255,255,0.98);
+        border: 1px solid rgba(37,99,235,0.14);
+        border-radius: 26px;
+        padding: 24px;
+        box-shadow: 0 22px 44px rgba(15,23,42,0.08);
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+    }
+    .course-card h3 {
+        margin: 0;
+        font-size: 1.2rem;
+    }
+    .course-card .course-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        background: rgba(59,130,246,0.1);
+        color: #1d4ed8;
+        padding: 8px 12px;
+        border-radius: 999px;
+        font-weight: 700;
+        width: fit-content;
+    }
+    .course-card .course-meta {
+        display: grid;
+        gap: 10px;
+        color: #475569;
+        font-size: 0.95rem;
+    }
+    .course-card .course-meta strong {
+        color: #0f172a;
+        font-weight: 700;
+    }
+    .course-card .course-actions {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+    }
+    .course-section {
+        margin-top: 40px;
+    }
+    .course-status {
+        display: inline-flex;
+        align-items: center;
+        padding: 6px 12px;
+        border-radius: 999px;
+        background: rgba(16,185,129,0.12);
+        color: #0f5132;
+        font-weight: 700;
+        font-size: 0.95rem;
+    }
+    .search-bar {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        flex-wrap: wrap;
+        margin-top: 20px;
+    }
+    .search-bar input {
+        flex: 1;
+        min-width: 220px;
+        border: 1px solid rgba(15,23,42,0.15);
+        border-radius: 14px;
+        padding: 14px 18px;
+        font-size: 1rem;
+        color: #0f172a;
+        background: #fff;
+    }
+    .search-bar button {
+        padding: 14px 22px;
+    }
+    @media (max-width: 860px) {
+        .section-highlight {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+
+<section class="hero learning-hero">
+    <div class="hero-inner">
+        <div class="hero-copy">
+            <span class="eyebrow">Plateforme SDI de formations en ligne</span>
+            <h1 class="hero-title">Bienvenue sur SDI Formation&nbsp;: apprentissage en direct, devoirs et diplômes</h1>
+            <p class="hero-subtitle">Accédez à une interface moderne, mobile-friendly et parfaitement intégrée à votre site. Cours en visioconférence, suivi des devoirs, enregistrements et certificats.</p>
+            <div class="hero-actions">
+                <a href="#live-room" class="button sdi-sol-button">🎥 Cours en direct</a>
+                <a href="#course-library" class="button alt" style="color:#0f172a; background:#eff6ff; border-color:rgba(37,99,235,.18);">🗂️ Vos cours</a>
+            </div>
+        </div>
+        <div class="card fintech-card">
+            <h2>Fonctionnalités clés</h2>
+            <ul class="feature-list">
+                <li>Visioconférence en direct pour professeurs et étudiants</li>
+                <li>Suivi des devoirs, corrections et notes</li>
+                <li>Enregistrements disponibles à tout moment</li>
+                <li>Gestion de formations, recherche et diplômes</li>
+            </ul>
+        </div>
+    </div>
+</section>
+
+<section class="learning-hero" style="padding-top:0; margin-top:-16px;">
+    <div class="hero-inner" style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 18px;">
+        <div class="learning-card" style="padding:24px; min-height:auto;">
+            <h3>Rejoindre un cours en direct</h3>
+            <p>Accédez en un clic aux sessions vidéo et audio en direct réunissant professeurs et étudiants.</p>
+            <a href="#live-courses" class="button sdi-sol-button">Rejoindre maintenant</a>
+        </div>
+        <div class="learning-card" style="padding:24px; min-height:auto;">
+            <h3>Vos devoirs</h3>
+            <p>Consultez les devoirs à rendre, le suivi des corrections et vos notes dans un espace centralisé.</p>
+            <a href="#my-courses" class="button alt" style="color:#0f172a; background:#eff6ff; border-color:rgba(37,99,235,.18);">Voir les devoirs</a>
+        </div>
+        <div class="learning-card" style="padding:24px; min-height:auto;">
+            <h3>Enregistrements</h3>
+            <p>Regardez ou téléchargez les sessions enregistrées directement depuis votre tableau de bord.</p>
+            <a href="#my-courses" class="button">Voir les enregistrements</a>
+        </div>
+        <div class="learning-card" style="padding:24px; min-height:auto;">
+            <h3>Vos diplômes</h3>
+            <p>Consultez vos certificats de réussite et les résultats des examens pour chaque formation.</p>
+            <a href="#my-courses" class="button alt" style="color:#0f172a; background:#eff6ff; border-color:rgba(37,99,235,.18);">Voir mes diplômes</a>
+        </div>
+    </div>
+</section>
+
+<section id="course-library" class="course-section">
+    <div class="section-header">
+        <h2>📚 Modules de formation</h2>
+        <p>Découvrez vos parcours de cours en ligne, les sessions à venir et les ressources associées.</p>
+    </div>
+    <div class="search-bar">
+        <input type="search" id="courseSearchInput" placeholder="Rechercher un cours, un thème ou une catégorie..." aria-label="Recherche de cours">
+        <button type="button" class="button sdi-sol-button" onclick="filterCourses()">Rechercher</button>
+    </div>
+    <div class="course-list" id="courseCards">
+        <article class="course-card">
+            <div class="course-badge">SDI Vision</div>
+            <h3>Visioconférence en direct</h3>
+            <div class="course-meta">
+                <strong>Session en direct</strong>
+                <span>Prochaine classe aujourd’hui à 14h00</span>
+                <span>Tutoriel, Q&A, partage d’écran et suivi en temps réel</span>
+            </div>
+            <div class="course-actions">
+                        <a href="{% url 'course_detail' 1 %}" class="button sdi-sol-button">Rejoindre la session</a>
+                <a href="#assignments" class="button alt" style="color:#0f172a; background:#eff6ff; border-color:rgba(37,99,235,.18);">Voir devoirs</a>
+            </div>
+        </article>
+        <article class="course-card">
+            <div class="course-badge">Gestion</div>
+            <h3>Suivi des devoirs</h3>
+            <div class="course-meta">
+                <strong>Remise, correction et notes</strong>
+                <span>Envoi et dépôt centralisés</span>
+                <span>Statut en temps réel et commentaires du professeur</span>
+            </div>
+            <div class="course-actions">
+                <a href="#assignments" class="button sdi-sol-button">Voir mes devoirs</a>
+                <a href="#recordings" class="button alt" style="color:#0f172a; background:#eff6ff; border-color:rgba(37,99,235,.18);">Voir enregistrements</a>
+            </div>
+        </article>
+        <article class="course-card">
+            <div class="course-badge">Diplôme</div>
+            <h3>Certificats</h3>
+            <div class="course-meta">
+                <strong>Validation et diplômes</strong>
+                <span>Suivi des examens et délivrance de certificats</span>
+                <span>Résultats disponibles immédiatement après correction</span>
+            </div>
+            <div class="course-actions">
+                <a href="#course-diplomas" class="button sdi-sol-button">Voir mes diplômes</a>
+                <a href="#course-library" class="button alt" style="color:#0f172a; background:#eff6ff; border-color:rgba(37,99,235,.18);">Tous les modules</a>
+            </div>
+        </article>
+    </div>
+</section>
+
+<script>
+function filterCourses() {
+    const query = document.getElementById('courseSearchInput').value.toLowerCase();
+    const cards = document.querySelectorAll('#courseCards .course-card');
+    cards.forEach(card => {
+        const text = card.innerText.toLowerCase();
+        card.style.display = text.includes(query) ? 'grid' : 'none';
+    });
+}
+
+const courseSearchInput = document.getElementById('courseSearchInput');
+if (courseSearchInput) {
+    courseSearchInput.addEventListener('input', filterCourses);
+}
+</script>
+
+<section id="live-room" class="course-section">
+    <div class="section-header">
+        <h2>🎥 Salle de cours en direct</h2>
+        <p>Rejoignez votre session en direct avec chat, audio, vidéo et partage d’écran dans un espace sécurisé.</p>
+    </div>
+    <div class="learning-grid">
+        <div class="learning-card">
+            <h3>Session SDI Vision Conference</h3>
+            <p>Vous êtes dans la salle de réunion. Lancez le flux vidéo et commencez votre apprentissage en direct.</p>
+            <p class="course-status">En ligne maintenant</p>
+            <div class="training-cta">
+                 <a href="{% url 'course_detail' 1 %}" class="button sdi-sol-button">Rejoindre la réunion</a>
+                <a href="#recordings" class="button alt" style="color:#0f172a; background:#eff6ff; border-color:rgba(37,99,235,.18);">Voir l’enregistrement</a>
+            </div>
+        </div>
+        <div class="learning-card">
+            <h3>Fonctionnalités disponibles</h3>
+            <ul class="feature-list">
+                <li>Audio et vidéo HD</li>
+                <li>Chat en direct et emoji</li>
+                <li>Partage d'écran</li>
+                <li>Gestion des participants</li>
+            </ul>
+        </div>
+    </div>
+</section>
+
+<section id="live-courses">
+    <div class="section-header">
+        <h2>1️⃣ Cours en direct par visioconférence</h2>
+        <p>Professeurs et étudiants se connectent en temps réel dans un espace sécurisé et fluide, avec chat, audio, vidéo et partage d'écran.</p>
+    </div>
+    <div class="learning-grid">
+        <div class="learning-card">
+            <h3>SDI-Vision Conference</h3>
+            <p>Une interface de visioconférence inspirée des meilleures plateformes professionnelles. Rejoignez les réunions, activez la caméra et discutez en direct.</p>
+            <ul class="feature-list">
+                <li>Audio et vidéo HD</li>
+                <li>Chat en direct et emoji</li>
+                <li>Lever la main et interactions</li>
+                <li>Partage d'écran sécurisé</li>
+            </ul>
+        </div>
+        <div class="learning-card">
+            <h3>Expérience collaborative</h3>
+            <p>Les étudiants peuvent réagir en direct, poser des questions et participer activement pendant la classe.</p>
+            <ul class="feature-list">
+                <li>Discussion instantanée</li>
+                <li>Notifications de participation</li>
+                <li>Tableau de bord professeur</li>
+                <li>Contrôle d'accès simplifié</li>
+            </ul>
+        </div>
+    </div>
+</section>
+
+<section id="assignments" class="course-section">
+    <div class="section-header" style="margin-top: 48px;">
+        <h2>2️⃣ Gestion des devoirs</h2>
+        <p>Une gestion complète des devoirs du dépôt à la correction, avec suivi des notes et résultat final.</p>
+    </div>
+    <div class="section-highlight">
+        <div class="card">
+            <h3>Workflow des devoirs</h3>
+            <p>Les professeurs publient les devoirs, les étudiants déposent leur travail, puis le professeur corrige et note dans le système.</p>
+            <div class="training-cta">
+                <a href="#" class="button">Ajouter un devoir</a>
+                <a href="#" class="button alt" style="color:#0f172a;">Voir les devoirs</a>
+            </div>
+        </div>
+        <div class="card">
+            <h3>Vos cours / Notes</h3>
+            <p>Le tableau de bord « Vos cours » affiche les notes, le statut des devoirs et le progrès de chaque formation.</p>
+            <ul class="feature-list">
+                <li>Affichage clair des notes</li>
+                <li>Suivi de progression</li>
+                <li>Historique des remises</li>
+                <li>Résultats et commentaires</li>
+            </ul>
+        </div>
+    </div>
+    <div class="learning-grid" style="margin-top: 32px;">
+        <div class="learning-card">
+            <h3>Devoirs à rendre</h3>
+            <ul class="feature-list">
+                <li>Projet module 1 – rendu avant 18h</li>
+                <li>Quiz de fin de semaine – note automatique</li>
+                <li>Exercice de partage d’écran – feedback en direct</li>
+            </ul>
+        </div>
+        <div class="learning-card">
+            <h3>Statut des corrections</h3>
+            <p>Vos derniers travaux sont en cours de correction. Les notes sont mises à jour dès que le professeur termine l’évaluation.</p>
+            <div class="course-status">3 devoirs corrigés sur 5</div>
+        </div>
+    </div>
+</section>
+
+<section id="recordings" class="course-section">
+    <div class="section-header" style="margin-top: 48px;">
+        <h2>3️⃣ Enregistrements des cours</h2>
+        <p>Enregistrez automatiquement ou manuellement chaque session pour revoir les cours plus tard.</p>
+    </div>
+    <div class="learning-grid">
+        <div class="learning-card">
+            <h3>Session enregistrée</h3>
+            <p>Revoir la dernière session de SDI Vision Conference à tout moment.</p>
+            <div class="training-cta">
+                <a href="#" class="button sdi-sol-button">Lire l’enregistrement</a>
+                <a href="#" class="button alt" style="color:#0f172a; background:#eff6ff; border-color:rgba(37,99,235,.18);">Télécharger</a>
+            </div>
+        </div>
+        <div class="learning-card">
+            <h3>Bibliothèque vidéo</h3>
+            <ul class="feature-list">
+                <li>Replay des sessions précédentes</li>
+                <li>Accès instantané depuis votre espace</li>
+                <li>Téléchargement sécurisé</li>
+            </ul>
+        </div>
+    </div>
+</section>
+
+<section id="course-diplomas" class="course-section">
+    <div class="section-header" style="margin-top: 48px;">
+        <h2>4️⃣ Gestion des formations et diplômes</h2>
+        <p>Enregistrez automatiquement ou manuellement chaque session pour revoir les cours plus tard.</p>
+    </div>
+    <div class="learning-grid">
+        <div class="learning-card">
+            <h3>Enregistrements automatiques</h3>
+            <p>Chaque classe peut être enregistrée automatiquement et conservée en lien pour consultation ultérieure.</p>
+        </div>
+        <div class="learning-card">
+            <h3>Visionnage et téléchargement</h3>
+            <p>Les enregistrements sont accessibles en continu. Les étudiants peuvent télécharger les sessions pour les revoir hors ligne.</p>
+        </div>
+    </div>
+</section>
+
+<section id="my-courses" class="course-section">
+    <div class="section-header" style="margin-top: 48px;">
+        <h2>4️⃣ Gestion des formations et diplômes</h2>
+        <p>Cours classés par catégorie, recherche rapide, suivi d’étudiants et diplômes de réussite.</p>
+    </div>
+    <div class="learning-grid">
+        <div class="learning-card">
+            <h3>Catalogue de formations</h3>
+            <p>Trouvez facilement vos cours par catégorie et accédez rapidement à la formation choisie.</p>
+            <ul class="feature-list">
+                <li>Catégories de cours</li>
+                <li>Barre de recherche intégrée</li>
+                <li>Accès rapide aux modules</li>
+            </ul>
+        </div>
+        <div class="learning-card">
+            <h3>Diplômes et certificats</h3>
+            <p>Distribuez des diplômes de réussite et visualisez les examens terminés et les validations de compétences.</p>
+            <ul class="feature-list">
+                <li>Certificats de réussite</li>
+                <li>Suivi d'examen</li>
+                <li>Tableau de progression</li>
+            </ul>
+        </div>
+    </div>
+</section>
+
+<section style="margin-top: 48px; margin-bottom: 60px;">
+    <div class="card">
+        <h3>Pourquoi SDI Formation ?</h3>
+        <p>Cette interface moderne et professionnelle est conçue pour être rapide, sécurisée et compatible mobile. Elle s’intègre directement au design system existant du site web.</p>
+        <div class="training-cta">
+            <a href="#live-courses" class="button sdi-sol-button">Démarrer une session</a>
+            <a href="#my-courses" class="button alt" style="color:#0f172a;">Voir mes formations</a>
+        </div>
+    </div>
+</section>
+{% endblock %}

@@ -1,0 +1,177 @@
+{% extends 'marketplace/base.html' %}
+{% csrf_token %}
+{% block content %}
+<div class="card">
+    <h2>🔔 Mes Notifications</h2>
+    <p><small>Notifications importantes qui sonnent jusqu'à ce qu'elles soient lues</small></p>
+
+    <div style="margin: 2rem 0;">
+        <button id="mark-all-read-btn" class="button" style="background-color: #28a745; color: white;">
+            Marquer tout comme lu
+        </button>
+    </div>
+
+    {% if notifications %}
+        <div id="notifications-list">
+            {% for notification in notifications %}
+                <div class="notification-item {% if not notification.is_read %}unread{% endif %}{% if notification.notification_type == 'admin_delivery_assigned' or notification.notification_type == 'delivery_confirmed' or notification.notification_type == 'delivery_completed' %} urgent{% endif %}"
+                     data-notification-id="{{ notification.id }}"
+                     style="border: 1px solid #e2e8f0; border-radius: 8px; padding: 1rem; margin: 0.5rem 0; background: {% if not notification.is_read %}#fef3c7{% else %}#f8fafc{% endif %};">
+
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                        <div style="flex: 1;">
+                            <h4 style="margin: 0 0 0.5rem 0; color: #1e293b;">
+                                {{ notification.title }}
+                                {% if notification.notification_type == 'admin_delivery_assigned' or notification.notification_type == 'delivery_confirmed' or notification.notification_type == 'delivery_completed' %}
+                                    <span class="urgent-badge">Urgent</span>
+                                {% endif %}
+                                {% if not notification.is_read %}
+                                    <span style="color: #dc2626; font-size: 0.8rem;">(Non lu)</span>
+                                {% endif %}
+                            </h4>
+                            <p style="margin: 0 0 0.5rem 0; color: #64748b;">{{ notification.message }}</p>
+                            <small style="color: #94a3b8;">
+                                {{ notification.created_at|date:"d/m/Y H:i" }}
+                                {% if notification.read_at %}
+                                    - Lu le {{ notification.read_at|date:"d/m/Y H:i" }}
+                                {% endif %}
+                            </small>
+                        </div>
+
+                        {% if not notification.is_read %}
+                            <button class="mark-read-btn button"
+                                    data-notification-id="{{ notification.id }}"
+                                    style="background-color: #007bff; color: white; font-size: 0.9rem; padding: 0.5rem 1rem;">
+                                Marquer comme lu
+                            </button>
+                        {% endif %}
+                    </div>
+
+                    {% if notification.related_assignment %}
+                        <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid #e2e8f0;">
+                            <a href="{% url 'delivery_tracking_detail' notification.related_assignment.order.id %}"
+                               class="button" style="background-color: #17a2b8; color: white; font-size: 0.9rem;">
+                                Voir la livraison
+                            </a>
+                        </div>
+                    {% endif %}
+                </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div style="text-align: center; padding: 3rem; border: 2px dashed #e2e8f0; border-radius: 8px; background: #f8fafc;">
+            <h3 style="color: #64748b; margin-bottom: 1rem;">Aucune notification</h3>
+            <p style="color: #94a3b8;">Vous n'avez pas encore de notifications persistantes.</p>
+        </div>
+    {% endif %}
+</div>
+
+<script>
+// Marquer une notification individuelle comme lue
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.mark-read-btn').forEach(button => {
+        button.addEventListener('click', function() {
+            const notificationId = this.getAttribute('data-notification-id');
+            markNotificationAsRead(notificationId);
+        });
+    });
+
+    // Marquer toutes les notifications comme lues
+    document.getElementById('mark-all-read-btn').addEventListener('click', function() {
+        markAllNotificationsAsRead();
+    });
+});
+
+function markNotificationAsRead(notificationId) {
+    fetch(`/api/notifications/persistent/${notificationId}/read/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCsrfToken()
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Recharger la page pour mettre à jour l'affichage
+            location.reload();
+        } else {
+            alert('Erreur lors de la mise à jour de la notification');
+        }
+    })
+    .catch(error => {
+        console.error('Erreur:', error);
+        alert('Erreur lors de la mise à jour de la notification');
+    });
+}
+
+function markAllNotificationsAsRead() {
+    fetch('/api/notifications/mark-all-read/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCsrfToken()
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Recharger la page pour mettre à jour l'affichage
+            location.reload();
+        } else {
+            alert('Erreur lors de la mise à jour des notifications');
+        }
+    })
+    .catch(error => {
+        console.error('Erreur:', error);
+        alert('Erreur lors de la mise à jour des notifications');
+    });
+}
+
+function getCsrfToken() {
+    // Chercher d'abord dans les entrées du formulaire ({% csrf_token %})
+    let csrfToken = document.querySelector('[name=csrfmiddlewaretoken]');
+    if (csrfToken) {
+        return csrfToken.value;
+    }
+    
+    // Sinon, chercher dans les cookies Django
+    const cookies = document.cookie.split(';');
+    for (let cookie of cookies) {
+        const [name, value] = cookie.trim().split('=');
+        if (name === 'csrftoken') {
+            return decodeURIComponent(value);
+        }
+    }
+    
+    console.warn('Token CSRF non trouvé');
+    return '';
+}
+</script>
+
+<style>
+.notification-item.unread {
+    border-left: 4px solid #f59e0b;
+}
+
+.notification-item.urgent {
+    border-color: #dc2626;
+    background: #fff1f2;
+}
+
+.urgent-badge {
+    display: inline-block;
+    margin-left: 0.5rem;
+    padding: 0.15rem 0.5rem;
+    background: #dc2626;
+    color: white;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    vertical-align: middle;
+}
+
+.notification-item:hover {
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+</style>
+{% endblock %}

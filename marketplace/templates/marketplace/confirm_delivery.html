@@ -1,0 +1,46 @@
+{% extends 'marketplace/base.html' %}
+{% block content %}
+
+<div style="padding: 20px; max-width: 800px; margin: 0 auto;">
+    <h1 style="color: #1e293b; margin-bottom: 20px;">✅ Confirmer la réception de votre commande</h1>
+    
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert {% if message.tags %}alert-{{ message.tags }}{% else %}alert-success{% endif %}">
+                {{ message }}
+            </div>
+        {% endfor %}
+    {% endif %}
+    
+    <div style="background: white; border-radius: 8px; padding: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+        <h3 style="color: #1e293b; margin-bottom: 15px;">Détails de la commande #{{ order.id }}</h3>
+        
+        <div style="display: grid; gap: 10px; margin-bottom: 20px;">
+            <div><strong>Produit:</strong> {{ order.product_name|default:"Commande multiple" }}</div>
+            <div><strong>Montant:</strong> {{ order.total_amount }} HTG</div>
+            <div><strong>Date de commande:</strong> {{ order.date_achat|date:"d/m/Y H:i" }}</div>
+            <div><strong>Adresse de livraison:</strong> {{ order.delivery_address }}</div>
+        </div>
+        
+        <div style="background: #f8f9fa; padding: 15px; border-radius: 6px; margin-bottom: 20px;">
+            <h4 style="color: #28a745; margin-bottom: 10px;">📦 Votre commande est-elle arrivée ?</h4>
+            <p style="color: #64748b; margin-bottom: 15px;">
+                En confirmant la réception, vous validez que vous avez bien reçu votre commande et que tout est en ordre.
+                Cette action notifiera automatiquement l'administration.
+            </p>
+            
+            <form method="post">
+                {% csrf_token %}
+                <button type="submit" style="background: #28a745; color: white; padding: 12px 24px; border: none; border-radius: 6px; font-size: 16px; cursor: pointer;">
+                    ✅ Oui, j'ai reçu ma commande
+                </button>
+            </form>
+        </div>
+        
+        <div style="text-align: center;">
+            <a href="{% url 'profile' %}" style="color: #007bff; text-decoration: none;">← Retour à mon profil</a>
+        </div>
+    </div>
+</div>
+
+{% endblock %}

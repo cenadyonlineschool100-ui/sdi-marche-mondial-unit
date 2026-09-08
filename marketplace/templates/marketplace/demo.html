@@ -1,0 +1,61 @@
+{% extends 'marketplace/base.html' %}
+{% load static %}
+{% static 'img/placeholder.png' as placeholder %}
+
+{% block content %}
+<section class="section">
+    <div class="container">
+        <div class="section-header">
+            <h2>Mode Démo — Parcours de formation</h2>
+            <p>Utilisez ces comptes et ressources pour explorer l'application sans modifier vos données.</p>
+        </div>
+
+        <div class="card" style="padding:20px; margin-bottom:18px;">
+            <h3>Comptes Démo</h3>
+            <ul>
+                <li>Acheteur : <strong>demo@buyer.local</strong> / <em>demo1234</em></li>
+                <li>Vendeur : <strong>seller@demo.local</strong> / <em>demo1234</em></li>
+            </ul>
+            <p>Connectez-vous via <a href="{% url 'login' %}">la page de connexion</a>.</p>
+        </div>
+
+        <div class="card" style="padding:20px; margin-bottom:18px;">
+            <h3>Produits de démonstration</h3>
+            <div class="products-grid">
+                {% for p in sample_products %}
+                <a href="{% url 'product_detail' p.id %}" class="product-card">
+                    <img class="product-image" src="{{ p.get_main_image_url|default:placeholder }}" alt="{{ p.name }}">
+                    <div class="product-info">
+                        <h4 class="product-title">{{ p.name }}</h4>
+                        <div class="product-price">{{ p.price }} {{ p.currency|default:'USD' }}</div>
+                        {% if p.shop %}
+                        <div class="product-shop">{{ p.shop.name }}</div>
+                        {% else %}
+                        <div class="product-shop">—</div>
+                        {% endif %}
+                    </div>
+                </a>
+                {% empty %}
+                <p>Aucun produit de démonstration disponible.</p>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="card" style="padding:20px;">
+            <h3>Boutiques (exemples)</h3>
+            <div class="shops-grid">
+                {% for s in sample_shops %}
+                <div class="shop-card">
+                    <h4>{{ s.name }}</h4>
+                    <p>{{ s.description|default:'Pas de description' }}</p>
+                    <a href="{% url 'shop_detail' s.id %}" class="button small">Voir la boutique</a>
+                </div>
+                {% empty %}
+                <p>Aucune boutique trouvée.</p>
+                {% endfor %}
+            </div>
+        </div>
+
+    </div>
+</section>
+{% endblock %}

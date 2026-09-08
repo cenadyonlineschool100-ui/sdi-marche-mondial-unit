@@ -1,0 +1,1314 @@
+<!-- Tableau de bord cybersécurité intelligent temps réel -->
+<style>
+/* ==========================================
+   CYBER BLUE GLASSMORPHISM THEME
+   ========================================== */
+
+.security-dashboard {
+    display: grid;
+    gap: 1rem;
+    margin-top: 1rem;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+/* Cartes 3D avec glow cyber */
+.cyber-card {
+    background: linear-gradient(135deg,
+        rgba(15, 23, 42, 0.95) 0%,
+        rgba(30, 58, 138, 0.85) 50%,
+        rgba(37, 99, 235, 0.75) 100%);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(56, 189, 248, 0.22);
+    border-radius: 8px;
+    padding: 6px;
+    box-shadow:
+        0 4px 12px rgba(37, 99, 235, 0.18),
+        0 0 18px rgba(56, 189, 248, 0.06),
+        inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    transition: all 0.2s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.cyber-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, #38bdf8, #3b82f6, #8b5cf6);
+    opacity: 0.8;
+}
+
+.cyber-card:hover {
+    transform: translateY(-4px) scale(1.02);
+    box-shadow:
+        0 20px 60px rgba(37, 99, 235, 0.4),
+        0 0 60px rgba(56, 189, 248, 0.2),
+        inset 0 1px 0 rgba(255, 255, 255, 0.15);
+    border-color: rgba(56, 189, 248, 0.5);
+}
+
+/* Grille responsive */
+.kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 0.8rem;
+}
+
+.chart-grid {
+    display: grid;
+    gap: 0.6rem;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+}
+
+/* Indicateurs de statut cyber */
+.status-indicator {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    margin-right: 8px;
+    animation: cyber-pulse 2s infinite;
+}
+
+.status-indicator.active {
+    background: linear-gradient(45deg, #10b981, #34d399);
+    box-shadow: 0 0 10px rgba(16, 185, 129, 0.5);
+}
+
+.status-indicator.warning {
+    background: linear-gradient(45deg, #f59e0b, #fbbf24);
+    box-shadow: 0 0 10px rgba(245, 158, 11, 0.5);
+}
+
+.status-indicator.danger {
+    background: linear-gradient(45deg, #ef4444, #f87171);
+    box-shadow: 0 0 10px rgba(239, 68, 68, 0.5);
+}
+
+@keyframes cyber-pulse {
+    0%, 100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+    50% {
+        opacity: 0.7;
+        transform: scale(1.1);
+    }
+}
+
+/* Valeurs KPI avec glow */
+.kpi-value {
+    font-size: 1rem;
+    font-weight: 800;
+    margin: 0.15rem 0;
+    background: linear-gradient(135deg, #38bdf8, #3b82f6, #8b5cf6);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    text-shadow: 0 0 12px rgba(56, 189, 248, 0.2);
+    animation: value-glow 3s ease-in-out infinite alternate;
+}
+
+@keyframes value-glow {
+    from { filter: brightness(1); }
+    to { filter: brightness(1.2); }
+}
+
+.kpi-label {
+    color: rgba(255, 255, 255, 0.8);
+    font-size: 0.7rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.2px;
+}
+
+/* Graphiques */
+.chart-container {
+    background: linear-gradient(135deg,
+        rgba(15, 23, 42, 0.95) 0%,
+        rgba(30, 58, 138, 0.85) 50%,
+        rgba(37, 99, 235, 0.75) 100%);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(56, 189, 248, 0.22);
+    border-radius: 10px;
+    padding: 12px;
+    box-shadow:
+        0 4px 16px rgba(37, 99, 235, 0.18),
+        0 0 22px rgba(56, 189, 248, 0.06);
+    min-height: 160px;
+    position: relative;
+}
+
+.chart-container h4 {
+    margin-top: 0;
+    color: #e0f2fe;
+    font-size: 1.1rem;
+    font-weight: 600;
+    text-align: center;
+    margin-bottom: 1rem;
+    text-shadow: 0 0 10px rgba(56, 189, 248, 0.5);
+}
+
+.chart-container canvas {
+    width: 100% !important;
+    max-height: 120px !important;
+}
+
+/* Surveillance des ports */
+.ports-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 0.8rem;
+}
+
+.port-card {
+    background: linear-gradient(135deg,
+        rgba(15, 23, 42, 0.9) 0%,
+        rgba(30, 58, 138, 0.8) 100%);
+    border: 1px solid rgba(56, 189, 248, 0.2);
+    border-radius: 10px;
+    padding: 8px;
+    text-align: center;
+    transition: all 0.3s ease;
+}
+
+.port-card:hover {
+    transform: translateY(-2px);
+    border-color: rgba(56, 189, 248, 0.4);
+    box-shadow: 0 8px 25px rgba(37, 99, 235, 0.3);
+}
+
+.port-number {
+    font-size: 1rem;
+    font-weight: 700;
+    color: #38bdf8;
+    margin-bottom: 0.3rem;
+}
+
+.port-status {
+    font-size: 0.7rem;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 15px;
+    display: inline-block;
+    margin-bottom: 0.3rem;
+}
+
+.port-status.open {
+    background: rgba(16, 185, 129, 0.2);
+    color: #10b981;
+    border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.port-status.closed {
+    background: rgba(239, 68, 68, 0.2);
+    color: #ef4444;
+    border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.port-traffic {
+    font-size: 0.8rem;
+    color: rgba(255, 255, 255, 0.7);
+}
+
+/* IA Analysis */
+.ai-analysis {
+    background: linear-gradient(135deg,
+        rgba(139, 92, 246, 0.1) 0%,
+        rgba(37, 99, 235, 0.1) 50%,
+        rgba(56, 189, 248, 0.1) 100%);
+    border: 1px solid rgba(139, 92, 246, 0.3);
+    border-radius: 16px;
+    padding: 24px;
+}
+
+.ai-score {
+    text-align: center;
+    margin-bottom: 2rem;
+}
+
+.ai-score-value {
+    font-size: 3rem;
+    font-weight: 900;
+    background: linear-gradient(135deg, #8b5cf6, #3b82f6, #38bdf8);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin: 1rem 0;
+}
+
+.ai-metrics {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 1rem;
+}
+
+/* Honeypot */
+.honeypot-events {
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.honeypot-event {
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.2);
+    border-radius: 8px;
+    padding: 12px;
+    margin-bottom: 8px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.honeypot-event.detected {
+    background: rgba(245, 158, 11, 0.1);
+    border-color: rgba(245, 158, 11, 0.2);
+}
+
+/* Console temps réel */
+.realtime-console {
+    background: rgba(15, 23, 42, 0.95);
+    border: 1px solid rgba(56, 189, 248, 0.25);
+    border-radius: 10px;
+    padding: 12px;
+    font-family: 'Courier New', monospace;
+    max-height: 220px;
+    overflow-y: auto;
+}
+
+.console-line {
+    margin-bottom: 4px;
+    font-size: 0.85rem;
+}
+
+.console-line.debug { color: #94a3b8; }
+.console-line.info { color: #38bdf8; }
+.console-line.warning { color: #fbbf24; }
+.console-line.error { color: #ef4444; }
+.console-line.critical { color: #dc2626; }
+
+/* Radar 3D */
+.cyber-radar {
+    position: relative;
+    width: 200px;
+    height: 200px;
+    margin: 0 auto;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(37, 99, 235, 0.1) 0%, rgba(15, 23, 42, 0.9) 70%);
+    border: 2px solid rgba(56, 189, 248, 0.3);
+    overflow: hidden;
+}
+
+.radar-sweep {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 2px;
+    height: 50%;
+    background: linear-gradient(to top, transparent, #38bdf8);
+    transform-origin: bottom;
+    animation: radar-sweep 3s linear infinite;
+}
+
+@keyframes radar-sweep {
+    from { transform: translateX(-50%) translateY(-100%) rotate(0deg); }
+    to { transform: translateX(-50%) translateY(-100%) rotate(360deg); }
+}
+
+/* Alertes */
+.alerts-container {
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.security-alert {
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.2);
+    border-radius: 8px;
+    padding: 12px;
+    margin-bottom: 8px;
+}
+
+.security-alert.high {
+    background: rgba(239, 68, 68, 0.15);
+    border-color: rgba(239, 68, 68, 0.3);
+}
+
+.security-alert.critical {
+    background: rgba(220, 38, 38, 0.15);
+    border-color: rgba(220, 38, 38, 0.3);
+    animation: alert-pulse 1s infinite;
+}
+
+@keyframes alert-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+}
+
+/* Boutons */
+.cyber-btn {
+    background: linear-gradient(135deg, #38bdf8, #3b82f6);
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 15px rgba(56, 189, 248, 0.3);
+}
+
+.cyber-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(56, 189, 248, 0.4);
+}
+
+.cyber-btn.danger {
+    background: linear-gradient(135deg, #ef4444, #dc2626);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .kpi-grid {
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    }
+
+    .chart-grid {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+    }
+
+    .cyber-card {
+        padding: 12px;
+    }
+
+    .kpi-value {
+        font-size: 1.4rem;
+    }
+}
+</style>
+
+<div class="security-dashboard" id="security-dashboard">
+    <!-- Header avec contrôles -->
+    <div class="cyber-card">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+            <div>
+                <h3 style="margin: 0; color: #e0f2fe; font-size: 1.5rem;">🛡️ Centre de Surveillance Cybersécurité</h3>
+                <p style="margin: 0.5rem 0 0 0; color: rgba(255,255,255,0.7); font-size: 0.9rem;">
+                    Intelligence artificielle temps réel • Surveillance 24/7 • Protection avancée
+                </p>
+            </div>
+            <div style="display: flex; gap: 10px; align-items: center;">
+                <button class="cyber-btn" id="manual-refresh" style="font-size: 0.9rem;">🔄 Actualiser</button>
+                <div style="text-align: center;">
+                    <div class="cyber-radar">
+                        <div class="radar-sweep"></div>
+                    </div>
+                    <small style="color: rgba(255,255,255,0.6); font-size: 0.8rem;">Scan actif</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Métriques principales -->
+    <div class="kpi-grid">
+        <div class="cyber-card">
+            <div class="kpi-label">🚨 Alertes Actives</div>
+            <div class="kpi-value" id="kpi-active-alerts">0</div>
+            <div style="display: flex; justify-content: space-between; margin-top: 1rem;">
+                <small style="color: rgba(255,255,255,0.6);">Critiques: <span id="kpi-critical">0</span></small>
+                <small style="color: rgba(255,255,255,0.6);">Résolues: <span id="kpi-resolved-today">0</span></small>
+            </div>
+        </div>
+
+        <div class="cyber-card">
+            <div class="kpi-label">🤖 Score IA Menace</div>
+            <div class="kpi-value" id="kpi-ai-score">0.0</div>
+            <div style="margin-top: 1rem;">
+                <div style="display: flex; align-items: center; margin-bottom: 0.5rem;">
+                    <span class="status-indicator" id="ai-status"></span>
+                    <span style="color: rgba(255,255,255,0.8);" id="ai-level">Sûr</span>
+                </div>
+                <small style="color: rgba(255,255,255,0.6);">Confiance: <span id="ai-confidence">0%</span></small>
+            </div>
+        </div>
+
+        <div class="cyber-card">
+            <div class="kpi-label">🌐 Connexions Actives</div>
+            <div class="kpi-value" id="kpi-connections">0</div>
+            <div style="margin-top: 1rem;">
+                <small style="color: rgba(255,255,255,0.6);">Trafic: <span id="kpi-traffic">0 MB</span></small>
+            </div>
+        </div>
+
+        <div class="cyber-card">
+            <div class="kpi-label">🚫 IPs Bloquées</div>
+            <div class="kpi-value" id="kpi-blocked-ips">0</div>
+            <div style="margin-top: 1rem;">
+                <small style="color: rgba(255,255,255,0.6);">Tentatives: <span id="kpi-blocked-attempts">0</span></small>
+            </div>
+        </div>
+
+        <div class="cyber-card">
+            <div class="kpi-label">🎯 Bots Détectés</div>
+            <div class="kpi-value" id="kpi-bots">0</div>
+            <div style="margin-top: 1rem;">
+                <small style="color: rgba(255,255,255,0.6);">Honeypot: <span id="kpi-honeypot">0</span></small>
+            </div>
+        </div>
+
+        <div class="cyber-card">
+            <div class="kpi-label">⚡ Performance</div>
+            <div class="kpi-value" id="kpi-response-time">0ms</div>
+            <div style="margin-top: 1rem;">
+                <small style="color: rgba(255,255,255,0.6);">CPU: <span id="kpi-cpu">0%</span> | RAM: <span id="kpi-ram">0%</span></small>
+            </div>
+        </div>
+    </div>
+
+    <!-- Surveillance des ports -->
+    <div class="cyber-card">
+        <h4 style="color: #e0f2fe; margin-bottom: 1.5rem; text-align: center;">🔍 Surveillance Ports Réseau</h4>
+        <div class="ports-grid" id="ports-grid">
+            <!-- Ports seront chargés dynamiquement -->
+        </div>
+    </div>
+
+    <!-- Analyse IA et Honeypot -->
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem;" class="chart-grid">
+        <div class="cyber-card ai-analysis">
+            <h4 style="color: #e0f2fe; margin-bottom: 1rem;">🤖 Analyse IA Temps Réel</h4>
+            <div class="ai-score">
+                <div style="color: rgba(255,255,255,0.7); font-size: 0.9rem;">Niveau de Menace</div>
+                <div class="ai-score-value" id="ai-threat-score">0.0</div>
+                <div style="color: rgba(255,255,255,0.6); font-size: 0.8rem;" id="ai-last-analysis">Dernière analyse: --:--:--</div>
+            </div>
+            <div class="ai-metrics" id="ai-metrics">
+                <!-- Métriques IA seront chargées -->
+            </div>
+        </div>
+
+        <div class="cyber-card">
+            <h4 style="color: #e0f2fe; margin-bottom: 1rem;">🎣 Événements Honeypot</h4>
+            <div class="honeypot-events" id="honeypot-events">
+                <p style="color: rgba(255,255,255,0.6); text-align: center; margin: 2rem 0;">Aucun événement récent</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Graphiques principaux -->
+    <div class="chart-grid">
+        <div class="chart-container">
+            <h4>📈 Requêtes par Minute</h4>
+            <canvas id="chart-requests-per-minute" height="80"></canvas>
+        </div>
+
+        <div class="chart-container">
+            <h4>🎯 Types d'Incidents Détectés</h4>
+            <canvas id="chart-incident-types" height="80"></canvas>
+        </div>
+    </div>
+
+    <!-- Console temps réel et alertes -->
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem;">
+        <div class="cyber-card">
+            <h4 style="color: #e0f2fe; margin-bottom: 1rem;">💻 Console Temps Réel</h4>
+            <div class="realtime-console" id="realtime-console">
+                <div class="console-line info">[INFO] Système de surveillance initialisé</div>
+                <div class="console-line debug">[DEBUG] Connexion à la base de données établie</div>
+                <div class="console-line info">[INFO] Analyse IA chargée</div>
+            </div>
+        </div>
+
+        <div class="cyber-card">
+            <h4 style="color: #e0f2fe; margin-bottom: 1rem;">🚨 Alertes de Sécurité</h4>
+            <div class="alerts-container" id="security-alerts">
+                <p style="color: rgba(255,255,255,0.6); text-align: center; margin: 2rem 0;">Aucune alerte active</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- État du système -->
+    <div class="cyber-card">
+        <h4 style="color: #e0f2fe; margin-bottom: 1.5rem; text-align: center;">⚙️ État du Système</h4>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
+            <div style="text-align: center; padding: 16px; background: rgba(255,255,255,0.05); border-radius: 8px;">
+                <div style="display: flex; align-items: center; justify-content: center; margin-bottom: 0.5rem;">
+                    <span class="status-indicator" id="status-cybersec"></span>
+                    <span style="color: rgba(255,255,255,0.8);">Surveillance</span>
+                </div>
+                <div style="color: rgba(255,255,255,0.6); font-size: 0.9rem;" id="status-cybersec-text">Activée</div>
+            </div>
+
+            <div style="text-align: center; padding: 16px; background: rgba(255,255,255,0.05); border-radius: 8px;">
+                <div style="display: flex; align-items: center; justify-content: center; margin-bottom: 0.5rem;">
+                    <span class="status-indicator" id="status-lockdown"></span>
+                    <span style="color: rgba(255,255,255,0.8);">Verrouillage</span>
+                </div>
+                <div style="color: rgba(255,255,255,0.6); font-size: 0.9rem;" id="status-lockdown-text">Désactivé</div>
+            </div>
+
+            <div style="text-align: center; padding: 16px; background: rgba(255,255,255,0.05); border-radius: 8px;">
+                <div style="color: rgba(255,255,255,0.8); margin-bottom: 0.5rem;">⏱️ Mise à jour</div>
+                <div style="color: rgba(255,255,255,0.6); font-size: 0.9rem;" id="last-update">--:--:--</div>
+            </div>
+
+            <div style="text-align: center; padding: 16px; background: rgba(255,255,255,0.05); border-radius: 8px;">
+                <div style="color: rgba(255,255,255,0.8); margin-bottom: 0.5rem;">🔄 Uptime</div>
+                <div style="color: rgba(255,255,255,0.6); font-size: 0.9rem;" id="system-uptime">99.9%</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==========================================
+         TABLEAU DES FAILLES DÉTECTÉES
+         ========================================== -->
+
+    <div class="cyber-card">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+            <h4 style="margin: 0; color: #e0f2fe; font-size: 1.1rem;">🔓 Tableau de Détection des Failles IA</h4>
+            <div style="display: flex; gap: 10px;">
+                <button class="cyber-btn" id="run-audit-btn" style="font-size: 0.85rem;">🔍 Lancer Audit</button>
+                <select id="severity-filter" style="padding: 8px 12px; background: rgba(56, 189, 248, 0.2); border: 1px solid rgba(56, 189, 248, 0.4); color: #e0f2fe; border-radius: 6px; font-size: 0.85rem;">
+                    <option value="">Tous les niveaux</option>
+                    <option value="critical">Critique</option>
+                    <option value="high">Élevé</option>
+                    <option value="medium">Moyen</option>
+                    <option value="low">Faible</option>
+                </select>
+            </div>
+        </div>
+
+        <div style="overflow-x: auto;">
+            <table id="vulnerabilities-table" style="width: 100%; border-collapse: collapse; color: rgba(255,255,255,0.9); font-size: 0.9rem;">
+                <thead>
+                    <tr style="border-bottom: 2px solid rgba(56, 189, 248, 0.3);">
+                        <th style="padding: 12px; text-align: left; color: #38bdf8;">Faille</th>
+                        <th style="padding: 12px; text-align: left; color: #38bdf8;">Type</th>
+                        <th style="padding: 12px; text-align: center; color: #38bdf8;">Niveau</th>
+                        <th style="padding: 12px; text-align: left; color: #38bdf8;">Emplacement</th>
+                        <th style="padding: 12px; text-align: center; color: #38bdf8;">Confiance IA</th>
+                        <th style="padding: 12px; text-align: center; color: #38bdf8;">État</th>
+                        <th style="padding: 12px; text-align: center; color: #38bdf8;">Action</th>
+                    </tr>
+                </thead>
+                <tbody id="vulnerabilities-body">
+                    <tr style="text-align: center; color: rgba(255,255,255,0.6);">
+                        <td colspan="7" style="padding: 2rem;">Chargement des failles détectées...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div style="margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid rgba(56, 189, 248, 0.2); display: flex; justify-content: space-between; align-items: center;">
+            <div style="color: rgba(255,255,255,0.7); font-size: 0.9rem;">
+                <strong id="vuln-stats-total">0</strong> failles détectées
+                • <strong id="vuln-stats-critical" style="color: #dc2626;">0</strong> critiques
+                • <strong id="vuln-stats-high" style="color: #ef4444;">0</strong> élevées
+                • <strong id="vuln-stats-fixed" style="color: #10b981;">0</strong> corrigées
+            </div>
+        </div>
+    </div>
+
+    <!-- ==========================================
+         TABLEAU DES RECOMMANDATIONS IA
+         ========================================== -->
+
+    <div class="cyber-card">
+        <h4 style="margin: 0 0 1.5rem 0; color: #e0f2fe; font-size: 1.1rem;">💡 Recommandations de Sécurité IA</h4>
+
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;" id="recommendations-grid">
+            <p style="color: rgba(255,255,255,0.6); text-align: center; padding: 2rem; grid-column: 1 / -1;">Chargement des recommandations...</p>
+        </div>
+    </div>
+
+    <!-- ==========================================
+         CONFIGURATION SURVEILLANCE CONTINUE
+         ========================================== -->
+
+    <div class="cyber-card">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+            <h4 style="margin: 0; color: #e0f2fe; font-size: 1.1rem;">⚙️ Surveillance Continue et Correction Automatique</h4>
+            <button class="cyber-btn" id="save-monitoring-btn" style="font-size: 0.85rem;">💾 Sauvegarder Configuration</button>
+        </div>
+
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem;">
+            <div style="background: rgba(255,255,255,0.05); padding: 1rem; border-radius: 8px;">
+                <label style="color: #e0f2fe; font-weight: 600;">
+                    <input type="checkbox" id="monitoring-enabled" checked style="margin-right: 8px;">
+                    Surveillance Continue
+                </label>
+                <p style="color: rgba(255,255,255,0.6); font-size: 0.85rem; margin: 0.5rem 0 0 0;">Scanne automatiquement les vulnérabilités</p>
+            </div>
+
+            <div style="background: rgba(255,255,255,0.05); padding: 1rem; border-radius: 8px;">
+                <label style="color: #e0f2fe; font-weight: 600;">
+                    <input type="checkbox" id="auto-fix-critical" style="margin-right: 8px;">
+                    Correction Auto (Critique)
+                </label>
+                <p style="color: rgba(255,255,255,0.6); font-size: 0.85rem; margin: 0.5rem 0 0 0;">Corrige automatiquement les failles critiques</p>
+            </div>
+
+            <div style="background: rgba(255,255,255,0.05); padding: 1rem; border-radius: 8px;">
+                <label style="color: #e0f2fe; font-weight: 600;">
+                    <input type="checkbox" id="auto-fix-high" style="margin-right: 8px;">
+                    Correction Auto (Élevée)
+                </label>
+                <p style="color: rgba(255,255,255,0.6); font-size: 0.85rem; margin: 0.5rem 0 0 0;">Corrige automatiquement les failles élevées</p>
+            </div>
+
+            <div style="background: rgba(255,255,255,0.05); padding: 1rem; border-radius: 8px;">
+                <label style="color: #e0f2fe; font-weight: 600;">
+                    <input type="checkbox" id="notify-detection" checked style="margin-right: 8px;">
+                    Notification Détection
+                </label>
+                <p style="color: rgba(255,255,255,0.6); font-size: 0.85rem; margin: 0.5rem 0 0 0;">Vous alerter lors de nouvelles failles</p>
+            </div>
+
+            <div style="background: rgba(255,255,255,0.05); padding: 1rem; border-radius: 8px;">
+                <label style="color: #e0f2fe; font-weight: 600;">
+                    <input type="checkbox" id="backup-before-fix" checked style="margin-right: 8px;">
+                    Backup Avant Fix
+                </label>
+                <p style="color: rgba(255,255,255,0.6); font-size: 0.85rem; margin: 0.5rem 0 0 0;">Sauvegarder avant chaque correction</p>
+            </div>
+
+            <div style="background: rgba(255,255,255,0.05); padding: 1rem; border-radius: 8px;">
+                <select id="scan-interval" style="width: 100%; padding: 8px; background: rgba(56, 189, 248, 0.2); border: 1px solid rgba(56, 189, 248, 0.4); color: #e0f2fe; border-radius: 6px;">
+                    <option value="hourly">Scan horaire</option>
+                    <option value="daily" selected>Scan quotidien</option>
+                    <option value="weekly">Scan hebdomadaire</option>
+                </select>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+<script>
+let chartRequestsPerMinute = null;
+let chartIncidentTypes = null;
+let updateInterval = null;
+let consoleLines = [];
+let securityDashboardInitialized = false;
+
+function safeGetElement(id) {
+    return document.getElementById(id);
+}
+
+function safeAddEventListener(id, event, handler) {
+    const el = safeGetElement(id);
+    if (el) {
+        el.addEventListener(event, handler);
+    }
+}
+
+function isChartAvailable() {
+    return typeof Chart !== 'undefined';
+}
+
+function setFallbackChartMessage(elementId, message) {
+    const canvas = safeGetElement(elementId);
+    if (canvas && canvas.parentElement) {
+        canvas.parentElement.innerHTML = `<div style="color:#e0f2fe; padding:1rem; text-align:center;">${message}</div>`;
+    }
+}
+
+// Initialisation
+document.addEventListener('DOMContentLoaded', function() {
+    if (securityDashboardInitialized) {
+        return;
+    }
+    securityDashboardInitialized = true;
+
+    try {
+        if (isChartAvailable()) {
+            initCharts();
+        } else {
+            console.warn('Chart.js non chargé, graphiques cybersécurité désactivés.');
+            setFallbackChartMessage('chart-requests-per-minute', 'Graphiques désactivés (Chart.js non chargé)');
+            setFallbackChartMessage('chart-incident-types', 'Graphiques désactivés (Chart.js non chargé)');
+        }
+
+        loadDashboard();
+        loadVulnerabilities();
+        loadRecommendations();
+        loadMonitoringConfig();
+
+        updateInterval = setInterval(function() {
+            if (safeGetElement('security-dashboard')) {
+                loadDashboard();
+            } else {
+                clearInterval(updateInterval);
+            }
+        }, 5000);
+
+        safeAddEventListener('manual-refresh', loadDashboard);
+        safeAddEventListener('run-audit-btn', runSecurityAudit);
+        safeAddEventListener('save-monitoring-btn', saveMonitoringConfig);
+        safeAddEventListener('severity-filter', loadVulnerabilities);
+    } catch (error) {
+        console.error('Erreur initialisation dashboard cybersécurité:', error);
+    }
+});
+
+function initCharts() {
+    // Graphique des requêtes par minute
+    const ctxRequests = document.getElementById('chart-requests-per-minute').getContext('2d');
+    chartRequestsPerMinute = new Chart(ctxRequests, {
+        type: 'line',
+        data: {
+            labels: [],
+            datasets: [{
+                label: 'Requêtes',
+                data: [],
+                borderColor: '#38bdf8',
+                backgroundColor: 'rgba(56, 189, 248, 0.1)',
+                borderWidth: 2,
+                fill: true,
+                tension: 0.4,
+                pointRadius: 3,
+                pointBackgroundColor: '#38bdf8',
+                pointBorderColor: 'rgba(15, 23, 42, 0.9)',
+                pointBorderWidth: 2,
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                y: { beginAtZero: true, grid: { color: 'rgba(56, 189, 248, 0.1)' } },
+                x: { grid: { color: 'rgba(56, 189, 248, 0.1)' } }
+            }
+        }
+    });
+
+    // Graphique des types d'incidents
+    const ctxIncidents = document.getElementById('chart-incident-types').getContext('2d');
+    chartIncidentTypes = new Chart(ctxIncidents, {
+        type: 'doughnut',
+        data: {
+            labels: [],
+            datasets: [{
+                data: [],
+                backgroundColor: [
+                    '#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6',
+                    '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16', '#f59e0b'
+                ],
+                borderColor: 'rgba(15, 23, 42, 0.9)',
+                borderWidth: 2,
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { position: 'bottom', labels: { color: '#e0f2fe' } }
+            }
+        }
+    });
+}
+
+function loadDashboard() {
+    if (!safeGetElement('security-dashboard')) {
+        return;
+    }
+
+    fetch('/api/security-dashboard/')
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`Statut HTTP ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (!data) {
+                return;
+            }
+            updateKPIs(data);
+            updateCharts(data);
+            updatePorts(data.ports_monitoring);
+            updateAIAnalysis(data.ai_analysis);
+            updateHoneypot(data.honeypot_events);
+            updateConsole(data.recent_logs);
+            updateAlerts(data.security_alerts);
+            updateSystemStatus(data.system_status);
+            updateLastUpdate();
+        })
+        .catch(error => {
+            console.error('Erreur chargement dashboard:', error);
+        });
+}
+
+function updateKPIs(data) {
+    // Métriques principales
+    document.getElementById('kpi-active-alerts').textContent = data.live_metrics.active_alerts;
+    document.getElementById('kpi-critical').textContent = data.live_metrics.active_alerts;
+    document.getElementById('kpi-resolved-today').textContent = data.live_metrics.resolved_alerts_today;
+
+    document.getElementById('kpi-ai-score').textContent = data.live_metrics.ai_threat_score.toFixed(1);
+    document.getElementById('kpi-connections').textContent = data.live_metrics.active_connections;
+    document.getElementById('kpi-blocked-ips').textContent = data.stats.blocked_ips;
+    document.getElementById('kpi-bots').textContent = data.live_metrics.bot_detections;
+    document.getElementById('kpi-response-time').textContent = data.stats.avg_response_time + 'ms';
+
+    // Métriques détaillées
+    document.getElementById('kpi-traffic').textContent = (data.live_metrics.network_traffic / 1024 / 1024).toFixed(1) + ' MB';
+    document.getElementById('kpi-blocked-attempts').textContent = data.live_metrics.blocked_requests;
+    document.getElementById('kpi-honeypot').textContent = data.live_metrics.honeypot_triggers;
+    document.getElementById('kpi-cpu').textContent = data.live_metrics.cpu_usage.toFixed(1) + '%';
+    document.getElementById('kpi-ram').textContent = data.live_metrics.memory_usage.toFixed(1) + '%';
+}
+
+function updateCharts(data) {
+    if (!chartRequestsPerMinute || !chartIncidentTypes) {
+        return;
+    }
+
+    // Requêtes par minute
+    chartRequestsPerMinute.data.labels = data.events_by_minute.map(e => e.time);
+    chartRequestsPerMinute.data.datasets[0].data = data.events_by_minute.map(e => e.count);
+    chartRequestsPerMinute.update();
+
+    // Types d'incidents
+    chartIncidentTypes.data.labels = data.incident_types.map(e => e.type);
+    chartIncidentTypes.data.datasets[0].data = data.incident_types.map(e => e.count);
+    chartIncidentTypes.update();
+}
+
+function updatePorts(ports) {
+    const grid = document.getElementById('ports-grid');
+    if (!ports || ports.length === 0) {
+        grid.innerHTML = '<p style="color: rgba(255,255,255,0.6); text-align: center; width: 100%;">Chargement surveillance ports...</p>';
+        return;
+    }
+
+    grid.innerHTML = ports.map(port => `
+        <div class="port-card">
+            <div class="port-number">Port ${port.port}</div>
+            <div class="port-status ${port.is_open ? 'open' : 'closed'}">
+                ${port.is_open ? 'Ouvert' : 'Fermé'}
+            </div>
+            <div class="port-traffic">Trafic: ${port.traffic_count}</div>
+            <div class="port-traffic" style="color: ${getRiskColor(port.risk_level)};">
+                Risque: ${port.risk_level}
+            </div>
+        </div>
+    `).join('');
+}
+
+function updateAIAnalysis(ai) {
+    if (!ai) return;
+
+    document.getElementById('ai-threat-score').textContent = ai.threat_score.toFixed(1);
+    document.getElementById('ai-last-analysis').textContent = `Dernière analyse: ${ai.last_analysis}`;
+
+    const statusEl = document.getElementById('ai-status');
+    const levelEl = document.getElementById('ai-level');
+    const confidenceEl = document.getElementById('ai-confidence');
+
+    // Mise à jour du statut IA
+    statusEl.className = 'status-indicator';
+    if (ai.threat_level === 'critical') {
+        statusEl.classList.add('danger');
+        levelEl.textContent = 'Critique';
+        levelEl.style.color = '#ef4444';
+    } else if (ai.threat_level === 'high') {
+        statusEl.classList.add('warning');
+        levelEl.textContent = 'Élevé';
+        levelEl.style.color = '#f59e0b';
+    } else if (ai.threat_level === 'medium') {
+        statusEl.classList.add('warning');
+        levelEl.textContent = 'Moyen';
+        levelEl.style.color = '#eab308';
+    } else {
+        statusEl.classList.add('active');
+        levelEl.textContent = 'Faible';
+        levelEl.style.color = '#10b981';
+    }
+
+    confidenceEl.textContent = (ai.ai_confidence * 100).toFixed(1) + '%';
+
+    // Métriques IA
+    const metricsEl = document.getElementById('ai-metrics');
+    metricsEl.innerHTML = `
+        <div style="text-align: center;">
+            <div style="color: rgba(255,255,255,0.7); font-size: 0.9rem;">Bots détectés</div>
+            <div style="color: #38bdf8; font-size: 1.2rem; font-weight: 600;">${ai.bot_detections}</div>
+        </div>
+        <div style="text-align: center;">
+            <div style="color: rgba(255,255,255,0.7); font-size: 0.9rem;">Brute force</div>
+            <div style="color: #ef4444; font-size: 1.2rem; font-weight: 600;">${ai.brute_force_attempts}</div>
+        </div>
+        <div style="text-align: center;">
+            <div style="color: rgba(255,255,255,0.7); font-size: 0.9rem;">SQL Injection</div>
+            <div style="color: #f59e0b; font-size: 1.2rem; font-weight: 600;">${ai.sql_injection_attempts}</div>
+        </div>
+        <div style="text-align: center;">
+            <div style="color: rgba(255,255,255,0.7); font-size: 0.9rem;">XSS</div>
+            <div style="color: #8b5cf6; font-size: 1.2rem; font-weight: 600;">${ai.xss_attempts}</div>
+        </div>
+    `;
+}
+
+function updateHoneypot(events) {
+    const container = document.getElementById('honeypot-events');
+    if (!events || events.length === 0) {
+        container.innerHTML = '<p style="color: rgba(255,255,255,0.6); text-align: center; margin: 2rem 0;">Aucun événement récent</p>';
+        return;
+    }
+
+    container.innerHTML = events.slice(0, 8).map(event => `
+        <div class="honeypot-event ${event.alerted ? 'detected' : ''}">
+            <div>
+                <strong style="color: #ef4444;">${event.type}</strong><br>
+                <small style="color: rgba(255,255,255,0.7);">IP: ${event.ip} | User: ${event.username || 'N/A'}</small>
+            </div>
+            <div style="color: rgba(255,255,255,0.6); font-size: 0.8rem;">${event.time}</div>
+        </div>
+    `).join('');
+}
+
+function updateConsole(logs) {
+    const consoleEl = document.getElementById('realtime-console');
+    if (!logs || logs.length === 0) return;
+
+    // Ajouter les nouveaux logs
+    logs.forEach(log => {
+        const line = document.createElement('div');
+        line.className = `console-line ${log.level}`;
+        line.textContent = `[${log.time}] [${log.component.toUpperCase()}] ${log.message}`;
+        consoleEl.appendChild(line);
+
+        // Garder seulement les 50 dernières lignes
+        while (consoleEl.children.length > 50) {
+            consoleEl.removeChild(consoleEl.firstChild);
+        }
+    });
+
+    // Scroll vers le bas
+    consoleEl.scrollTop = consoleEl.scrollHeight;
+}
+
+function updateAlerts(alerts) {
+    const container = document.getElementById('security-alerts');
+    if (!alerts || alerts.length === 0) {
+        container.innerHTML = '<p style="color: rgba(255,255,255,0.6); text-align: center; margin: 2rem 0;">Aucune alerte active</p>';
+        return;
+    }
+
+    container.innerHTML = alerts.map(alert => `
+        <div class="security-alert ${alert.priority}">
+            <div style="display: flex; justify-content: space-between; align-items: start;">
+                <div>
+                    <strong style="color: ${getPriorityColor(alert.priority)};">${alert.title}</strong>
+                    <p style="margin: 4px 0; color: rgba(255,255,255,0.8); font-size: 0.9rem;">${alert.description}</p>
+                    <small style="color: rgba(255,255,255,0.6);">IP: ${alert.ip || 'N/A'} • ${alert.time}</small>
+                </div>
+                <span style="color: ${getPriorityColor(alert.priority)}; font-size: 0.8rem; font-weight: 600;">
+                    ${alert.priority.toUpperCase()}
+                </span>
+            </div>
+        </div>
+    `).join('');
+}
+
+function updateSystemStatus(status) {
+    const cybersecEl = document.getElementById('status-cybersec');
+    const cybersecTextEl = document.getElementById('status-cybersec-text');
+    const lockdownEl = document.getElementById('status-lockdown');
+    const lockdownTextEl = document.getElementById('status-lockdown-text');
+
+    if (status.cybersecurity_enabled) {
+        cybersecEl.classList.add('active');
+        cybersecTextEl.textContent = 'Activée';
+        cybersecTextEl.style.color = '#10b981';
+    } else {
+        cybersecEl.classList.remove('active');
+        cybersecTextEl.textContent = 'Désactivée';
+        cybersecTextEl.style.color = '#ef4444';
+    }
+
+    if (status.emergency_lockdown) {
+        lockdownEl.classList.add('danger');
+        lockdownTextEl.textContent = 'ACTIVÉ';
+        lockdownTextEl.style.color = '#dc2626';
+    } else {
+        lockdownEl.classList.remove('danger');
+        lockdownTextEl.textContent = 'Désactivé';
+        lockdownTextEl.style.color = '#10b981';
+    }
+}
+
+function updateLastUpdate() {
+    const now = new Date();
+    document.getElementById('last-update').textContent =
+        `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
+}
+
+function getRiskColor(risk) {
+    switch(risk) {
+        case 'critical': return '#dc2626';
+        case 'high': return '#ef4444';
+        case 'medium': return '#f59e0b';
+        case 'low': return '#10b981';
+        default: return '#6b7280';
+    }
+}
+
+function getPriorityColor(priority) {
+    switch(priority) {
+        case 'critical': return '#dc2626';
+        case 'high': return '#ef4444';
+        case 'medium': return '#f59e0b';
+        case 'low': return '#10b981';
+        default: return '#6b7280';
+    }
+}
+
+// ==========================================
+// GESTION DES VULNÉRABILITÉS
+// ==========================================
+
+function loadVulnerabilities() {
+    const severity = document.getElementById('severity-filter').value;
+    let url = '/api/security/vulnerabilities/';
+    if (severity) {
+        url += `?severity=${severity}`;
+    }
+
+    fetch(url)
+        .then(response => response.json())
+        .then(data => {
+            displayVulnerabilities(data.vulnerabilities);
+            updateVulnerabilityStats(data.stats);
+        })
+        .catch(error => console.error('Erreur chargement vulnérabilités:', error));
+}
+
+function displayVulnerabilities(vulns) {
+    const tbody = document.getElementById('vulnerabilities-body');
+    
+    if (!vulns || vulns.length === 0) {
+        tbody.innerHTML = '<tr style="text-align: center; color: rgba(255,255,255,0.6);"><td colspan="7" style="padding: 2rem;">✅ Aucune vulnérabilité détectée</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = vulns.map(vuln => `
+        <tr style="border-bottom: 1px solid rgba(56, 189, 248, 0.2); transition: all 0.3s;">
+            <td style="padding: 12px;">
+                <strong>${vuln.title}</strong>
+                <br><small style="color: rgba(255,255,255,0.6);">${vuln.description.substring(0, 50)}...</small>
+            </td>
+            <td style="padding: 12px; color: rgba(255,255,255,0.8);">${vuln.type}</td>
+            <td style="padding: 12px; text-align: center;">
+                <span style="background: ${vuln.severity_color}33; color: ${vuln.severity_color}; padding: 4px 8px; border-radius: 4px; font-weight: 600;">
+                    ${vuln.severity.toUpperCase()}
+                </span>
+            </td>
+            <td style="padding: 12px;">
+                <small style="color: rgba(255,255,255,0.7);">
+                    ${vuln.file ? `📄 ${vuln.file}` : 'N/A'}
+                    ${vuln.line ? `:<strong>${vuln.line}</strong>` : ''}
+                </small>
+            </td>
+            <td style="padding: 12px; text-align: center; color: #38bdf8; font-weight: 600;">
+                ${(vuln.ai_confidence * 100).toFixed(0)}%
+            </td>
+            <td style="padding: 12px; text-align: center;">
+                <span style="background: ${vuln.fixed ? 'rgba(16, 185, 129, 0.2)' : 'rgba(245, 158, 11, 0.2)'}; color: ${vuln.fixed ? '#10b981' : '#f59e0b'}; padding: 4px 8px; border-radius: 4px;">
+                    ${vuln.fixed ? '✓ Corrigée' : 'À corriger'}
+                </span>
+            </td>
+            <td style="padding: 12px; text-align: center;">
+                ${vuln.fixed ? '✅' : `<button onclick="fixVulnerability(${vuln.id})" class="cyber-btn" style="padding: 6px 12px; font-size: 0.8rem;">🔧 Corriger</button>`}
+            </td>
+        </tr>
+    `).join('');
+}
+
+function updateVulnerabilityStats(stats) {
+    document.getElementById('vuln-stats-total').textContent = stats.total;
+    document.getElementById('vuln-stats-critical').textContent = stats.critical;
+    document.getElementById('vuln-stats-high').textContent = stats.high;
+    document.getElementById('vuln-stats-fixed').textContent = stats.fixed;
+}
+
+function fixVulnerability(vulnId) {
+    if (!confirm('🔧 Êtes-vous sûr de vouloir corriger automatiquement cette vulnérabilité?\n\nUne sauvegarde sera créée avant la correction.')) {
+        return;
+    }
+
+    fetch('/api/security/vulnerabilities/fix/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCookie('csrftoken'),
+        },
+        body: JSON.stringify({
+            vulnerability_id: vulnId,
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('✅ Vulnérabilité corrigée avec succès!');
+            loadVulnerabilities();
+        } else {
+            alert('❌ Erreur: ' + (data.error || 'Correction échouée'));
+        }
+    })
+    .catch(error => {
+        console.error('Erreur:', error);
+        alert('❌ Erreur lors de la correction');
+    });
+}
+
+function runSecurityAudit() {
+    if (!confirm('🔍 Lancer un audit de sécurité complet?\n\nCela peut prendre quelques minutes...')) {
+        return;
+    }
+
+    const btn = document.getElementById('run-audit-btn');
+    btn.disabled = true;
+    btn.textContent = '⏳ Audit en cours...';
+
+    fetch('/api/security/audit/run/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCookie('csrftoken'),
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        btn.disabled = false;
+        btn.textContent = '🔍 Lancer Audit';
+        
+        if (data.success) {
+            alert(`✅ Audit complété!\n\nScore: ${data.audit.security_score}/100\nVulnérabilités: ${data.audit.vulnerabilities.total}`);
+            loadVulnerabilities();
+        } else {
+            alert('❌ Erreur: ' + (data.error || 'Audit échoué'));
+        }
+    })
+    .catch(error => {
+        console.error('Erreur:', error);
+        btn.disabled = false;
+        btn.textContent = '🔍 Lancer Audit';
+        alert('❌ Erreur lors de l\'audit');
+    });
+}
+
+// ==========================================
+// RECOMMANDATIONS IA
+// ==========================================
+
+function loadRecommendations() {
+    fetch('/api/security/recommendations/')
+        .then(response => response.json())
+        .then(data => {
+            displayRecommendations(data.recommendations);
+        })
+        .catch(error => console.error('Erreur chargement recommandations:', error));
+}
+
+function displayRecommendations(recs) {
+    const grid = document.getElementById('recommendations-grid');
+    
+    if (!recs || recs.length === 0) {
+        grid.innerHTML = '<p style="color: rgba(255,255,255,0.6); text-align: center; padding: 2rem; grid-column: 1 / -1;">Aucune recommandation actuellement</p>';
+        return;
+    }
+
+    grid.innerHTML = recs.map(rec => `
+        <div style="background: linear-gradient(135deg, rgba(139, 92, 246, 0.2) 0%, rgba(37, 99, 235, 0.15) 100%); border: 1px solid rgba(139, 92, 246, 0.3); border-radius: 12px; padding: 1rem;">
+            <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 0.5rem;">
+                <strong style="color: #e0f2fe;">${rec.title}</strong>
+                <span style="background: ${getPriorityColor(rec.priority)}33; color: ${getPriorityColor(rec.priority)}; padding: 2px 6px; border-radius: 3px; font-size: 0.75rem;">
+                    ${rec.priority.toUpperCase()}
+                </span>
+            </div>
+            <small style="color: rgba(255,255,255,0.7); display: block; margin-bottom: 0.5rem;">${rec.type}</small>
+            <p style="margin: 0; color: rgba(255,255,255,0.8); font-size: 0.9rem; margin-bottom: 0.5rem;">${rec.description}</p>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 0.75rem;">
+                <small style="color: rgba(255,255,255,0.6);">Confiance IA: ${(rec.ai_confidence * 100).toFixed(0)}%</small>
+                ${rec.implemented ? '<small style="color: #10b981;">✓ Implémentée</small>' : ''}
+            </div>
+        </div>
+    `).join('');
+}
+
+// ==========================================
+// SURVEILLANCE CONTINUE
+// ==========================================
+
+function loadMonitoringConfig() {
+    fetch('/api/security/monitoring/')
+        .then(response => response.json())
+        .then(data => {
+            document.getElementById('monitoring-enabled').checked = data.config.is_enabled;
+            document.getElementById('auto-fix-critical').checked = data.config.auto_fix_critical;
+            document.getElementById('auto-fix-high').checked = data.config.auto_fix_high;
+            document.getElementById('notify-detection').checked = data.config.notify_on_detection;
+            document.getElementById('backup-before-fix').checked = data.config.backup_before_fix;
+            document.getElementById('scan-interval').value = data.config.scan_interval;
+        })
+        .catch(error => console.error('Erreur chargement config monitoring:', error));
+}
+
+function saveMonitoringConfig() {
+    const config = {
+        is_enabled: document.getElementById('monitoring-enabled').checked,
+        auto_fix_critical: document.getElementById('auto-fix-critical').checked,
+        auto_fix_high: document.getElementById('auto-fix-high').checked,
+        notify_on_detection: document.getElementById('notify-detection').checked,
+        backup_before_fix: document.getElementById('backup-before-fix').checked,
+        scan_interval: document.getElementById('scan-interval').value,
+    };
+
+    fetch('/api/security/monitoring/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCookie('csrftoken'),
+        },
+        body: JSON.stringify(config)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('✅ Configuration sauvegardée');
+        } else {
+            alert('❌ Erreur: ' + (data.error || 'Sauvegarde échouée'));
+        }
+    })
+    .catch(error => {
+        console.error('Erreur:', error);
+        alert('❌ Erreur lors de la sauvegarde');
+    });
+}
+
+// Utilitaire pour récupérer le CSRF token
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+</script>
+
+<!-- Include AI Security Chat Assistant -->
+{% include "marketplace/ai_security_chat.html" %}

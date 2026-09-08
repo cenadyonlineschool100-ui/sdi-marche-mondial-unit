@@ -1,0 +1,129 @@
+/* Loading Indicator Styles - Critical Performance UI */
+
+.loading-indicator {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, 
+        transparent 0%, 
+        #0066FF 20%, 
+        #00BFFF 50%, 
+        #0066FF 80%, 
+        transparent 100%);
+    background-size: 200% 100%;
+    animation: loadingBar 1.5s infinite;
+    z-index: 99999;
+    display: none;
+    box-shadow: 0 0 10px rgba(0, 102, 255, 0.5);
+}
+
+.loading-indicator.active {
+    display: block;
+}
+
+@keyframes loadingBar {
+    0% {
+        background-position: 200% 0;
+    }
+    100% {
+        background-position: -200% 0;
+    }
+}
+
+/* Loading Spinner for Modal/Overlay */
+.loading-spinner {
+    display: none;
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 100000;
+}
+
+.loading-spinner.active {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid rgba(0, 102, 255, 0.2);
+    border-top-color: #0066FF;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* Button Loading State */
+button[data-loading="true"] {
+    opacity: 0.7;
+    pointer-events: none;
+    position: relative;
+}
+
+button[data-loading="true"]::after {
+    content: '';
+    position: absolute;
+    width: 14px;
+    height: 14px;
+    margin: auto;
+    border: 2px solid transparent;
+    border-radius: 50%;
+    border-top-color: #fff;
+    animation: spin 0.8s linear infinite;
+    right: 15px;
+    top: 50%;
+    transform: translateY(-50%);
+}
+
+/* Badge Loading Count */
+.loading-badge {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background: rgba(0, 102, 255, 0.9);
+    color: white;
+    padding: 8px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    display: none;
+    z-index: 99998;
+}
+
+.loading-badge.active {
+    display: block;
+}
+
+/* Performance Optimization: Reduce Repaints */
+* {
+    backface-visibility: hidden;
+    perspective: 1000px;
+}
+
+/* Optimize Animations */
+.btn-install-pwa,
+.btn-download-apk,
+[class*="btn"],
+[class*="button"] {
+    will-change: transform, opacity;
+    transform: translateZ(0);
+}
+
+/* Disable animations on low-end devices */
+@media (prefers-reduced-motion: reduce) {
+    * {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+}

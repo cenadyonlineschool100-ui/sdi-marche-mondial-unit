@@ -1,0 +1,53 @@
+{% extends 'marketplace/base.html' %}
+{% block content %}
+<div class="card">
+    <h2>Admin - Gestion des agents</h2>
+    <p>Gérez les accès agent des utilisateurs, suspendez ou réactivez des agents, ou retirez l’accès agent.</p>
+
+    <form method="post">
+        {% csrf_token %}
+        <div class="form-group">
+            <label for="user_id">Sélectionner un utilisateur</label>
+            <select id="user_id" name="user_id" required>
+                {% for user in users %}
+                <option value="{{ user.id }}">{{ user.username }} ({{ user.first_name }} {{ user.last_name }}) - {{ user.email }}{% if user.is_agent %} - Agent{% endif %}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label for="action">Action</label>
+            <select id="action" name="action" required>
+                <option value="activate">Activer comme agent</option>
+                <option value="suspend">Suspendre l’agent</option>
+                <option value="reactivate">Réactiver l’agent</option>
+                <option value="remove">Retirer l’accès agent</option>
+            </select>
+        </div>
+
+        <button type="submit" class="button">Appliquer</button>
+    </form>
+</div>
+
+{% if active_agents.exists %}
+<div class="card">
+    <h3>Agents actifs</h3>
+    <ul>
+        {% for agent in active_agents %}
+        <li>{{ agent.user.username }} - {{ agent.user.email }}</li>
+        {% endfor %}
+    </ul>
+</div>
+{% endif %}
+
+{% if suspended_agents.exists %}
+<div class="card">
+    <h3>Agents suspendus</h3>
+    <ul>
+        {% for agent in suspended_agents %}
+        <li>{{ agent.user.username }} - {{ agent.user.email }}</li>
+        {% endfor %}
+    </ul>
+</div>
+{% endif %}
+{% endblock %}

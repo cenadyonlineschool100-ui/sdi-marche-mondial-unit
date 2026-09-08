@@ -1,0 +1,78 @@
+{% extends 'marketplace/base.html' %}
+{% load image_tags %}
+
+{% block hero %}
+<div class="hero">
+    <div class="container hero-inner">
+        <div class="hero-copy">
+            <span class="eyebrow">Boutique partenaire</span>
+            <h1 class="hero-title">{{ shop.name }}</h1>
+            <p class="hero-subtitle">Découvrez les meilleurs produits proposés par {{ shop.owner.username }}.</p>
+            <div class="hero-actions">
+                {% if request.user == shop.owner or request.user.is_staff %}
+                    <a href="{% url 'add_product' %}" class="button">Ajouter un produit</a>
+                {% endif %}
+                <a href="{% url 'home' %}" class="button alt">Retour à l'accueil</a>
+            </div>
+        </div>
+        <div class="hero-panel">
+            <div class="shop-card-content">
+                <span class="shop-card-name">{{ shop.name }}</span>
+                <p class="shop-card-owner">Propriétaire : {{ shop.owner.username }}</p>
+                <p class="shop-card-date">Produits disponibles : {{ products.count }}</p>
+                <div class="shop-card-actions">
+                    <a href="{% url 'home' %}" class="button secondary">Voir toutes les boutiques</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="section">
+    <div class="section-header">
+        <h2>Produits de la boutique</h2>
+        <p>Parcourez les offres disponibles et rendez vos achats plus simples.</p>
+    </div>
+    {% if products %}
+    <div class="products-grid">
+        {% for product in products %}
+            <div class="product-card">
+                {% with primary_image=product.get_primary_image %}
+                    {% if primary_image %}
+                        {% responsive_image primary_image product.name "product-image" %}
+                    {% else %}
+                        <div class="product-image-fallback">Pas d'image</div>
+                    {% endif %}
+                {% endwith %}
+                <div class="product-info">
+                    <h3 class="product-title">{{ product.name }}</h3>
+                    <p class="product-shop">
+                        {% if product.category %}
+                            {{ product.category.name }}
+                        {% else %}
+                            Sans catégorie
+                        {% endif %}
+                    </p>
+                    <p class="product-price">{{ current_currency|currency_symbol }}{{ product|format_product_price:current_currency }}</p>
+                    <p class="product-shop">Quantité : {{ product.quantity }}</p>
+                    <div class="product-actions">
+                        <a href="{% url 'product_detail' product.id %}" class="button small">Voir</a>
+                        {% if request.user.is_authenticated %}
+                            <a href="{% url 'chat' %}?product_to_share={{ product.id }}" class="button alt small">Partager</a>
+                        {% else %}
+                            <a href="{% url 'login' %}" class="button alt small">Connexion</a>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="card empty-card">
+        Aucun produit disponible dans cette boutique pour le moment.
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

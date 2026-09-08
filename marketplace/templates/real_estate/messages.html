@@ -1,0 +1,115 @@
+{% extends "marketplace/base.html" %}
+
+{% block title %}Mes Messages - Immobilier - SDI Store{% endblock %}
+
+{% block content %}
+<div class="container" style="max-width: 1000px; margin: 40px auto; padding: 20px;">
+    <div class="section-header">
+        <h1 style="color: var(--primary-dark); margin-bottom: 10px;">💬 Mes messages immobiliers</h1>
+        <p style="color: var(--text-secondary); font-size: 1rem;">Conversations avec les propriétaires et autres utilisateurs</p>
+    </div>
+
+    {% if messages_list %}
+        <div class="conversations-list" style="background: var(--bg-light); border-radius: 12px; overflow: hidden; border: 1px solid var(--border-color);">
+            {% for msg_group in messages_list %}
+                <div class="conversation-item" style="padding: 15px; border-bottom: 1px solid var(--border-color); display: flex; gap: 15px; cursor: pointer; transition: background 0.3s; align-items: center;">
+                    <div style="font-size: 2.5rem;">{% if msg_group.is_read %}💬{% else %}📢{% endif %}</div>
+                    
+                    <div style="flex: 1;">
+                        <h4 style="color: var(--primary-dark); font-weight: 600; margin: 0 0 5px 0;">
+                            {% if msg_group.other_user.get_full_name %}
+                                {{ msg_group.other_user.get_full_name }}
+                            {% else %}
+                                {{ msg_group.other_user.username }}
+                            {% endif %}
+                        </h4>
+                        {% if msg_group.property %}
+                            <p style="color: var(--text-secondary); font-size: 0.9rem; margin: 0 0 5px 0;">
+                                📍 {{ msg_group.property.title }}
+                            </p>
+                        {% endif %}
+                        <p style="color: var(--text-secondary); font-size: 0.85rem; margin: 0;">
+                            {{ msg_group.last_message|truncatewords:15 }}
+                        </p>
+                    </div>
+
+                    <div style="text-align: right;">
+                        <p style="color: var(--text-secondary); font-size: 0.85rem; margin: 0;">
+                            {{ msg_group.date|date:"d/m" }}
+                        </p>
+                        {% if msg_group.unread_count > 0 %}
+                            <span style="display: inline-block; background: #ff6b6b; color: white; padding: 2px 8px; border-radius: 12px; font-size: 0.8rem; font-weight: 600;">
+                                {{ msg_group.unread_count }}
+                            </span>
+                        {% endif %}
+                    </div>
+
+                    <a href="#" onclick="viewConversation({{ msg_group.other_user.id }}, event)" style="text-decoration: none; color: inherit;">
+                        <span style="color: var(--primary); font-size: 1.2rem;">→</span>
+                    </a>
+                </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="empty-state" style="text-align: center; padding: 60px 20px; background: var(--bg-light); border-radius: 12px; border: 1px dashed var(--border-color);">
+            <div style="font-size: 4rem; margin-bottom: 20px;">📭</div>
+            <h2 style="color: var(--primary-dark); margin-bottom: 10px;">Aucun message</h2>
+            <p style="color: var(--text-secondary); margin-bottom: 20px;">Vous n'avez pas encore de conversation.</p>
+            <a href="{% url 'real_estate:home' %}" style="display: inline-block; padding: 12px 30px; background: linear-gradient(135deg, #667eea, #764ba2); color: white; border-radius: 6px; text-decoration: none; font-weight: 600;">
+                Parcourir les propriétés
+            </a>
+        </div>
+    {% endif %}
+
+    <!-- Conversation modal / sidebar -->
+    <div id="conversation-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center;">
+        <div style="background: white; border-radius: 12px; width: 90%; max-width: 600px; max-height: 80vh; display: flex; flex-direction: column;">
+            <div style="padding: 20px; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center;">
+                <h3 id="conv-user-name" style="margin: 0; color: var(--primary-dark);">Conversation</h3>
+                <button onclick="closeConversation()" style="background: none; border: none; font-size: 1.5rem; cursor: pointer;">✕</button>
+            </div>
+            
+            <div id="messages-container" style="flex: 1; overflow-y: auto; padding: 20px;">
+                <!-- Messages will be loaded here -->
+            </div>
+
+            <div style="padding: 20px; border-top: 1px solid var(--border-color);">
+                <form onsubmit="sendMessage(event)" style="display: flex; gap: 10px;">
+                    {% csrf_token %}
+                    <textarea id="message-input" placeholder="Écrivez votre message..." style="flex: 1; padding: 10px; border: 1px solid var(--border-color); border-radius: 6px; resize: vertical; min-height: 40px;" required></textarea>
+                    <button type="submit" style="padding: 10px 20px; background: linear-gradient(135deg, #667eea, #764ba2); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">Envoyer</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function viewConversation(userId, event) {
+    event.preventDefault();
+    document.getElementById('conversation-modal').style.display = 'flex';
+    // Load conversation with userId
+    loadConversation(userId);
+}
+
+function closeConversation() {
+    document.getElementById('conversation-modal').style.display = 'none';
+}
+
+function loadConversation(userId) {
+    // This would fetch and display the conversation
+    // Implementation depends on your backend
+}
+
+function sendMessage(event) {
+    event.preventDefault();
+    // Send message via AJAX
+    // Implementation depends on your backend
+}
+
+// Close modal when clicking outside
+document.getElementById('conversation-modal').addEventListener('click', function(e) {
+    if (e.target === this) closeConversation();
+});
+</script>
+{% endblock %}

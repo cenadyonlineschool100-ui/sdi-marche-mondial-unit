@@ -1,0 +1,63 @@
+{% extends 'marketplace/base.html' %}
+
+{% block content %}
+<section class="fintech-card" style="max-width: 820px; margin: 32px auto; padding: 32px;">
+    <div style="display:flex; justify-content:space-between; align-items:center; gap:16px; margin-bottom:24px;">
+        <div>
+            <h1 style="margin-bottom:4px;">Reçu de dépôt</h1>
+            <p style="margin:0; color:#475569;">Aperçu du reçu bancaire et option impression/PDF.</p>
+        </div>
+        <div style="display:flex; gap:12px; flex-wrap:wrap;">
+            <button onclick="window.print();" class="btn-fintech btn-primary" style="padding:12px 20px;">Imprimer / PDF</button>
+            <a href="{% url 'download_deposit_receipt' receipt.id %}" class="btn-fintech btn-secondary" style="padding:12px 20px;">Télécharger TXT</a>
+        </div>
+    </div>
+
+    <div class="fintech-panel" style="padding:28px; border-radius:22px; background:#ffffff; box-shadow:0 18px 60px rgba(15,23,42,0.08);">
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:24px; margin-bottom:24px;">
+            <div>
+                <h2 style="margin-bottom:12px; color:#0f172a;">Détails client</h2>
+                <p style="margin:8px 0;"><strong>Nom :</strong> {{ deposit.client.first_name|default:'-' }} {{ deposit.client.last_name|default:'-' }}</p>
+                <p style="margin:8px 0;"><strong>Compte :</strong> {{ deposit.client.account_code }}</p>
+                <p style="margin:8px 0;"><strong>Utilisateur :</strong> {{ deposit.client.username }}</p>
+                <p style="margin:8px 0;"><strong>Agent :</strong> {% if receipt.agent %}{{ receipt.agent.username }}{% else %}-{% endif %}</p>
+            </div>
+            <div>
+                <h2 style="margin-bottom:12px; color:#0f172a;">Référence</h2>
+                <p style="margin:8px 0;"><strong>Numéro de reçu :</strong> {{ receipt.receipt_number }}</p>
+                <p style="margin:8px 0;"><strong>Référence dépôt :</strong> {{ deposit.reference }}</p>
+                <p style="margin:8px 0;"><strong>Date :</strong> {{ receipt.created_at|date:'d F Y' }}</p>
+                <p style="margin:8px 0;"><strong>Heure :</strong> {{ receipt.created_at|date:'H:i' }}</p>
+            </div>
+        </div>
+
+        <div style="background:#f8fafc; border-radius:18px; padding:24px; margin-bottom:28px;">
+            <h2 style="margin-bottom:12px; color:#0f172a;">Montant</h2>
+            <p style="margin:10px 0;"><strong>Montant déposé :</strong> {{ deposit.amount|floatformat:2 }} {{ deposit.currency }}</p>
+            <p style="margin:10px 0;"><strong>Commission :</strong> {{ deposit.commission|floatformat:2 }} {{ deposit.currency }}</p>
+            <p style="margin:10px 0;"><strong>Ancien solde :</strong> {{ previous_balance|default:'-'|floatformat:2 }} {{ deposit.currency }}</p>
+            <p style="margin:10px 0;"><strong>Nouveau solde :</strong> {{ current_balance|default:'-'|floatformat:2 }} {{ deposit.currency }}</p>
+        </div>
+
+        <div style="display:grid; gap:12px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); margin-bottom:24px;">
+            <div style="padding:18px; border-radius:18px; background:#f1f5f9;">
+                <p style="margin:0; color:#334155;"><strong>Type :</strong> Dépôt client</p>
+            </div>
+            <div style="padding:18px; border-radius:18px; background:#f1f5f9;">
+                <p style="margin:0; color:#334155;"><strong>Statut :</strong> {{ deposit.get_status_display }}</p>
+            </div>
+        </div>
+
+        <div style="padding:20px; border-radius:20px; background:#eef2ff; color:#0f172a;">
+            <p style="margin:0; font-weight:600;">MicroSDICash</p>
+            <p style="margin:6px 0 0; color:#475569;">Reçu sécurisé généré pour validation client. Imprimez ou sauvegardez en PDF via votre navigateur.</p>
+        </div>
+    </div>
+
+    {% if receipt.client == request.user %}
+        <a href="{% url 'client_deposit_receipts' %}" class="btn-fintech btn-outline" style="padding:14px 24px;">Retour à mes reçus</a>
+    {% else %}
+        <a href="{% url 'agent_deposit_history' %}" class="btn-fintech btn-outline" style="padding:14px 24px;">Retour à l'historique</a>
+    {% endif %}
+</section>
+{% endblock %}

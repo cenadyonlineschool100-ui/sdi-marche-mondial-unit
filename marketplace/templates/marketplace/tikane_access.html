@@ -1,0 +1,524 @@
+{% extends 'marketplace/base.html' %}
+{% block extra_css %}
+<style>
+    .tikane-page,
+    .tikane-page * {
+        box-sizing: border-box;
+    }
+    .tikane-page {
+        width: 100%;
+        max-width: 1240px;
+        margin: 0 auto;
+        padding: 16px 20px 40px;
+        color: #0f172a;
+    }
+    .tikane-layout {
+        display: grid !important;
+        grid-template-columns: minmax(0, 1fr) minmax(260px, 360px);
+        gap: 24px !important;
+        align-items: start;
+    }
+    .tikane-main,
+    .tikane-aside,
+    .tikane-card,
+    .tikane-form-section {
+        min-width: 0 !important;
+        max-width: 100%;
+    }
+    .tikane-card {
+        padding: clamp(20px, 4vw, 32px) !important;
+        background: #fff !important;
+        border: 1px solid #dbeafe !important;
+        border-radius: 18px !important;
+        box-shadow: 0 10px 30px rgba(15, 23, 42, .07) !important;
+    }
+    .tikane-identity {
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+    }
+    .tikane-identity-icon {
+        display: grid;
+        flex: 0 0 44px;
+        width: 44px;
+        height: 44px;
+        place-items: center;
+        border-radius: 12px;
+        background: #dbeafe;
+        color: #1d4ed8;
+        font-size: 1.35rem;
+    }
+    .tikane-identity h1 {
+        min-width: 0;
+        margin: 0;
+        color: #0f2d5c;
+        font-size: clamp(1.8rem, 5vw, 2.5rem);
+        line-height: 1.12;
+        overflow-wrap: anywhere;
+    }
+    .tikane-lead {
+        max-width: 700px;
+        margin: 18px 0 0;
+        color: #334155;
+        font-size: 1rem;
+        line-height: 1.65;
+    }
+    .tikane-status,
+    .tikane-account,
+    .tikane-info,
+    .tikane-form-section {
+        border-radius: 14px !important;
+    }
+    .tikane-form-section {
+        margin-top: 24px !important;
+        width: 100%;
+        max-width: 100%;
+        padding: clamp(18px, 4vw, 24px) !important;
+        background: #f8fbff !important;
+        border: 1px solid #dbe3ef !important;
+    }
+    .tikane-form-section > h2 {
+        margin: 0 0 18px;
+        padding-bottom: 14px;
+        border-bottom: 1px solid #dbeafe;
+        color: #0f2d5c;
+        font-size: clamp(1.35rem, 4vw, 1.75rem);
+        line-height: 1.25;
+    }
+    .tikane-form {
+        display: grid;
+        gap: 15px;
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
+    }
+    .tikane-form > div {
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
+    }
+    .tikane-form label {
+        display: block;
+        margin: 0 0 7px;
+        color: #1e293b;
+        font-size: .95rem;
+        font-weight: 700;
+        line-height: 1.35;
+    }
+    .tikane-form input:not([type="checkbox"]),
+    .tikane-form select,
+    .tikane-form input[type="file"] {
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
+        min-height: 48px;
+        padding: 11px 13px;
+        border: 1px solid #cbd5e1;
+        border-radius: 10px;
+        background: #fff;
+        color: #0f172a;
+        font: inherit;
+    }
+    .tikane-form input:focus,
+    .tikane-form select:focus {
+        outline: 3px solid rgba(37, 99, 235, .2);
+        outline-offset: 1px;
+        border-color: #2563eb;
+    }
+    .tikane-document-field {
+        padding: 12px;
+        border: 1px solid #e2e8f0;
+        border-radius: 10px;
+        background: #fff;
+    }
+    .tikane-document-field > label:first-child {
+        margin-bottom: 10px;
+    }
+    .tikane-upload {
+        position: relative;
+        display: grid;
+        gap: 9px;
+        min-width: 0;
+        padding: 14px;
+        border: 1px dashed #93c5fd;
+        border-radius: 10px;
+        background: #f8fbff;
+    }
+    .tikane-upload-icon {
+        color: #1d4ed8;
+        font-size: 1.25rem;
+    }
+    .tikane-upload-title {
+        color: #0f172a;
+        font-weight: 700;
+        line-height: 1.35;
+    }
+    .tikane-upload-help {
+        color: #64748b;
+        font-size: .86rem;
+        line-height: 1.45;
+    }
+    .tikane-upload input[type="file"] {
+        position: absolute;
+        width: 1px !important;
+        height: 1px !important;
+        padding: 0 !important;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        opacity: 0;
+    }
+    .tikane-upload input[type="file"]:focus-visible ~ .tikane-file-actions .tikane-file-button {
+        outline: 3px solid rgba(37, 99, 235, .28);
+        outline-offset: 2px;
+    }
+    .tikane-file-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        align-items: center;
+    }
+    .tikane-file-button,
+    .tikane-file-remove {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 42px;
+        padding: 9px 13px;
+        border-radius: 9px;
+        font-size: .9rem;
+        font-weight: 700;
+        line-height: 1.3;
+        cursor: pointer;
+    }
+    .tikane-file-button {
+        background: #1d4ed8;
+        color: #fff;
+    }
+    .tikane-file-remove {
+        border: 1px solid #cbd5e1;
+        background: #fff;
+        color: #475569;
+    }
+    .tikane-file-button:hover,
+    .tikane-file-button:focus-visible {
+        background: #1e40af;
+    }
+    .tikane-file-remove:hover,
+    .tikane-file-remove:focus-visible {
+        border-color: #94a3b8;
+        color: #0f172a;
+    }
+    .tikane-file-status {
+        display: none;
+        min-width: 0;
+        color: #166534;
+        font-size: .9rem;
+        font-weight: 700;
+        line-height: 1.4;
+    }
+    .tikane-file-status.is-selected {
+        display: block;
+    }
+    .tikane-file-name {
+        display: inline-block;
+        max-width: min(100%, 280px);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        vertical-align: bottom;
+        white-space: nowrap;
+    }
+    .tikane-clause {
+        padding: 15px !important;
+        border: 1px solid #cbd5e1 !important;
+        border-radius: 12px !important;
+        background: #fff !important;
+    }
+    .tikane-clause p {
+        margin: 0 0 12px !important;
+        color: #334155 !important;
+        font-size: .93rem;
+        line-height: 1.6;
+    }
+    .tikane-clause label {
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        margin: 0;
+        color: #0f172a;
+        cursor: pointer;
+    }
+    .tikane-clause input[type="checkbox"] {
+        flex: 0 0 auto;
+        width: 20px;
+        height: 20px;
+        margin: 0;
+        accent-color: #2563eb;
+    }
+    .tikane-submit {
+        width: 100% !important;
+        min-height: 50px;
+        margin-top: 4px !important;
+        border-radius: 12px !important;
+        font-size: 1rem !important;
+    }
+    .tikane-info {
+        padding: 24px !important;
+        background: #f8fbff !important;
+        border: 1px solid #dbeafe !important;
+    }
+    .tikane-info h2 {
+        margin: 0 0 16px;
+        color: #0f2d5c;
+        font-size: 1.35rem;
+    }
+    .tikane-info ul {
+        gap: 10px !important;
+    }
+    .tikane-info li {
+        padding: 13px !important;
+        border: 1px solid #e2e8f0 !important;
+        border-radius: 10px !important;
+    }
+    .tikane-info li p {
+        color: #475569;
+        line-height: 1.55;
+    }
+    @media (max-width: 767px) {
+        .tikane-page {
+            padding: 10px 20px 32px;
+        }
+        .tikane-layout {
+            grid-template-columns: minmax(0, 1fr);
+            gap: 16px !important;
+        }
+        .tikane-aside {
+            order: 2;
+        }
+    }
+    @media (max-width: 400px) {
+        .tikane-page {
+            padding-left: 16px;
+            padding-right: 16px;
+        }
+        .tikane-card {
+            padding: 18px !important;
+        }
+        .tikane-identity h1 {
+            font-size: clamp(1.7rem, 9vw, 2.2rem);
+        }
+    }
+</style>
+{% endblock %}
+{% block content %}
+<div class="tikane-page">
+    <div class="tikane-layout">
+        <section class="tikane-main">
+            <div class="fintech-card tikane-card">
+                <div class="tikane-identity">
+                    <span class="tikane-identity-icon" aria-hidden="true">💰</span>
+                    <h1>Ti Kanè Digital</h1>
+                </div>
+                <p class="tikane-lead">Demandez l’activation de votre compte Ti Kanè Digital. Soumettez les documents d’identité, acceptez la clause de responsabilité et suivez l’état de votre accès.</p>
+                {% if tikane_request %}
+                <div style="margin-top:18px; padding:18px; border-radius:20px; background: #eff6ff; border:1px solid rgba(59,130,246,0.18);">
+                    <h2 style="margin:0 0 8px 0;">Statut de la demande</h2>
+                    <p style="margin:0; font-weight:700;">{{ tikane_request.get_status_display }}</p>
+                    <p style="margin:10px 0 0 0;">Demande soumise le {{ tikane_request.requested_at|date:'d/m/Y H:i' }}.</p>
+                    {% if tikane_request.reviewed_at %}
+                        {% if tikane_request.reviewed_by %}
+                        <p style="margin:10px 0 0 0;">Dernière mise à jour : {{ tikane_request.reviewed_at|date:'d/m/Y H:i' }} par {{ tikane_request.reviewed_by.username }}.</p>
+                        {% else %}
+                        <p style="margin:10px 0 0 0;">Dernière mise à jour : {{ tikane_request.reviewed_at|date:'d/m/Y H:i' }} par Administrateur.</p>
+                        {% endif %}
+                    {% endif %}
+                    {% if tikane_request.admin_notes %}
+                    <p style="margin:10px 0 0 0; color:#0f172a;"><strong>Notes :</strong> {{ tikane_request.admin_notes }}</p>
+                    {% endif %}
+                </div>
+                {% endif %}
+
+                {% if tikane_account %}
+                <div style="margin-top:18px; padding:18px; border-radius:20px; background: #eef6ed; border:1px solid rgba(34,197,94,0.18);">
+                    <h2 style="margin:0 0 8px 0;">Compte Ti Kanè actif</h2>
+                    <p style="margin:0; font-weight:700;">{{ tikane_account.account_number }}</p>
+                    <p style="margin:10px 0 0 0;">Plan actif : 
+                        {% if tikane_account.plan %}
+                            {{ tikane_account.plan.name }}
+                        {% else %}
+                            Non défini
+                        {% endif %}
+                    </p>
+                    <p style="margin:10px 0 0 0;">Solde actuel : {{ tikane_account.balance|default:'0.00' }}</p>
+                </div>
+                <div style="margin-top:18px; padding:18px; border-radius:20px; background: #ffffff; border:1px solid rgba(148,163,184,0.18);">
+                    <h2 style="margin:0 0 8px 0;">Suivi des paiements journaliers</h2>
+                    {% if daily_payments %}
+                    <div style="overflow-x:auto;">
+                        <table style="width:100%; border-collapse:collapse; margin-top:12px; font-size:0.95rem;">
+                            <thead>
+                                <tr>
+                                    <th style="padding:10px; border-bottom:1px solid rgba(148,163,184,0.3); text-align:left;">Jour</th>
+                                    <th style="padding:10px; border-bottom:1px solid rgba(148,163,184,0.3); text-align:left;">Statut</th>
+                                    <th style="padding:10px; border-bottom:1px solid rgba(148,163,184,0.3); text-align:left;">Date paiement</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for payment in daily_payments %}
+                                <tr style="border-bottom:1px solid rgba(148,163,184,0.12);">
+                                    <td style="padding:12px;">Jour {{ payment.day }}</td>
+                                    <td style="padding:12px;">{% if payment.paid %}Payer{% else %}Non payer{% endif %}</td>
+                                    <td style="padding:12px;">{% if payment.paid_at %}{{ payment.paid_at|date:'d/m/Y H:i' }}{% else %}-{% endif %}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <p style="margin:0; color:#475569;">Aucun paiement journalier enregistré pour le moment. Dès qu'un dépôt Ti Kanè est effectué, le jour correspondant devient « Payer ».</p>
+                    {% endif %}
+                </div>
+                {% endif %}
+
+                <div class="tikane-form-section">
+                    <h2>Demande d’activation</h2>
+                    {% if can_submit_request %}
+                    <form method="post" enctype="multipart/form-data" class="tikane-form">
+                        {% csrf_token %}
+                        <div style="display:grid; gap:16px;">
+                            {{ form.non_field_errors }}
+                            <label for="{{ form.full_name.id_for_label }}">Nom complet</label>
+                            {{ form.full_name }}
+                            <label for="{{ form.email.id_for_label }}">Email</label>
+                            {{ form.email }}
+                            <label for="{{ form.phone.id_for_label }}">Téléphone</label>
+                            {{ form.phone }}
+                            <label for="{{ form.plan.id_for_label }}">Plan d’épargne</label>
+                            {{ form.plan }}
+                            <div class="tikane-document-field"><label for="{{ form.identity_document.id_for_label }}">Carte d’identité</label>
+                                <div class="tikane-upload">
+                                    <span class="tikane-upload-icon" aria-hidden="true">📄</span>
+                                    <span class="tikane-upload-title">Ajouter votre carte d’identité</span>
+                                    <span class="tikane-upload-help">Formats acceptés selon les règles de l’application.</span>
+                                    {{ form.identity_document }}
+                                    <div class="tikane-file-actions">
+                                        <label class="tikane-file-button" for="{{ form.identity_document.id_for_label }}">Choisir un fichier</label>
+                                        <button type="button" class="tikane-file-remove" data-file-remove="{{ form.identity_document.id_for_label }}" hidden>Supprimer</button>
+                                    </div>
+                                    <span class="tikane-file-status" data-file-status="{{ form.identity_document.id_for_label }}" aria-live="polite">✓ <span class="tikane-file-name"></span></span>
+                                </div>
+                            </div><div class="tikane-document-field"><label for="{{ form.passport_document.id_for_label }}">Passeport</label>
+                                <div class="tikane-upload">
+                                    <span class="tikane-upload-icon" aria-hidden="true">🛂</span>
+                                    <span class="tikane-upload-title">Ajouter votre passeport</span>
+                                    <span class="tikane-upload-help">Formats acceptés selon les règles de l’application.</span>
+                                    {{ form.passport_document }}
+                                    <div class="tikane-file-actions">
+                                        <label class="tikane-file-button" for="{{ form.passport_document.id_for_label }}">Choisir un fichier</label>
+                                        <button type="button" class="tikane-file-remove" data-file-remove="{{ form.passport_document.id_for_label }}" hidden>Supprimer</button>
+                                    </div>
+                                    <span class="tikane-file-status" data-file-status="{{ form.passport_document.id_for_label }}" aria-live="polite">✓ <span class="tikane-file-name"></span></span>
+                                </div>
+                            </div><div class="tikane-document-field"><label for="{{ form.driver_license_document.id_for_label }}">Permis de conduire</label>
+                                <div class="tikane-upload">
+                                    <span class="tikane-upload-icon" aria-hidden="true">🪪</span>
+                                    <span class="tikane-upload-title">Ajouter votre permis de conduire</span>
+                                    <span class="tikane-upload-help">Formats acceptés selon les règles de l’application.</span>
+                                    {{ form.driver_license_document }}
+                                    <div class="tikane-file-actions">
+                                        <label class="tikane-file-button" for="{{ form.driver_license_document.id_for_label }}">Choisir un fichier</label>
+                                        <button type="button" class="tikane-file-remove" data-file-remove="{{ form.driver_license_document.id_for_label }}" hidden>Supprimer</button>
+                                    </div>
+                                    <span class="tikane-file-status" data-file-status="{{ form.driver_license_document.id_for_label }}" aria-live="polite">✓ <span class="tikane-file-name"></span></span>
+                                </div>
+                            </div><div class="tikane-document-field"><label for="{{ form.selfie.id_for_label }}">Selfie en direct via caméra</label>
+                                <div class="tikane-upload">
+                                    <span class="tikane-upload-icon" aria-hidden="true">📷</span>
+                                    <span class="tikane-upload-title">Selfie en direct</span>
+                                    <span class="tikane-upload-help">Ajoutez votre selfie pour vérifier votre identité.</span>
+                                    {{ form.selfie }}
+                                    <div class="tikane-file-actions">
+                                        <label class="tikane-file-button" for="{{ form.selfie.id_for_label }}">Ajouter un selfie</label>
+                                        <button type="button" class="tikane-file-remove" data-file-remove="{{ form.selfie.id_for_label }}" hidden>Supprimer</button>
+                                    </div>
+                                    <span class="tikane-file-status" data-file-status="{{ form.selfie.id_for_label }}" aria-live="polite">✓ <span class="tikane-file-name"></span></span>
+                                </div>
+                            </div><div class="tikane-document-field"><label>Clause de responsabilité</label>
+                            <div class="tikane-clause">
+                                <p>Le système Ti Kanè SDI Marché Mondial Universal n’est pas responsable des pertes financières liées aux Ti Kanè privés gérés par des agents ou des tiers. Chaque propriétaire de Ti Kanè est entièrement responsable de la gestion de ses clients et de ses opérations.</p>
+                                <label for="{{ form.acceptance_clause.id_for_label }}">
+                                    {{ form.acceptance_clause }}
+                                    <span>J’accepte la clause de responsabilité</span>
+                                </label>
+                            </div></div>
+                        </div>
+                        <button type="submit" class="fintech-btn btn-primary tikane-submit">Soumettre la demande</button>
+                    </form>
+                    {% else %}
+                    <div style="padding:20px; border-radius:18px; background:#eff6ff; border:1px solid rgba(59,130,246,0.18);">
+                        <p style="margin:0; font-weight:600; color:#0f172a;">Votre compte Ti Kanè est déjà actif ou en cours d’approbation.</p>
+                        <p style="margin:10px 0 0 0; color:#475569;">Aucune nouvelle demande n’est nécessaire pour le moment.</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </section>
+
+        <aside class="tikane-aside">
+            <div class="fintech-card tikane-info">
+                <h2>Informations Ti Kanè</h2>
+                <ul style="list-style:none; padding:0; margin:0; display:grid; gap:12px;">
+                    <li style="background:white; padding:14px; border-radius:14px; border:1px solid rgba(148,163,184,0.16);">
+                        <strong>Statuts possibles</strong>
+                        <p style="margin:8px 0 0 0;">En attente d’approbation, Approuvé, Refusé, Suspendu.</p>
+                    </li>
+                    <li style="background:white; padding:14px; border-radius:14px; border:1px solid rgba(148,163,184,0.16);">
+                        <strong>Dépôts</strong>
+                        <p style="margin:8px 0 0 0;">Les dépôts apparaissent dans le portefeuille Ti Kanè et sont bloqués pendant la durée du plan.</p>
+                    </li>
+                    <li style="background:white; padding:14px; border-radius:14px; border:1px solid rgba(148,163,184,0.16);">
+                        <strong>Carnet digital</strong>
+                        <p style="margin:8px 0 0 0;">Le suivi des journées payées sera géré automatiquement après activation du compte.</p>
+                    </li>
+                </ul>
+            </div>
+        </aside>
+    </div>
+</div>
+{% endblock %}
+{% block extra_scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const planSelect = document.querySelector('.tikane-form select');
+        if (planSelect && planSelect.options.length && planSelect.options[0].textContent.trim() === '---------') {
+            planSelect.options[0].textContent = 'Sélectionnez un plan d’épargne';
+        }
+
+        document.querySelectorAll('.tikane-upload input[type="file"]').forEach(function (input) {
+            const status = document.querySelector('[data-file-status="' + input.id + '"]');
+            const removeButton = document.querySelector('[data-file-remove="' + input.id + '"]');
+            const fileName = status ? status.querySelector('.tikane-file-name') : null;
+
+            function updateFileState() {
+                const file = input.files && input.files[0];
+                if (!status || !removeButton || !fileName) return;
+                if (file) {
+                    fileName.textContent = file.name;
+                    status.classList.add('is-selected');
+                    removeButton.hidden = false;
+                } else {
+                    fileName.textContent = '';
+                    status.classList.remove('is-selected');
+                    removeButton.hidden = true;
+                }
+            }
+
+            input.addEventListener('change', updateFileState);
+            removeButton?.addEventListener('click', function () {
+                input.value = '';
+                updateFileState();
+            });
+        });
+    });
+</script>
+{% endblock %}

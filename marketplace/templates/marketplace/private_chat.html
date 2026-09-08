@@ -1,0 +1,150 @@
+{% extends 'marketplace/base.html' %}
+
+{% block content %}
+<div class="section">
+    <div class="section-header">
+        <h2>Chat privé avec {{ other_user.get_full_name|default:other_user.username }}</h2>
+        <p>Conversation privée entre vous et {{ other_user.get_full_name|default:other_user.username }}.</p>
+    </div>
+    <div class="chat-wrapper">
+        <aside class="chat-sidebar">
+            <div class="chat-group-card">
+                <h3>Contacts</h3>
+                {% if contacts %}
+                    <ul class="private-contact-list">
+                        {% for contact in contacts %}
+                            <li>
+                                <a href="{% url 'private_chat' contact.user.id %}" class="contact-card">
+                                    <div class="contact-avatar">
+                                        {% if contact.user.profile.photo %}
+                                            <img src="{{ contact.user.profile.photo.url }}" alt="{{ contact.user.get_full_name|default:contact.user.username }}" />
+                                        {% else %}
+                                            <span>{{ contact.user.get_full_name|default:contact.user.username|slice:":1" }}</span>
+                                        {% endif %}
+                                    </div>
+                                    <div class="contact-body">
+                                        <span class="contact-name">{{ contact.user.get_full_name|default:contact.user.username }}</span>
+                                        <span class="contact-snippet">
+                                            {% if contact.last_message %}
+                                                {{ contact.last_message.content|default:'Message partagé'|truncatechars:34 }}
+                                            {% else %}
+                                                Démarrez la conversation
+                                            {% endif %}
+                                        </span>
+                                    </div>
+                                    <div class="contact-meta">
+                                        {% if contact.last_message %}
+                                            <span class="contact-time">{{ contact.last_message.created_at|date:'H:i' }}</span>
+                                        {% endif %}
+                                        {% if contact.unread_count > 0 %}
+                                            <span class="contact-unread">{{ contact.unread_count }}</span>
+                                        {% endif %}
+                                    </div>
+                                </a>
+                            </li>
+                        {% endfor %}
+                    </ul>
+                {% else %}
+                    <p>Aucun contact disponible.</p>
+                {% endif %}
+            </div>
+            <div class="chat-product-card">
+                <h4>Conseil</h4>
+                <p>Utilisez cette messagerie privée pour contacter directement un vendeur ou un acheteur.</p>
+            </div>
+        </aside>
+
+        <section class="chat-panel">
+            <div class="chat-header">
+                <div>
+                    <h2>{{ other_user.get_full_name|default:other_user.username }}</h2>
+                    <p class="chat-header-subtitle">Conversation privée</p>
+                </div>
+                <div class="chat-status">
+                    <span>Personne : {{ other_user.username }}</span>
+                    <span>{{ chat_messages|length }} messages</span>
+                </div>
+            </div>
+
+            <div class="chat-feed" id="chatFeed">
+                {% for msg in chat_messages %}
+                    <div class="chat-message {% if msg.sender == request.user %}outgoing{% else %}incoming{% endif %}">
+                        {% if msg.sender != request.user %}
+                            <div class="message-avatar">
+                                {% if msg.sender.profile.photo %}
+                                    <img src="{{ msg.sender.profile.photo.url }}" alt="{{ msg.sender.get_full_name|default:msg.sender.username }}" />
+                                {% else %}
+                                    <span>{{ msg.sender.get_full_name|default:msg.sender.username|slice:":1" }}</span>
+                                {% endif %}
+                            </div>
+                        {% endif %}
+                        <div class="message-content">
+                            <div class="message-header">
+                                <span class="message-sender">{% if msg.sender == request.user %}Vous{% else %}{{ msg.sender.get_full_name|default:msg.sender.username }}{% endif %}</span>
+                                <span class="message-time">{{ msg.created_at|date:'H:i' }}</span>
+                            </div>
+                            {% if msg.content %}
+                                <div class="message-text">{{ msg.content }}</div>
+                            {% endif %}
+                            {% if msg.product %}
+                                <div class="chat-product-preview">
+                                    {% with image=msg.product.get_primary_image %}
+                                        {% if image %}
+                                            <img src="{{ image }}" alt="{{ msg.product.name }}" />
+                                        {% else %}
+                                            <div class="chat-product-placeholder">Aucune image</div>
+                                        {% endif %}
+                                    {% endwith %}
+                                    <div class="chat-product-details">
+                                        <h4>{{ msg.product.name }}</h4>
+                                        <p class="chat-product-price">{{ current_currency|currency_symbol }}{{ msg.product|format_product_price:current_currency }}</p>
+                                        <p class="chat-product-shop">{{ msg.product.shop.name }}</p>
+                                        <a href="{% url 'product_detail' msg.product.id %}" class="button small">Voir le produit</a>
+                                    </div>
+                                </div>
+                            {% endif %}
+                            {% if msg.image %}
+                                <img src="{{ msg.image.url }}" alt="Image du message" class="chat-message-image" />
+                            {% endif %}
+                        </div>
+                        {% if msg.sender == request.user %}
+                            <div class="message-avatar">
+                                {% if request.user.profile.photo %}
+                                    <img src="{{ request.user.profile.photo.url }}" alt="Vous" />
+                                {% else %}
+                                    <span>{{ request.user.get_full_name|default:request.user.username|slice:":1" }}</span>
+                                {% endif %}
+                            </div>
+                        {% endif %}
+                    </div>
+                {% empty %}
+                    <div class="chat-message system">
+                        <div class="message-header">
+                            <span class="message-sender">Système</span>
+                            <span class="message-time">Maintenant</span>
+                        </div>
+                        <div class="message-body">Aucun message privé pour l'instant. Envoyez le premier message !</div>
+                    </div>
+                {% endfor %}
+            </div>
+
+            <form method="post" enctype="multipart/form-data" class="chat-form">
+                {% csrf_token %}
+                {{ form.content }}
+                <label for="id_product">Produit à partager</label>
+                {{ form.product }}
+                <label for="id_image">Ajouter une image</label>
+                {{ form.image }}
+                <button type="submit">Envoyer</button>
+            </form>
+        </section>
+    </div>
+</div>
+
+<script>
+    const chatFeed = document.getElementById('chatFeed');
+    if (chatFeed) {
+        chatFeed.scrollTop = chatFeed.scrollHeight;
+    }
+</script>
+{% endblock %}

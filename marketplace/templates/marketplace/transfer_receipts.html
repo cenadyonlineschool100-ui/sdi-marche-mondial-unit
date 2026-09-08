@@ -1,0 +1,53 @@
+{% extends 'marketplace/base.html' %}
+{% block content %}
+<div class="card" style="padding:24px; border-radius:18px; background:#fff;">
+    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+        <div>
+            <h2 style="margin:0; color:#0f172a;">Mes reçus de transfert</h2>
+            <p style="margin:8px 0 0 0; color:#475569;">Consultez les reçus générés pour vos transferts MicroSDICash.</p>
+        </div>
+        <div style="display:flex; gap:10px; flex-wrap:wrap;">
+            <a href="{% url 'profile' %}" class="fintech-btn btn-secondary" style="padding:10px 16px;">Retour au profil</a>
+        </div>
+    </div>
+
+    {% if receipts %}
+        <div style="margin-top:24px; overflow-x:auto;">
+            <table style="width:100%; border-collapse:collapse; font-size:0.95rem;">
+                <thead>
+                    <tr style="background:#f8fafc; text-align:left;">
+                        <th style="padding:12px; border-bottom:1px solid #e2e8f0;">Reçu</th>
+                        {% if is_admin %}<th style="padding:12px; border-bottom:1px solid #e2e8f0;">Utilisateur</th>{% endif %}
+                        <th style="padding:12px; border-bottom:1px solid #e2e8f0;">Rôle</th>
+                        <th style="padding:12px; border-bottom:1px solid #e2e8f0;">Montant</th>
+                        <th style="padding:12px; border-bottom:1px solid #e2e8f0;">Devise</th>
+                        <th style="padding:12px; border-bottom:1px solid #e2e8f0;">Transaction</th>
+                        <th style="padding:12px; border-bottom:1px solid #e2e8f0;">Date</th>
+                        <th style="padding:12px; border-bottom:1px solid #e2e8f0;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for receipt in receipts %}
+                    <tr>
+                        <td style="padding:12px; border-bottom:1px solid #e2e8f0; font-weight:700;">{{ receipt.receipt_number }}</td>
+                        {% if is_admin %}<td style="padding:12px; border-bottom:1px solid #e2e8f0;">{{ receipt.user.username }}</td>{% endif %}
+                        <td style="padding:12px; border-bottom:1px solid #e2e8f0;">{{ receipt.get_role_display }}</td>
+                        <td style="padding:12px; border-bottom:1px solid #e2e8f0;">{{ receipt.transfer.amount|floatformat:2 }}</td>
+                        <td style="padding:12px; border-bottom:1px solid #e2e8f0;">{{ receipt.transfer.currency }}</td>
+                        <td style="padding:12px; border-bottom:1px solid #e2e8f0;">{{ receipt.transfer.transaction_id }}</td>
+                        <td style="padding:12px; border-bottom:1px solid #e2e8f0;">{{ receipt.created_at|date:'d/m/Y H:i' }}</td>
+                        <td style="padding:12px; border-bottom:1px solid #e2e8f0;">
+                            <a href="{% url 'view_transfer_receipt' receipt.id %}" class="fintech-btn btn-primary" style="padding:8px 12px;">Voir</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% else %}
+        <div style="margin-top:24px; padding:18px; border-radius:14px; background:#f8fafc; color:#475569;">
+            Aucun reçu de transfert trouvé. Vos reçus apparaîtront ici dès qu'un transfert sera effectué.
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

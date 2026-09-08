@@ -1,0 +1,47 @@
+{% extends 'marketplace/base.html' %}
+{% block content %}
+
+<div style="padding: 20px; max-width: 800px; margin: 0 auto;">
+    <h1 style="color: #1e293b; margin-bottom: 20px;">🚚 Confirmer la livraison</h1>
+    
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert {% if message.tags %}alert-{{ message.tags }}{% else %}alert-success{% endif %}">
+                {{ message }}
+            </div>
+        {% endfor %}
+    {% endif %}
+    
+    <div style="background: white; border-radius: 8px; padding: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+        <h3 style="color: #1e293b; margin-bottom: 15px;">Livraison #{{ assignment.id }}</h3>
+        
+        <div style="display: grid; gap: 10px; margin-bottom: 20px;">
+            <div><strong>Commande:</strong> #{{ assignment.order.id }}</div>
+            <div><strong>Client:</strong> {{ assignment.order.buyer.username }}</div>
+            <div><strong>Montant:</strong> {{ assignment.order.total_amount }} HTG</div>
+            <div><strong>Adresse:</strong> {{ assignment.order.delivery_address }}</div>
+            <div><strong>Statut actuel:</strong> {{ assignment.get_status_display }}</div>
+        </div>
+        
+        <div style="background: #f8f9fa; padding: 15px; border-radius: 6px; margin-bottom: 20px;">
+            <h4 style="color: #dc3545; margin-bottom: 10px;">🚚 Avez-vous livré cette commande ?</h4>
+            <p style="color: #64748b; margin-bottom: 15px;">
+                En confirmant la livraison, vous attestez que la commande a été remise au client.
+                Cette action notifiera automatiquement l'administration et le client.
+            </p>
+            
+            <form method="post">
+                {% csrf_token %}
+                <button type="submit" style="background: #dc3545; color: white; padding: 12px 24px; border: none; border-radius: 6px; font-size: 16px; cursor: pointer;">
+                    🚚 Oui, livraison effectuée
+                </button>
+            </form>
+        </div>
+        
+        <div style="text-align: center;">
+            <a href="{% url 'driver_dashboard' %}" style="color: #007bff; text-decoration: none;">← Retour au tableau de bord</a>
+        </div>
+    </div>
+</div>
+
+{% endblock %}

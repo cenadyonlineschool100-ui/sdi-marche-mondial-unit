@@ -1,0 +1,99 @@
+{% extends 'marketplace/base.html' %}
+{% load static %}
+{% block content %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h2>🔄 Réassigner une Commande</h2>
+                    <p class="text-muted">Commande #{{ order.id }}</p>
+                </div>
+                <div class="card-body">
+                    {% if messages %}
+                        {% for message in messages %}
+                            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                                {{ message }}
+                                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                            </div>
+                        {% endfor %}
+                    {% endif %}
+
+                    <!-- Détails de la commande -->
+                    <div class="card mb-4">
+                        <div class="card-header bg-light">
+                            <h5>📦 Informations de la Commande</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <p><strong>ID Commande:</strong> #{{ order.id }}</p>
+                                    <p><strong>Client:</strong> {{ order.buyer.get_full_name|default:order.buyer.username }}</p>
+                                    <p><strong>Montant:</strong> ${{ order.total_amount }}</p>
+                                </div>
+                                <div class="col-md-6">
+                                    <p><strong>Adresse:</strong> {{ order.delivery_address }}</p>
+                                    <p><strong>Statut:</strong> <span class="badge bg-info">{{ order.get_status_display }}</span></p>
+                                    <p><strong>Date:</strong> {{ order.created_at|date:"d/m/Y H:i" }}</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Livreur actuel -->
+                    {% if assignment %}
+                        <div class="card mb-4">
+                            <div class="card-header bg-light">
+                                <h5>🚗 Livreur Actuellement Assigné</h5>
+                            </div>
+                            <div class="card-body">
+                                <p><strong>Livreur:</strong> {{ assignment.employee.user.get_full_name|default:assignment.employee.identifier }}</p>
+                                <p><strong>Zone:</strong> {{ assignment.employee.assigned_zone }}</p>
+                                <p><strong>Véhicule:</strong> {{ assignment.get_employee_vehicle_type_display|default:"Non spécifié" }}</p>
+                                <p><strong>Statut de livraison:</strong> <span class="badge bg-primary">{{ assignment.get_status_display }}</span></p>
+                            </div>
+                        </div>
+                    {% endif %}
+
+                    <!-- Formulaire de réassignation -->
+                    <div class="card">
+                        <div class="card-header bg-light">
+                            <h5>✅ Nouveau Livreur</h5>
+                        </div>
+                        <div class="card-body">
+                            <form method="post">
+                                {% csrf_token %}
+                                <div class="mb-3">
+                                    <label for="driver_id" class="form-label">Sélectionner un livreur:</label>
+                                    <select name="driver_id" id="driver_id" class="form-select" required>
+                                        <option value="">-- Choisir un livreur --</option>
+                                        {% for driver in available_drivers %}
+                                            <option value="{{ driver.id }}">
+                                                {{ driver.user.get_full_name|default:driver.identifier }} 
+                                                ({{ driver.assigned_zone }})
+                                                - Taux: {{ driver.get_success_rate|floatformat:1 }}%
+                                            </option>
+                                        {% endfor %}
+                                    </select>
+                                    <small class="form-text text-muted">
+                                        Affiche le taux de réussite de chaque livreur
+                                    </small>
+                                </div>
+
+                                <div class="d-flex gap-2">
+                                    <button type="submit" class="btn btn-primary">
+                                        ✅ Réassigner la Commande
+                                    </button>
+                                    <a href="{% url 'manage_delivery_assignments' %}" class="btn btn-secondary">
+                                        ← Retour
+                                    </a>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

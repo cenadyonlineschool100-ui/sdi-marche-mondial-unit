@@ -1,0 +1,48 @@
+{% extends 'marketplace/base.html' %}
+
+{% block content %}
+<section class="fintech-card" style="max-width: 900px; margin: 32px auto; padding: 32px;">
+    <div style="margin-bottom: 24px;">
+        <h1>Modifier la configuration de commission de dépôt</h1>
+        <p style="margin: 8px 0 0; color: #475569;">Mettre à jour la base de commission appliquée aux dépôts agents pour la devise {{ config.currency }}.</p>
+    </div>
+
+    <form method="post" style="display: grid; gap: 18px;">
+        {% csrf_token %}
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px;">
+            <div>
+                <label for="commission_type" style="display:block; margin-bottom:8px; font-weight:600;">Type de commission</label>
+                <select id="commission_type" name="commission_type" style="width:100%; padding:10px; border-radius:10px; border:1px solid #cbd5e1;">
+                    <option value="pourcentage" {% if config.commission_type == 'pourcentage' %}selected{% endif %}>Pourcentage (%)</option>
+                    <option value="fixe" {% if config.commission_type == 'fixe' %}selected{% endif %}>Montant fixe</option>
+                </select>
+            </div>
+            <div>
+                <label for="commission_value" style="display:block; margin-bottom:8px; font-weight:600;">Valeur de commission</label>
+                <input id="commission_value" name="commission_value" type="number" step="0.01" min="0" value="{{ config.commission_value }}" style="width:100%; padding:10px; border-radius:10px; border:1px solid #cbd5e1;" />
+            </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px;">
+            <div>
+                <label for="min_deposit" style="display:block; margin-bottom:8px; font-weight:600;">Dépôt minimum</label>
+                <input id="min_deposit" name="min_deposit" type="number" step="0.01" min="0" value="{{ config.min_deposit }}" style="width:100%; padding:10px; border-radius:10px; border:1px solid #cbd5e1;" />
+            </div>
+            <div>
+                <label for="max_deposit" style="display:block; margin-bottom:8px; font-weight:600;">Dépôt maximum</label>
+                <input id="max_deposit" name="max_deposit" type="number" step="0.01" min="0" value="{{ config.max_deposit }}" style="width:100%; padding:10px; border-radius:10px; border:1px solid #cbd5e1;" />
+            </div>
+        </div>
+
+        <div style="display:flex; align-items:center; gap:12px;">
+            <input id="is_active" name="is_active" type="checkbox" {% if config.is_active %}checked{% endif %} />
+            <label for="is_active" style="margin:0;">Activer cette configuration</label>
+        </div>
+
+        <div style="display:flex; justify-content:flex-end; gap:12px;">
+            <a href="{% url 'manage_agent_commissions' %}" class="btn-fintech btn-secondary" style="padding: 12px 18px;">Annuler</a>
+            <button type="submit" class="btn-fintech btn-primary" style="padding: 12px 18px;">Enregistrer</button>
+        </div>
+    </form>
+</section>
+{% endblock %}

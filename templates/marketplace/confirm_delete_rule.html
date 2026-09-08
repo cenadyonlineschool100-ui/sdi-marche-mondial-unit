@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Confirmer la Suppression{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row">
+        <div class="col-md-6 offset-md-3">
+            <div class="card border-danger">
+                <div class="card-header bg-danger text-white">
+                    <h5 class="mb-0">Confirmer la Suppression</h5>
+                </div>
+                <div class="card-body">
+                    <p class="text-danger">
+                        <strong>Êtes-vous sûr de vouloir supprimer cette règle?</strong>
+                    </p>
+                    
+                    <div class="alert alert-warning">
+                        <strong>Agent:</strong> {{ agent_name }}<br>
+                        <strong>Plage:</strong> {{ rule.min_amount }} - {{ rule.max_amount }}<br>
+                        <strong>Commission:</strong> {{ rule.commission_amount }}
+                    </div>
+                    
+                    <p class="text-muted">
+                        Cette action ne peut pas être annulée. Les nouveaux dépôts dans cette plage utiliseront la règle globale.
+                    </p>
+                    
+                    <form method="POST" class="mt-4">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-danger">Supprimer</button>
+                        <a href="{% url 'manage_agent_commissions' %}" class="btn btn-secondary">Annuler</a>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.card {
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+</style>
+{% endblock %}

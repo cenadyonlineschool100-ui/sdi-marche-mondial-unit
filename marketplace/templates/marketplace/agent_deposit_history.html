@@ -1,0 +1,92 @@
+{% extends 'marketplace/base.html' %}
+
+{% block content %}
+<section class="fintech-card" style="max-width: 980px; margin: 32px auto; padding: 32px;">
+    <div style="display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 24px;">
+        <div>
+            <h1 style="margin-bottom: 8px;">Historique des dépôts</h1>
+            <p style="margin: 0; color: #475569;">Liste des derniers dépôts MicrosDiCash effectués par l’agent.</p>
+        </div>
+        <a href="{% url 'agent_deposit' %}" class="btn-fintech btn-primary">Nouvel dépôt</a>
+    </div>
+
+    <form method="get" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; margin-bottom: 24px; align-items:end;">
+        <div>
+            <label for="search" style="display:block; margin-bottom: 8px; font-weight: 600;">Recherche</label>
+            <input id="search" name="search" type="text" value="{{ search|default:'' }}" placeholder="Client, référence ou compte" style="width:100%; padding: 12px 14px; border-radius: 12px; border:1px solid #cbd5e1;" />
+        </div>
+        <div>
+            <label for="start_date" style="display:block; margin-bottom: 8px; font-weight: 600;">Date début</label>
+            <input id="start_date" name="start_date" type="date" value="{{ start_date|default:'' }}" style="width:100%; padding: 12px 14px; border-radius: 12px; border:1px solid #cbd5e1;" />
+        </div>
+        <div>
+            <label for="end_date" style="display:block; margin-bottom: 8px; font-weight: 600;">Date fin</label>
+            <input id="end_date" name="end_date" type="date" value="{{ end_date|default:'' }}" style="width:100%; padding: 12px 14px; border-radius: 12px; border:1px solid #cbd5e1;" />
+        </div>
+        <div style="display:flex; gap: 10px; flex-wrap:wrap; align-items:center;">
+            <button type="submit" class="btn-fintech btn-primary" style="padding: 12px 20px;">Filtrer</button>
+            <a href="{% url 'agent_deposit_history' %}" class="btn-fintech btn-secondary" style="padding: 12px 20px;">Réinitialiser</a>
+        </div>
+    </form>
+
+    <div class="fintech-panel" style="padding: 20px; margin-bottom: 24px;">
+        <h2 style="margin-bottom: 16px;">Résumé des dépôts</h2>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 16px;">
+            {% for currency, values in stats.items %}
+            <div style="padding: 16px; border-radius: 18px; background: rgba(59, 130, 246, 0.08);">
+                <strong>{{ currency }}</strong>
+                <p style="margin: 8px 0 0;">Montant: {{ values.total_amount|floatformat:2 }}</p>
+                <p style="margin: 4px 0 0;">Commission: {{ values.total_commission|floatformat:2 }}</p>
+            </div>
+            {% endfor %}
+            {% if not stats %}
+            <div>Aucun dépôt enregistré pour le moment.</div>
+            {% endif %}
+        </div>
+    </div>
+
+    <div style="overflow-x:auto;">
+        <table style="width:100%; border-collapse: collapse;">
+            <thead>
+                <tr style="background: #eef2ff; color: #0f172a; text-align:left; border-bottom: 2px solid #cbd5e1;">
+                    <th style="padding: 14px;">Référence</th>
+                    <th style="padding: 14px;">Client</th>
+                    <th style="padding: 14px;">Montant</th>
+                    <th style="padding: 14px;">Commission</th>
+                    <th style="padding: 14px;">Statut</th>
+                    <th style="padding: 14px;">Date</th>
+                    <th style="padding: 14px;">Reçu</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for deposit in deposits %}
+                <tr style="border-bottom: 1px solid #e2e8f0;">
+                    <td style="padding: 14px;">{{ deposit.reference }}</td>
+                    <td style="padding: 14px;">{{ deposit.client.username }}</td>
+                    <td style="padding: 14px;">{{ deposit.amount|floatformat:2 }} {{ deposit.currency }}</td>
+                    <td style="padding: 14px;">{{ deposit.commission|floatformat:2 }} {{ deposit.currency }}</td>
+                    <td style="padding: 14px;">{{ deposit.get_status_display }}</td>
+                    <td style="padding: 14px;">{{ deposit.created_at|date:'d/m/Y H:i' }}</td>
+                    <td style="padding: 14px;">
+                        {% with receipt=deposit.deposit_receipt.first %}
+                            {% if receipt %}
+                                <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                                    <a href="{% url 'view_deposit_receipt' receipt.id %}" class="btn-fintech btn-primary" style="padding:6px 10px; font-size:0.85rem;">Voir reçu</a>
+                                    <a href="{% url 'download_deposit_receipt' receipt.id %}" class="btn-fintech btn-secondary" style="padding:6px 10px; font-size:0.85rem;">Télécharger reçu</a>
+                                </div>
+                            {% else %}
+                                —
+                            {% endif %}
+                        {% endwith %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="7" style="padding: 24px; text-align:center; color: #64748b;">Aucun dépôt trouvé.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endblock %}

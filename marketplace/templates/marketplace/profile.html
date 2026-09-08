@@ -1,0 +1,3385 @@
+{% extends 'marketplace/base.html' %}
+{% block content %}
+<style>
+    .hidden-profile-form { display: none; }
+    .fintech-card {
+        background: white;
+        border-radius: 18px;
+        box-shadow: 0 16px 40px rgba(15, 23, 42, 0.08);
+        border: 1px solid rgba(148, 163, 184, 0.16);
+        padding: 26px;
+        margin-bottom: 1.5rem;
+    }
+    .fintech-panel {
+        background: #f8fafc;
+        border-left: 4px solid #2563eb;
+        border-radius: 18px;
+        box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.1);
+        padding: 24px;
+        margin-top: 1rem;
+    }
+    .fintech-section {
+        background: white;
+        border-radius: 18px;
+        box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
+        border: 1px solid rgba(148, 163, 184, 0.16);
+        padding: 24px;
+    }
+    .fintech-title {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        font-size: 1.2rem;
+        margin-bottom: 1rem;
+        font-weight: 700;
+        color: #0f172a;
+    }
+    .fintech-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 999px;
+        padding: 0.55rem 0.85rem;
+        font-size: 0.85rem;
+        font-weight: 700;
+    }
+    .status-active { background:#d1fae5; color:#166534; }
+    .status-blocked { background:#fee2e2; color:#b91c1c; }
+    .status-disabled { background:#e2e8f0; color:#334155; }
+    .fintech-btn {
+        border:none;
+        border-radius: 12px;
+        padding: 8px 14px !important;
+        font-size: 13px !important;
+        font-weight: 700;
+        transition: transform 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+        cursor: pointer;
+    }
+    .fintech-btn:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 12px 24px rgba(15, 23, 42, 0.12);
+    }
+    .btn-primary { background:#2563eb; color:white; }
+    .btn-secondary { background:#64748b; color:white; }
+    .btn-success:hover { background:#16a34a !important; }
+    .btn-danger:hover { background:#b91c1c !important; }
+    .btn-warning:hover { background:#d97706 !important; }
+    .access-status-granted {
+        background-color: #d1fae5;
+        color: #166534;
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-weight: 600;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+    }
+    .access-status-revoked {
+        background-color: #fee2e2;
+        color: #b91c1c;
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-weight: 600;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+    }
+    .action-btn {
+        border: none;
+        border-radius: 6px;
+        padding: 8px 14px !important;
+        font-size: 13px !important;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        text-decoration: none;
+    }
+    .action-btn:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+    .btn-grant {
+        background-color: #22c55e;
+        color: white;
+    }
+    .btn-grant:hover {
+        background-color: #16a34a;
+    }
+    .btn-revoke {
+        background-color: #ef4444;
+        color: white;
+    }
+    .btn-revoke:hover {
+        background-color: #dc2626;
+    }
+    .admin-action-panel {
+        background: #f8fafc;
+        border: 1px solid #dbeafe;
+        border-radius: 18px;
+        padding: 18px;
+        margin-top: 18px;
+    }
+    .profile-page,
+    .profile-page * {
+        box-sizing: border-box;
+    }
+    .profile-page > .admin-action-panel,
+    .profile-page > #performance-management-section {
+        width: 100%;
+        max-width: 100%;
+    }
+    .admin-action-panel {
+        border-radius: 14px;
+        padding: 16px;
+        box-shadow: none;
+    }
+    .admin-action-header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 12px;
+        flex-wrap: wrap;
+    }
+    .admin-action-heading {
+        min-width: 0;
+    }
+    .admin-action-heading h4 {
+        margin: 0 0 6px !important;
+        color: #0f2d5c !important;
+        font-size: 1.1rem;
+    }
+    .admin-action-heading p {
+        max-width: 720px;
+        margin-bottom: 10px;
+        line-height: 1.5;
+    }
+    .admin-action-group-title {
+        grid-column: 1 / -1;
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        margin: 16px 0 8px;
+        color: #334155;
+        font-size: .86rem;
+        font-weight: 800;
+        letter-spacing: .04em;
+        text-transform: uppercase;
+    }
+    .admin-action-grid {
+        grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));
+        gap: 8px;
+    }
+    .admin-action-grid a,
+    .admin-action-grid button {
+        min-height: 44px;
+        border-radius: 10px;
+        box-shadow: none;
+    }
+    .admin-action-grid a:hover,
+    .admin-action-grid button:hover {
+        box-shadow: 0 6px 14px rgba(15, 23, 42, .1);
+    }
+    .profile-page > .fintech-panel {
+        border-left: 3px solid #94a3b8;
+        border-radius: 14px;
+        padding: 16px;
+        box-shadow: none;
+    }
+    .profile-page > .fintech-panel .fintech-title {
+        margin-bottom: 12px;
+        font-size: 1.05rem;
+    }
+    .profile-page > .fintech-panel .fintech-section {
+        padding: 16px;
+        box-shadow: none;
+    }
+    #d-ui-maison-toggle {
+        min-height: 44px;
+        margin: 0 !important;
+        border: 1px solid #bfdbfe;
+        background: #eff6ff !important;
+        color: #1d4ed8 !important;
+        box-shadow: none !important;
+    }
+    #d-ui-maison-toggle:hover,
+    #d-ui-maison-toggle:focus-visible {
+        background: #dbeafe !important;
+        box-shadow: 0 5px 12px rgba(29, 78, 216, .12) !important;
+    }
+    #performance-management-section {
+        background: #f8fafc !important;
+        border: 1px solid #cbd5e1 !important;
+        border-left: 3px solid #64748b !important;
+    }
+    #performance-management-section .wallet-icon {
+        width: 38px;
+        height: 38px;
+        border-radius: 10px;
+        background: #e2e8f0;
+        color: #475569;
+    }
+    #performance-management-section .fintech-section {
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+    }
+    #performance-management-section .fintech-btn {
+        min-height: 44px;
+        box-shadow: none !important;
+    }
+    #performance-management-section .btn-primary {
+        background: #475569;
+    }
+    .profile-page .wallet-stats {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 10px;
+    }
+    .profile-page .wallet-stat {
+        min-width: 0;
+        padding: 14px 10px;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+    }
+    .profile-page .wallet-stat-value {
+        overflow-wrap: anywhere;
+        font-size: clamp(1.05rem, 3vw, 1.35rem);
+    }
+    .profile-page .wallet-stat-label {
+        overflow-wrap: anywhere;
+    }
+    .profile-page > .card,
+    .profile-page > .fintech-panel {
+        max-width: 100%;
+    }
+    .profile-page > .card[style*="margin-top:2rem"] {
+        border-radius: 14px;
+        box-shadow: none;
+    }
+    .profile-page > .card[style*="margin-top:2rem"] h3 {
+        color: #0f2d5c !important;
+    }
+    .profile-page > .card[style*="margin-top:2rem"] > div[style*="grid-template-columns"] {
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        gap: 10px !important;
+    }
+    .profile-page > .card[style*="margin-top:2rem"] > div[style*="grid-template-columns"] > div {
+        min-width: 0;
+        border-radius: 12px !important;
+        padding: 14px !important;
+    }
+    .profile-page > .card[style*="margin-top:2rem"] .fintech-btn {
+        min-height: 44px;
+        box-shadow: none;
+    }
+    .profile-page > .card[style*="margin-top:2rem"] table {
+        display: block;
+        max-width: 100%;
+        overflow-x: auto;
+    }
+    .profile-page > .card[style*="margin-top:2rem"] > div[style*="background:white"] {
+        box-shadow: none;
+    }
+    .profile-action-cluster {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));
+        gap: 10px;
+        margin-top: 24px;
+        padding-top: 18px;
+        border-top: 1px solid #e2e8f0;
+    }
+    .profile-action-cluster > .profile-action-heading {
+        grid-column: 1 / -1;
+        margin: 0;
+        color: #0f2d5c;
+        font-size: 1.05rem;
+    }
+    .profile-action-cluster > .button,
+    .profile-action-cluster > form {
+        min-width: 0;
+        margin: 0 !important;
+    }
+    .profile-action-cluster > .button,
+    .profile-action-cluster > form button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
+        min-height: 44px;
+        border-radius: 10px;
+        box-shadow: none;
+        text-align: center;
+    }
+    @media (max-width: 640px) {
+        .profile-page {
+            padding-left: 16px !important;
+            padding-right: 16px !important;
+        }
+        .profile-page .admin-action-grid {
+            grid-template-columns: 1fr;
+        }
+        .profile-page .admin-action-grid a,
+        .profile-page .admin-action-grid button {
+            justify-content: center;
+            text-align: center;
+        }
+        .admin-action-group-title {
+            margin-top: 14px;
+        }
+    }
+    .admin-action-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+        gap: 12px;
+        align-items: stretch;
+    }
+    .admin-action-grid a,
+    .admin-action-grid button {
+        width: 100%;
+        text-align: left;
+        justify-content: flex-start;
+    }
+    .admin-action-note {
+        font-size: 0.95rem;
+        color: #475569;
+        margin-bottom: 14px;
+    }
+    .wallet-stat {
+        text-align:center;
+        padding:18px;
+        background:#f8fafc;
+        border-radius: 16px;
+    }
+    .wallet-stat-value { font-size:1.35rem; font-weight:700; color:#0f172a; }
+    .wallet-stat-label { color:#1e293b; margin-top:6px; font-size:0.92rem; font-weight: 500; }
+    .wallet-header { display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap; margin-bottom:18px; }
+    .wallet-header-left { display:flex; align-items:center; gap:14px; }
+    .wallet-icon { width:42px; height:42px; display:flex; align-items:center; justify-content:center; border-radius:14px; background:#2563eb; color:white; font-size:1.2rem; }
+    .wallet-info { display:flex; gap:18px; flex-wrap:wrap; }
+    .wallet-card-status { display:inline-flex; gap:12px; flex-wrap:wrap; }
+
+    .profile-overview,
+    .profile-overview * {
+        box-sizing: border-box;
+    }
+    .profile-overview {
+        display: grid;
+        grid-template-columns: minmax(0, 160px) minmax(0, 1fr);
+        gap: 22px;
+        align-items: start;
+        margin-top: 18px;
+    }
+    .profile-avatar-wrap {
+        min-width: 0;
+    }
+    .profile-avatar,
+    .profile-avatar-placeholder {
+        display: grid;
+        width: 132px;
+        height: 132px;
+        place-items: center;
+        border: 2px solid #dbeafe;
+        border-radius: 50%;
+        object-fit: cover;
+    }
+    .profile-avatar-placeholder {
+        background: #eff6ff;
+        color: #1d4ed8;
+        font-size: 2.5rem;
+    }
+    .profile-identity-content {
+        min-width: 0;
+    }
+    .profile-identity-name {
+        margin: 0 0 18px;
+        color: #0f2d5c;
+        font-size: clamp(1.35rem, 3vw, 1.8rem);
+        line-height: 1.2;
+        overflow-wrap: anywhere;
+    }
+    .profile-section-title {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin: 20px 0 12px;
+        padding-bottom: 8px;
+        border-bottom: 1px solid #dbeafe;
+        color: #0f2d5c;
+        font-size: 1.05rem;
+    }
+    .profile-details-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+    }
+    .profile-detail,
+    .profile-status-row {
+        min-width: 0;
+        padding: 11px 12px;
+        border: 1px solid #e2e8f0;
+        border-radius: 10px;
+        background: #f8fafc;
+    }
+    .profile-detail-label {
+        display: block;
+        margin-bottom: 4px;
+        color: #64748b;
+        font-size: .78rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: .04em;
+    }
+    .profile-detail-value {
+        display: block;
+        color: #0f172a;
+        line-height: 1.45;
+        overflow-wrap: anywhere;
+    }
+    .profile-status-list {
+        display: grid;
+        gap: 8px;
+    }
+    .profile-status-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        color: #1e293b;
+    }
+    .profile-status-badge {
+        display: inline-flex;
+        flex: 0 0 auto;
+        align-items: center;
+        justify-content: center;
+        min-height: 30px;
+        padding: 5px 9px;
+        border-radius: 8px;
+        font-size: .78rem;
+        font-weight: 800;
+        white-space: nowrap;
+    }
+    .profile-status-badge.is-active { background: #dcfce7; color: #166534; }
+    .profile-status-badge.is-inactive { background: #e2e8f0; color: #475569; }
+    .profile-security {
+        margin-top: 18px !important;
+        padding: 16px !important;
+        background: #f8fbff !important;
+        border: 1px solid #bfdbfe !important;
+        border-radius: 14px !important;
+    }
+    .profile-security-display {
+        margin-top: 12px !important;
+        padding: 14px !important;
+        background: #eff6ff !important;
+        border: 1px solid #bfdbfe !important;
+        border-radius: 10px !important;
+    }
+    .profile-security-display p {
+        overflow-wrap: anywhere;
+    }
+    .profile-admin-heading {
+        margin-top: 20px;
+    }
+    @media (max-width: 640px) {
+        .profile-overview {
+            grid-template-columns: 1fr;
+            gap: 16px;
+        }
+        .profile-avatar-wrap {
+            display: grid;
+            justify-items: center;
+        }
+        .profile-avatar,
+        .profile-avatar-placeholder {
+            width: 104px;
+            height: 104px;
+        }
+        .profile-identity-content {
+            width: 100%;
+        }
+        .profile-details-grid {
+            grid-template-columns: 1fr;
+        }
+        .profile-status-row {
+            align-items: flex-start;
+        }
+        .profile-page .wallet-stats {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+        .profile-page > .card[style*="margin-top:2rem"] > div[style*="grid-template-columns"] {
+            grid-template-columns: 1fr !important;
+        }
+        .profile-action-cluster {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    /* Agent transfer surface: keep the financial workflow fluid on narrow screens. */
+    #agent-transfer-section,
+    #agent-transfer-section * {
+        box-sizing: border-box;
+    }
+    #agent-transfer-section {
+        width: 100%;
+        max-width: 100%;
+        margin-top: 24px;
+        padding: clamp(18px, 4vw, 28px);
+        border: 1px solid #dbeafe;
+        border-radius: 18px;
+        background: #f8fbff;
+        color: #0f172a;
+    }
+    .agent-transfer-header {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 18px;
+        align-items: end;
+    }
+    .agent-transfer-heading {
+        min-width: 0;
+    }
+    .agent-transfer-heading h4 {
+        margin: 0 0 8px;
+        color: #0f2d5c;
+        font-size: clamp(1.2rem, 3vw, 1.55rem);
+        line-height: 1.2;
+        overflow-wrap: anywhere;
+    }
+    .agent-transfer-heading p {
+        max-width: 680px;
+        margin: 0;
+        color: #334155;
+        font-size: .98rem;
+        line-height: 1.6;
+    }
+    .agent-transfer-actions,
+    .agent-transfer-submit-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        align-items: center;
+    }
+    .agent-transfer-actions .fintech-btn,
+    .agent-transfer-submit-row .fintech-btn {
+        min-height: 48px;
+        padding: 12px 18px !important;
+        border-radius: 12px;
+        white-space: normal;
+        text-align: center;
+    }
+    .agent-transfer-actions .btn-primary {
+        order: 1;
+        box-shadow: 0 8px 20px rgba(37, 99, 235, .18);
+    }
+    .agent-transfer-actions .btn-secondary {
+        order: 0;
+        background: #fff !important;
+        border: 1px solid #bfdbfe !important;
+        color: #1d4ed8 !important;
+    }
+    #agent-transfer-form {
+        display: grid;
+        gap: 16px;
+        margin-top: 22px;
+        min-width: 0;
+    }
+    .agent-transfer-fields {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 14px;
+        min-width: 0;
+    }
+    .agent-transfer-field {
+        min-width: 0;
+    }
+    .agent-transfer-field label {
+        display: block;
+        margin-bottom: 7px;
+        color: #1e293b;
+        font-size: .94rem;
+        font-weight: 700;
+        line-height: 1.35;
+    }
+    #agent-transfer-form input:not([type="hidden"]),
+    #agent-transfer-form select {
+        width: 100%;
+        min-width: 0;
+        min-height: 48px;
+        padding: 12px 14px;
+        border: 1px solid #cbd5e1;
+        border-radius: 12px;
+        background: #fff;
+        color: #0f172a;
+        font: inherit;
+    }
+    #agent-transfer-form input:not([type="hidden"]):focus,
+    #agent-transfer-form select:focus {
+        outline: 3px solid rgba(37, 99, 235, .2);
+        outline-offset: 1px;
+        border-color: #2563eb;
+    }
+    .agent-transfer-status {
+        color: #334155;
+        font-size: .95rem;
+        line-height: 1.5;
+    }
+    .agent-transfer-fees {
+        overflow: auto;
+        max-width: 100%;
+    }
+    .agent-fees-title {
+        margin: 0 0 12px;
+        color: #0f172a;
+        font-size: 1.05rem;
+        line-height: 1.3;
+    }
+    .agent-fees-table {
+        width: 100%;
+        min-width: 720px;
+        border-collapse: collapse;
+        table-layout: auto;
+        font-size: .95rem;
+    }
+    .agent-fees-table th,
+    .agent-fees-table td {
+        padding: 10px;
+        border-bottom: 1px solid #e2e8f0;
+        vertical-align: middle;
+        overflow-wrap: anywhere;
+    }
+    .agent-fees-table th {
+        color: #0f172a;
+        white-space: nowrap;
+        text-align: left;
+    }
+    .agent-fees-table input,
+    .agent-fees-table select {
+        width: 100%;
+        min-width: 72px;
+        min-height: 42px;
+        padding: 8px 10px;
+        border: 1px solid #cbd5e1;
+        border-radius: 9px;
+        background: #fff;
+        color: #0f172a;
+        font: inherit;
+    }
+    .agent-fees-mobile {
+        display: none;
+    }
+    .agent-fee-card {
+        padding: 16px;
+        border: 1px solid #dbe3ef;
+        border-radius: 14px;
+        background: #fff;
+        box-shadow: 0 5px 16px rgba(15, 23, 42, .05);
+    }
+    .agent-fee-card + .agent-fee-card {
+        margin-top: 12px;
+    }
+    .agent-fee-card-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 14px;
+    }
+    .agent-fee-currency {
+        display: inline-flex;
+        align-items: center;
+        min-height: 34px;
+        padding: 6px 10px;
+        border-radius: 9px;
+        background: #dbeafe;
+        color: #1d4ed8;
+        font-weight: 800;
+        letter-spacing: .04em;
+    }
+    .agent-fee-card dl {
+        display: grid;
+        grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr);
+        gap: 9px 14px;
+        margin: 0;
+    }
+    .agent-fee-card dt {
+        color: #64748b;
+        font-size: .88rem;
+        font-weight: 700;
+    }
+    .agent-fee-card dd {
+        min-width: 0;
+        margin: 0;
+        color: #0f172a;
+        font-weight: 600;
+        overflow-wrap: anywhere;
+    }
+    .agent-fee-card input,
+    .agent-fee-card select {
+        width: 100%;
+        min-width: 0;
+        min-height: 44px;
+        padding: 9px 10px;
+        border: 1px solid #cbd5e1;
+        border-radius: 9px;
+        background: #fff;
+        color: #0f172a;
+        font: inherit;
+    }
+    .agent-fee-card input:focus,
+    .agent-fee-card select:focus {
+        outline: 3px solid rgba(37, 99, 235, .2);
+        outline-offset: 1px;
+        border-color: #2563eb;
+    }
+    .agent-fee-card .agent-fee-actions {
+        display: flex;
+        justify-content: flex-end;
+        margin-top: 14px;
+    }
+    @media (max-width: 600px) {
+        .agent-fees-table-wrap {
+            display: none;
+        }
+        .agent-fees-mobile {
+            display: block;
+        }
+    }
+    @media (min-width: 601px) {
+        .agent-fees-table-wrap {
+            display: block;
+            max-width: 100%;
+            overflow-x: auto;
+        }
+    }
+    @media (max-width: 699px) {
+        #agent-transfer-section {
+            width: calc(100vw - 32px);
+            max-width: calc(100vw - 32px);
+            margin-left: calc((100% - 100vw + 32px) / 2);
+            padding: 18px 16px;
+        }
+        .agent-transfer-header,
+        .agent-transfer-fields {
+            grid-template-columns: 1fr;
+        }
+        .agent-transfer-actions,
+        .agent-transfer-submit-row {
+            display: grid;
+            grid-template-columns: 1fr;
+            width: 100%;
+        }
+        .agent-transfer-actions .fintech-btn,
+        .agent-transfer-submit-row .fintech-btn {
+            width: 100%;
+        }
+        .agent-transfer-status {
+            text-align: center;
+        }
+    }
+</style>
+<div class="card profile-page">
+    <div style="display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap;">
+        <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+            <h2 style="margin:0;">Mon profil</h2>
+        </div>
+        {% if request.user.is_superuser or request.user.role == 'super_admin' %}
+        <button type="button" onclick="window.history.back();" class="fintech-btn btn-secondary" style="padding:10px 16px; font-size:0.95rem; white-space:nowrap;">
+            ← Retour
+        </button>
+        {% endif %}
+    </div>
+    <div class="profile-overview">
+        <div class="profile-avatar-wrap">
+            {% if profile.photo %}
+                <img src="{{ profile.photo.url }}" alt="Photo de profil" class="profile-avatar" />
+            {% else %}
+                <div class="profile-avatar-placeholder" aria-label="Avatar par défaut">
+                    👤
+                </div>
+            {% endif %}
+        </div>
+        <div class="profile-identity-content">
+            <h3 class="profile-identity-name">{{ request.user.username }}{% if request.user.first_name or request.user.last_name %} <span style="font-weight:500;">({{ request.user.first_name }} {{ request.user.last_name }})</span>{% endif %}</h3>
+            <h4 class="profile-section-title">👤 Informations personnelles</h4>
+            <div class="profile-details-grid">
+                <div class="profile-detail"><span class="profile-detail-label">Email</span><span class="profile-detail-value">{{ request.user.email|default:'Non renseigné' }}</span></div>
+                <div class="profile-detail"><span class="profile-detail-label">Téléphone</span><span class="profile-detail-value">{{ profile.phone|default:'Non renseigné' }}</span></div>
+                <div class="profile-detail"><span class="profile-detail-label">Adresse</span><span class="profile-detail-value">{{ profile.address|default:'Non renseignée' }}</span></div>
+            </div>
+            <h4 class="profile-section-title">🛒 Mes rôles</h4>
+            <div class="profile-status-list">
+                <div class="profile-status-row"><span>Vendeur</span>{% if request.user.is_seller %}<span class="profile-status-badge is-active">✓ Activé</span>{% else %}<span class="profile-status-badge is-inactive">Désactivé</span>{% endif %}</div>
+                <div class="profile-status-row"><span>Acheteur</span>{% if request.user.is_buyer %}<span class="profile-status-badge is-active">✓ Activé</span>{% else %}<span class="profile-status-badge is-inactive">Désactivé</span>{% endif %}</div>
+                <div class="profile-status-row"><span>Livreur</span>{% if request.user.is_delivery_agent %}<span class="profile-status-badge is-active">✓ Activé</span>{% else %}<span class="profile-status-badge is-inactive">Désactivé</span>{% endif %}</div>
+            </div>
+            <h4 class="profile-section-title">🚚 Accès et autorisations</h4>
+            <div class="profile-status-list">
+                <div class="profile-status-row"><span>Agent</span>{% if request.user.is_agent %}<span class="profile-status-badge is-active">✓ Activé</span>{% else %}<span class="profile-status-badge is-inactive">Non activé</span>{% endif %}</div>
+                <div class="profile-status-row"><span>Accès livraisons</span>{% if profile.delivery_access_granted %}<span class="profile-status-badge is-active">✓ Activé</span>{% else %}<span class="profile-status-badge is-inactive">Désactivé</span>{% endif %}</div>
+                <div class="profile-status-row"><span>Demande accès livreur</span>{% if profile.delivery_access_requested %}<span class="profile-status-badge is-active">En attente</span>{% else %}<span class="profile-status-badge is-inactive">Aucune demande</span>{% endif %}</div>
+            </div>
+            <div class="profile-security">
+                <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap;">
+                    <strong style="font-size:1rem; color:#0f172a;">🔐 Sécurité du compte</strong>
+                    <button id="toggle-account-code" class="fintech-btn btn-secondary" style="padding:6px 12px; font-size:0.9rem;">Afficher</button>
+                </div>
+                <div id="account-code-display" class="profile-security-display" style="display:none;">
+                    <p style="margin:0 0 .75rem 0; font-size:1.15rem; font-weight:700; color:#075985;">Code de compte : {{ request.user.account_code }}</p>
+                    <p style="margin:0 0 .5rem 0; font-size:0.95rem; color:#0f172a;">PIN retrait : <strong>{{ withdrawal_pin|default:'Non défini' }}</strong></p>
+                    <p style="margin:0; font-size:0.95rem; color:#0f172a;">Code final : <strong>{{ withdrawal_code|default:'Non défini' }}</strong></p>
+                    {% if request.user.is_staff and request.user.role == 'super_admin' or request.user.is_staff and request.user.role == 'admin_secondary' %}
+                    <button id="edit-codes-btn" class="fintech-btn btn-secondary" style="margin-top:10px; padding:6px 12px; font-size:0.9rem;">✏️ Modifier</button>
+                    {% endif %}
+                    {% if request.user.is_staff and request.user.is_superuser or request.user.is_staff and perms.marketplace.manage_withdrawal_commissions %}
+                    <a href="{% url 'manage_withdrawal_commissions' %}" class="fintech-btn btn-primary" style="display:inline-block; margin-top:10px; padding:6px 12px; font-size:0.9rem;">💸 Gestion Commission Retrait</a>
+                    {% endif %}
+                    {% if request.user.is_staff and request.user.is_superuser or request.user.is_staff and perms.marketplace.manage_agent_commissions %}
+                    <a href="{% url 'commission_peuple_configuration_adm' %}" class="fintech-btn btn-success" style="display:inline-block; margin-top:10px; padding:6px 12px; font-size:0.9rem;">⚙️ Commission Peuple Admin</a>
+                    {% endif %}
+                </div>
+                {% if request.user.is_staff and request.user.role == 'super_admin' or request.user.is_staff and request.user.role == 'admin_secondary' %}
+                <div style="margin-top:15px; padding:12px; background:#e8f4f8; border-radius:6px; display:none;" id="edit-codes-form">
+                    <h5 style="margin:0 0 10px 0; color:#007bff;">🔐 Modifier mes codes de retrait</h5>
+                    <form method="POST" style="display:flex; gap:10px; flex-wrap:wrap;">
+                        {% csrf_token %}
+                        <input type="hidden" name="update_withdrawal_codes" value="1">
+                        <div style="flex:1; min-width:200px;">
+                            <label style="display:block; font-size:0.85rem; margin-bottom:4px;">Nouveau PIN (8 chiffres)</label>
+                            <input type="text" name="new_withdrawal_pin" placeholder="00000000" maxlength="8" inputmode="numeric" style="width:100%; padding:8px; border:1px solid #ccc; border-radius:4px;">
+                        </div>
+                        <div style="flex:1; min-width:200px;">
+                            <label style="display:block; font-size:0.85rem; margin-bottom:4px;">Code final (4 chiffres)</label>
+                            <input type="text" name="new_withdrawal_code" placeholder="0000" maxlength="4" inputmode="numeric" style="width:100%; padding:8px; border:1px solid #ccc; border-radius:4px;">
+                        </div>
+                        <button type="submit" class="fintech-btn btn-primary" style="align-self:flex-end;">Mettre à jour</button>
+                    </form>
+                </div>
+                {% endif %}
+
+            </div>
+        </div>
+    </div>
+
+    <!-- D Ui maison plus bas -->
+    {% if request.user.is_staff %}
+    <div style="margin-top:16px;">
+        <button id="d-ui-maison-toggle" class="fintech-btn btn-primary" style="padding:10px 14px; font-size:0.95rem;">🏠 D Ui maison</button>
+        <div id="d-ui-maison-section" style="display:none; margin-top:14px; padding:16px; background:linear-gradient(135deg, #fef08a, #fcd34d); border:2px solid #f59e0b; border-radius:12px;">
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
+                <h3 style="margin:0; color:#92400e;">📦 Éléments Archivés</h3>
+                <button id="d-ui-maison-close" class="fintech-btn btn-secondary" style="padding:6px 12px; font-size:0.9rem;">✕ Fermer</button>
+            </div>
+            <div id="d-ui-maison-items-container" style="display:flex; flex-direction:column; gap:10px;">
+                <a href="#product-access-requests-section" class="d-ui-maison-item" style="padding:12px 14px; background:white; border:1px solid #f59e0b; border-radius:8px; text-decoration:none; color:#0f172a; font-weight:500; cursor:pointer; display:none;">📋 Aller aux demandes à approuver</a>
+                <a href="{% url 'real_estate:admin_membership_requests' %}" class="d-ui-maison-item" style="padding:12px 14px; background:white; border:1px solid #f59e0b; border-radius:8px; text-decoration:none; color:#0f172a; font-weight:500; cursor:pointer; display:none;">🏠 Maison Louer Client</a>
+            </div>
+            <div style="margin-top:12px; display:flex; align-items:center; justify-content:center; gap:8px;">
+                <button id="d-ui-maison-prev" class="fintech-btn btn-secondary" style="padding:6px 10px; font-size:0.9rem;">← Précédent</button>
+                <span id="d-ui-maison-counter" style="font-size:0.9rem; font-weight:500; color:#92400e;">1 / 3</span>
+                <button id="d-ui-maison-next" class="fintech-btn btn-secondary" style="padding:6px 10px; font-size:0.9rem;">Suivant →</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="performance-management-section" class="fintech-panel" style="margin-top:16px; background: linear-gradient(135deg, rgba(236, 72, 153, 0.08), rgba(168, 85, 247, 0.1)); border: 1px solid rgba(192, 132, 252, 0.18);">
+        <div class="fintech-title">
+            <span class="wallet-icon">⚡</span>
+            <span>Gestion performance</span>
+        </div>
+        <div class="fintech-section">
+            <p style="margin:0 0 12px 0; color:#1e293b; font-weight: 500;">Suivez ces bonnes pratiques pour que les pages s'affichent plus vite et soient plus fluides.</p>
+            <ul style="margin:0; padding-left: 18px; color:#334155;">
+                <li>Limiter les requêtes serveur et charger seulement le contenu nécessaire.</li>
+                <li>Utiliser le cache pour les données les plus fréquentes.</li>
+                <li>Déférer les scripts non essentiels pour un rendu plus rapide.</li>
+                <li>Optimiser les images et les médias pour réduire le temps de chargement.</li>
+            </ul>
+            <div style="margin-top:14px; display:flex; gap:10px; flex-wrap:wrap;">
+                <a href="#" class="fintech-btn btn-primary" style="padding:10px 16px;">Voir recommandations</a>
+                <button type="button" class="fintech-btn btn-secondary" style="padding:10px 16px;">Rafraîchir le profil</button>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Theme Customizer -->
+    <div class="fintech-panel" style="margin-top:16px;">
+        <div class="fintech-title">
+            <span class="wallet-icon">🎨</span>
+            <span>Personnaliser la couleur du site</span>
+        </div>
+        <div class="fintech-section">
+            <p style="margin:0 0 8px 0; color:#1e293b; font-weight: 500;">Choisis une couleur principale pour ton site.</p>
+                <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin-top:12px;">
+                <button type="button" class="fintech-btn btn-secondary theme-swatch" data-preset="blue" title="Bleu" style="background:linear-gradient(135deg,#2563eb,#00a3ff); border:1px solid rgba(0,0,0,0.06); width:54px; height:40px; padding:0;"></button>
+                <button type="button" class="fintech-btn btn-secondary theme-swatch" data-preset="teal" title="Cyan" style="background:linear-gradient(135deg,#06b6d4,#00d4ff); border:1px solid rgba(0,0,0,0.06); width:54px; height:40px; padding:0;"></button>
+                <button type="button" class="fintech-btn btn-secondary theme-swatch" data-preset="indigo" title="Indigo" style="background:linear-gradient(135deg,#4f46e5,#7c3aed); border:1px solid rgba(0,0,0,0.06); width:54px; height:40px; padding:0;"></button>
+                <button type="button" class="fintech-btn btn-secondary theme-swatch" data-preset="green" title="Vert" style="background:linear-gradient(135deg,#16a34a,#22c55e); border:1px solid rgba(0,0,0,0.06); width:54px; height:40px; padding:0;"></button>
+                <button type="button" id="theme-reset" class="fintech-btn btn-primary" style="padding:8px 12px; font-size:0.9rem;">Réinitialiser</button>
+            </div>
+            <p style="margin:10px 0 0 0; color:#1e293b; font-size:0.92rem; font-weight: 500;">La sélection est enregistrée localement dans ton navigateur.</p>
+        </div>
+    </div>
+
+            <!-- Button Color Personalizer -->
+            <div class="fintech-panel" style="margin-top:16px;">
+                <div class="fintech-title">
+                    <span class="wallet-icon">🎯</span>
+                    <span>Personnaliser couleur du bouton</span>
+                </div>
+                <div class="fintech-section">
+                    <form method="POST" id="commission-button-color-form" style="display:flex; flex-direction:column; gap:12px;">
+                        {% csrf_token %}
+                        <input type="hidden" id="commission-button-gradient-input" name="commission_button_gradient" value="{{ profile.theme_settings.commission_button_gradient|default:'' }}">
+                        <p style="margin:0 0 8px 0; color:#1e293b; font-weight: 500;">Change la couleur du bouton `Votre cadeau argent`. La modification est enregistrée dans ton profil et sera restaurée automatiquement.</p>
+                        <div style="display:flex; align-items:center; gap:12px; margin-top:12px; flex-wrap:wrap;">
+                            <div id="button-color-preview" style="width:72px; height:44px; border-radius:10px; border:1px solid rgba(0,0,0,0.06); background:var(--sdi-sol-gradient);"></div>
+                            <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                                <button type="button" id="open-color-picker" class="fintech-btn btn-primary" style="background:linear-gradient(135deg,var(--brand),var(--glow)); box-shadow: 0 18px 40px rgba(0,0,0,0.18); border-radius:999px; padding:10px 16px; color:#fff; font-weight:800; text-transform:uppercase; letter-spacing:0.08em;">Changer couleur du bouton</button>
+                                <button type="submit" name="save_commission_button_color" value="1" class="fintech-btn btn-success">Enregistrer</button>
+                                <button type="submit" name="save_commission_button_color" value="" class="fintech-btn btn-secondary" id="reset-button-color">Réinitialiser</button>
+                                <input type="color" id="button-color-input" style="display:none;" aria-label="Choisir couleur du bouton">
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+    <div class="fintech-panel" style="margin-top:1rem;">
+        <div class="fintech-title">
+            <span class="wallet-icon">💳</span>
+            <span>Recharge MicroSDICash</span>
+        </div>
+        <div class="fintech-section">
+            <p style="margin:0; color:#1e293b; font-weight: 500;">
+                Nom du compte : {{ system_settings.microsdicash_account_name }}<br>
+                Numéro du compte : {{ system_settings.microsdicash_account_number }}
+            </p>
+            <p style="color:#1e293b; margin-top:0.75rem; font-weight: 500;">
+                {{ system_settings.microsdicash_payment_instructions|default:"Rechargez votre compte avec MonCash pour acheter sur la plateforme." }}
+            </p>
+            {% if profile.recharge_message %}
+                <div style="margin-bottom:14px; padding:14px; background:#eef2ff; border-radius:12px; border-left:4px solid #2563eb;">
+                    <strong>Message de recharge :</strong>
+                    <p style="margin:8px 0 0 0; color:#334155;">{{ profile.recharge_message }}</p>
+                </div>
+            {% endif %}
+            {% if profile.recharge_selfie %}
+                <div style="margin-bottom:14px;">
+                    <strong>Selfie de recharge :</strong>
+                    <img src="{{ profile.recharge_selfie.url }}" alt="Selfie recharge" style="display:block; max-width:220px; margin-top:10px; border-radius:12px; border:1px solid #cbd5e1;" />
+                </div>
+            {% endif %}
+            <div style="display:flex; gap:0.75rem; flex-wrap:wrap; margin-top:1rem;">
+                <button type="button" id="add-receipt-btn" class="fintech-btn btn-success">Ajouter reçu MonCash</button>
+                <button type="button" id="add-identity-btn" class="fintech-btn btn-primary">Ajouter votre carte identité ou carte SDI</button>
+                <button type="button" id="add-message-btn" class="fintech-btn btn-warning">📝 Ajouter un message</button>
+                <button type="button" id="capture-selfie-btn" class="fintech-btn btn-secondary">📷 Prendre un selfie</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Wallet Section -->
+    <div class="fintech-panel">
+        <div class="fintech-title">
+            <span class="wallet-icon">💼</span>
+            <span>MicroSDICash</span>
+        </div>
+        
+        <!-- Main Balance Card -->
+        <div class="fintech-section" style="margin-bottom:20px;">
+            <div class="wallet-header">
+                <div class="wallet-header-left">
+                    <div class="wallet-icon">💲</div>
+                    <div>
+                        <h4 style="margin:0; color:#0f172a;">Solde Principal</h4>
+                        <p style="margin:6px 0 0; color:#1e293b; font-weight: 500;">Votre compte principal en USD</p>
+                    </div>
+                </div>
+                <span style="font-size:1.8rem; font-weight:800; color:#22c55e;">{{ wallet.balance|default:0 }} USD</span>
+            </div>
+            <div class="wallet-card-status" style="margin-bottom:20px; gap:16px;">
+                {% if not wallet.is_blocked %}
+                    <span class="fintech-badge status-active">Actif</span>
+                {% else %}
+                    <span class="fintech-badge status-blocked">Bloqué</span>
+                {% endif %}
+                {% if wallet.can_transfer %}
+                    <span class="fintech-badge status-active">Transfert activé</span>
+                {% else %}
+                    <span class="fintech-badge status-disabled">Transfert désactivé</span>
+                {% endif %}
+            </div>
+            <div style="display:flex; flex-wrap:wrap; gap:12px;">
+                <button id="withdraw-main-btn" class="fintech-btn btn-primary">Retirer</button>
+                <button id="scroll-transfer-form-btn" class="fintech-btn btn-secondary">Transférer</button>
+            </div>
+            {% if can_use_agent_financial_tools or can_use_full_admin_actions %}
+            <div class="admin-action-panel">
+                <div class="admin-action-header">
+                    <div class="admin-action-heading">
+                        <h4 style="margin:0 0 10px 0; color:#0f172a;">Actions financières</h4>
+                        <p class="admin-action-note">Accédez aux principaux outils de dépôt, retrait et transfert depuis votre profil. Les administrateurs principaux et agents sont regroupés ici.</p>
+                    </div>
+                    {% if is_principal_admin %}
+                        <span class="fintech-badge status-active" style="font-size:0.85rem;">Principal Admin</span>
+                    {% elif request.user.is_agent %}
+                        <span class="fintech-badge status-active" style="font-size:0.85rem;">Agent</span>
+                    {% endif %}
+                </div>
+                <div class="admin-action-grid">
+                    {% if can_use_agent_financial_tools %}
+                        <div class="admin-action-group-title">💰 Opérations financières</div>
+                        <a href="{% url 'agent_deposit' %}" class="fintech-btn btn-primary action-btn">💰 Dépôt Agent</a>
+                        <a href="{% url 'agent_withdrawal_dashboard' %}" class="fintech-btn btn-secondary action-btn">🏧 Retrait Agent</a>
+                        <a href="#agent-transfer-section" class="fintech-btn btn-success action-btn">🔁 Transfert</a>
+                    {% endif %}
+                    {% if can_use_full_admin_actions %}
+                        <div class="admin-action-group-title">👥 Gestion des agents</div>
+                        <a href="{% url 'admin_add_money' %}" class="fintech-btn btn-primary action-btn">➕ Ajouter Argent</a>
+                        <a href="{% url 'admin_add_money' %}?action=withdraw" class="fintech-btn btn-warning action-btn">➖ Retirer Argent</a>
+                        <a href="{% url 'agent_codes' %}" class="fintech-btn btn-secondary action-btn">🔐 Codes Agents</a>
+                        <a href="{% url 'manage_withdrawal_commissions' %}" class="fintech-btn btn-success action-btn">💸 Gestion Retraits</a>
+                        <div class="admin-action-group-title">⚡ Performance</div>
+                        <a href="#performance-management-section" class="fintech-btn btn-secondary action-btn">⚡ Performance</a>
+                        {% if request.user.is_staff or request.user.is_superuser or request.user.role == 'super_admin' %}
+                            <button id="optimize-performance-btn" type="button" class="fintech-btn btn-danger action-btn">⚡ Optimiser les performances</button>
+                        {% endif %}
+                        {% if is_principal_admin %}
+                            <a href="#agent-fund-access-section" class="fintech-btn btn-primary action-btn">🛠️ Gérer accès fonds agent</a>
+                        {% endif %}
+                    {% endif %}
+                </div>
+                <div id="optimize-performance-status" class="admin-action-note" style="display:none; margin-top:10px; color:#1e293b; font-weight:600;"></div>
+            </div>
+            {% if is_principal_admin %}
+            <div id="agent-fund-access-section" class="admin-action-panel" style="margin-top:18px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap;">
+                    <div>
+                        <h4 style="margin:0 0 10px 0; color:#0f172a;">Gestion accès fonds agent</h4>
+                        <p class="admin-action-note">Accordez ou révoquez l’accès des administrateurs secondaires aux opérations sur le portefeuille de commission agent.</p>
+                    </div>
+                </div>
+                <div style="display:grid; gap:12px; margin-top:12px;">
+                    {% for manager in agent_fund_managers %}
+                        <form method="POST" class="fintech-section" style="display:flex; align-items:center; justify-content:space-between; gap:12px; padding:14px;">
+                            {% csrf_token %}
+                            <input type="hidden" name="toggle_agent_fund_manager" value="1">
+                            <input type="hidden" name="user_id" value="{{ manager.user.id }}">
+                            <div>
+                                <div style="font-weight:700; color:#0f172a;">{{ manager.user.username }}{% if manager.user.get_full_name %} ({{ manager.user.get_full_name }}){% endif %}</div>
+                                <div style="font-size:0.95rem; color:#475569;">{{ manager.user.email }}</div>
+                            </div>
+                            <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+                                {% if manager.has_access %}
+                                    <span class="access-status-granted">Accès agent</span>
+                                    <button type="submit" name="action" value="revoke" class="action-btn btn-revoke">Révoquer</button>
+                                {% else %}
+                                    <span class="access-status-revoked">Pas d’accès</span>
+                                    <button type="submit" name="action" value="grant" class="action-btn btn-grant">Accorder</button>
+                                {% endif %}
+                            </div>
+                        </form>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+            <div id="agent-transfer-section">
+                <div class="agent-transfer-header">
+                    <div class="agent-transfer-heading">
+                        <h4>SYSTÈME DE TRANSFERT SUR LE COMPTE AGENT</h4>
+                        <p>Envoyer de l'argent vers un autre compte agent ou utilisateur avec validation et reçu.</p>
+                    </div>
+                    <div class="agent-transfer-actions">
+                        <a href="{% url 'transfer_receipts' %}" class="fintech-btn btn-secondary">Mes reçus</a>
+                        <button type="button" class="fintech-btn btn-primary" onclick="document.getElementById('agent-transfer-section').scrollIntoView({behavior:'smooth'});">Accéder au transfert</button>
+                    </div>
+                </div>
+                <form method="POST" action="" id="agent-transfer-form">
+                    {% csrf_token %}
+                    <input type="hidden" name="transfer_submit" value="1">
+                    <div class="agent-transfer-fields">
+                        <div class="agent-transfer-field">
+                            <label for="{{ transfer_form.recipient_account_code.id_for_label }}">Code destinataire</label>
+                            {{ transfer_form.recipient_account_code }}
+                            <div id="recipient-verification" style="margin-top:8px; color:#475569; font-size:0.9rem;"></div>
+                            {% if transfer_form.recipient_account_code.errors %}
+                                <div style="color:#b91c1c; font-size:0.85rem; margin-top:4px;">{{ transfer_form.recipient_account_code.errors|first }}</div>
+                            {% endif %}
+                        </div>
+                        <div class="agent-transfer-field">
+                            <label for="{{ transfer_form.source_account.id_for_label }}">Compte source</label>
+                            {{ transfer_form.source_account }}
+                            {% if transfer_form.source_account.errors %}
+                                <div style="color:#b91c1c; font-size:0.85rem; margin-top:4px;">{{ transfer_form.source_account.errors|first }}</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="agent-transfer-fields">
+                        <div class="agent-transfer-field">
+                            <label for="{{ transfer_form.currency.id_for_label }}">Devise</label>
+                            {{ transfer_form.currency }}
+                            {% if transfer_form.currency.errors %}
+                                <div style="color:#b91c1c; font-size:0.85rem; margin-top:4px;">{{ transfer_form.currency.errors|first }}</div>
+                            {% endif %}
+                        </div>
+                        <div class="agent-transfer-field">
+                            <label for="{{ transfer_form.amount.id_for_label }}">Montant</label>
+                            {{ transfer_form.amount }}
+                            {% if transfer_form.amount.errors %}
+                                <div style="color:#b91c1c; font-size:0.85rem; margin-top:4px;">{{ transfer_form.amount.errors|first }}</div>
+                            {% endif %}
+                            <div id="transfer-fee-text" style="margin-top:8px; color:#183147; font-size:0.95rem; display:none;"></div>
+                        </div>
+                    </div>
+                    <div id="recipient-verification" style="margin-top:8px; color:#475569; font-size:0.9rem;"></div>
+                    <div class="agent-transfer-submit-row">
+                        <button type="submit" class="fintech-btn btn-primary">Envoyer le transfert</button>
+                        <button type="button" id="cancel-transfer-btn" class="fintech-btn btn-secondary">Annuler</button>
+                        <div class="agent-transfer-status">Solde principal : <strong>{{ wallet.balance|default:'0' }} USD</strong></div>
+                    </div>
+                </form>
+                {% if transfer_commission_tiers %}
+                    <div style="margin-top:24px; padding:18px; border-radius:14px; background:#ffffff; border:1px solid #e2e8f0;">
+                        <h5 class="agent-fees-title">Frais de transfert par devise</h5>
+                        {% if request.user.is_staff %}
+                            <form method="POST" action="" style="margin-top:18px;">
+                                {% csrf_token %}
+                                <input type="hidden" name="update_transfer_tiers" value="1">
+                                <div class="agent-fees-table-wrap">
+                                    <table class="agent-fees-table">
+                                        <thead>
+                                            <tr style="background:#f8fafc; text-align:left;">
+                                                <th style="padding:10px; border-bottom:1px solid #e2e8f0;">Devise</th>
+                                                <th style="padding:10px; border-bottom:1px solid #e2e8f0;">Description</th>
+                                                <th style="padding:10px; border-bottom:1px solid #e2e8f0;">Min</th>
+                                                <th style="padding:10px; border-bottom:1px solid #e2e8f0;">Max</th>
+                                                <th style="padding:10px; border-bottom:1px solid #e2e8f0;">Frais total</th>
+                                                <th style="padding:10px; border-bottom:1px solid #e2e8f0;">Commission système</th>
+                                                <th style="padding:10px; border-bottom:1px solid #e2e8f0;">Commission agent</th>
+                                                <th style="padding:10px; border-bottom:1px solid #e2e8f0;">Active</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for tier in transfer_commission_tiers %}
+                                                <tr>
+                                                    <td style="padding:10px; border-bottom:1px solid #e2e8f0;"><select name="currency_{{ tier.id }}" style="width:100%; padding:8px; border:1px solid #d1d5db; border-radius:8px;">
+                                                        <option value="HTG" {% if tier.currency == 'HTG' %}selected{% endif %}>HTG</option>
+                                                        <option value="USD" {% if tier.currency == 'USD' %}selected{% endif %}>USD</option>
+                                                        <option value="EUR" {% if tier.currency == 'EUR' %}selected{% endif %}>EUR</option>
+                                                        <option value="DOP" {% if tier.currency == 'DOP' %}selected{% endif %}>DOP</option>
+                                                    </select></td>
+                                                    <td style="padding:10px; border-bottom:1px solid #e2e8f0;"><input name="description_{{ tier.id }}" value="{{ tier.description }}" style="width:100%; padding:8px; border:1px solid #d1d5db; border-radius:8px;"></td>
+                                                    <td style="padding:10px; border-bottom:1px solid #e2e8f0;"><input type="number" step="0.01" name="min_amount_{{ tier.id }}" value="{{ tier.min_amount }}" style="width:100%; padding:8px; border:1px solid #d1d5db; border-radius:8px;"></td>
+                                                    <td style="padding:10px; border-bottom:1px solid #e2e8f0;"><input type="number" step="0.01" name="max_amount_{{ tier.id }}" value="{{ tier.max_amount }}" style="width:100%; padding:8px; border:1px solid #d1d5db; border-radius:8px;"></td>
+                                                    <td style="padding:10px; border-bottom:1px solid #e2e8f0;"><input type="number" step="0.01" name="total_fee_{{ tier.id }}" value="{{ tier.total_fee }}" style="width:100%; padding:8px; border:1px solid #d1d5db; border-radius:8px;"></td>
+                                                    <td style="padding:10px; border-bottom:1px solid #e2e8f0;"><input type="number" step="0.01" name="system_fee_{{ tier.id }}" value="{{ tier.system_fee }}" style="width:100%; padding:8px; border:1px solid #d1d5db; border-radius:8px;"></td>
+                                                    <td style="padding:10px; border-bottom:1px solid #e2e8f0;"><input type="number" step="0.01" name="agent_fee_{{ tier.id }}" value="{{ tier.agent_fee }}" style="width:100%; padding:8px; border:1px solid #d1d5db; border-radius:8px;"></td>
+                                                    <td style="padding:10px; border-bottom:1px solid #e2e8f0; text-align:center;"><input type="checkbox" name="active_{{ tier.id }}" {% if tier.active %}checked{% endif %}></td>
+                                                    <input type="hidden" name="tier_id" value="{{ tier.id }}">
+                                                </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                                <div class="agent-fees-mobile">
+                                    {% for tier in transfer_commission_tiers %}
+                                    <article class="agent-fee-card">
+                                        <div class="agent-fee-card-header">
+                                            <span class="agent-fee-currency">{{ tier.currency }}</span>
+                                            <label><input type="checkbox" name="active_{{ tier.id }}" {% if tier.active %}checked{% endif %}> Active</label>
+                                        </div>
+                                        <dl>
+                                            <dt>Devise</dt><dd><select name="currency_{{ tier.id }}">
+                                                <option value="HTG" {% if tier.currency == 'HTG' %}selected{% endif %}>HTG</option>
+                                                <option value="USD" {% if tier.currency == 'USD' %}selected{% endif %}>USD</option>
+                                                <option value="EUR" {% if tier.currency == 'EUR' %}selected{% endif %}>EUR</option>
+                                                <option value="DOP" {% if tier.currency == 'DOP' %}selected{% endif %}>DOP</option>
+                                            </select></dd>
+                                            <dt>Description</dt><dd><input name="description_{{ tier.id }}" value="{{ tier.description }}"></dd>
+                                            <dt>Minimum</dt><dd><input type="number" step="0.01" name="min_amount_{{ tier.id }}" value="{{ tier.min_amount }}"></dd>
+                                            <dt>Maximum</dt><dd><input type="number" step="0.01" name="max_amount_{{ tier.id }}" value="{{ tier.max_amount }}"></dd>
+                                            <dt>Frais total</dt><dd><input type="number" step="0.01" name="total_fee_{{ tier.id }}" value="{{ tier.total_fee }}"></dd>
+                                            <dt>Commission système</dt><dd><input type="number" step="0.01" name="system_fee_{{ tier.id }}" value="{{ tier.system_fee }}"></dd>
+                                            <dt>Commission agent</dt><dd><input type="number" step="0.01" name="agent_fee_{{ tier.id }}" value="{{ tier.agent_fee }}"></dd>
+                                        </dl>
+                                        <input type="hidden" name="tier_id" value="{{ tier.id }}">
+                                    </article>
+                                    {% endfor %}
+                                </div>
+                                <button type="submit" class="fintech-btn btn-secondary" style="margin-top:16px; padding:10px 16px; width:auto;">Mettre à jour les tranches</button>
+                            </form>
+                        {% else %}
+                            <div class="agent-fees-table-wrap">
+                                <table class="agent-fees-table">
+                                    <thead>
+                                        <tr style="background:#f8fafc; text-align:left;">
+                                            <th style="padding:10px; border-bottom:1px solid #e2e8f0;">Devise</th>
+                                            <th style="padding:10px; border-bottom:1px solid #e2e8f0;">Description</th>
+                                            <th style="padding:10px; border-bottom:1px solid #e2e8f0;">Frais total</th>
+                                            <th style="padding:10px; border-bottom:1px solid #e2e8f0;">Commission système</th>
+                                            <th style="padding:10px; border-bottom:1px solid #e2e8f0;">Commission agent</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for tier in transfer_commission_tiers %}
+                                            <tr>
+                                                <td style="padding:10px; border-bottom:1px solid #e2e8f0;">{{ tier.currency }}</td>
+                                                <td style="padding:10px; border-bottom:1px solid #e2e8f0;">{{ tier.description }}</td>
+                                                <td style="padding:10px; border-bottom:1px solid #e2e8f0;">{{ tier.total_fee }} {{ tier.currency }}</td>
+                                                <td style="padding:10px; border-bottom:1px solid #e2e8f0;">{{ tier.system_fee }} {{ tier.currency }}</td>
+                                                <td style="padding:10px; border-bottom:1px solid #e2e8f0;">{{ tier.agent_fee }} {{ tier.currency }}</td>
+                                            </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div class="agent-fees-mobile">
+                                {% for tier in transfer_commission_tiers %}
+                                <article class="agent-fee-card">
+                                    <div class="agent-fee-card-header">
+                                        <span class="agent-fee-currency">{{ tier.currency }}</span>
+                                    </div>
+                                    <dl>
+                                        <dt>Description</dt><dd>{{ tier.description|default:'—' }}</dd>
+                                        <dt>Frais total</dt><dd>{{ tier.total_fee|default:'—' }} {{ tier.currency }}</dd>
+                                        <dt>Commission système</dt><dd>{{ tier.system_fee|default:'—' }} {{ tier.currency }}</dd>
+                                        <dt>Commission agent</dt><dd>{{ tier.agent_fee|default:'—' }} {{ tier.currency }}</dd>
+                                    </dl>
+                                </article>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                        {% if request.user.is_staff %}
+                            <div style="margin-top:18px; padding:14px; border:1px solid #e2e8f0; border-radius:12px; background:#f8fafc;">
+                                <h6 style="margin:0 0 10px 0; color:#0f172a;">Ajouter une tranche de commission</h6>
+                                <form method="POST" action="" style="display:grid; gap:12px;">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="create_transfer_tier" value="1">
+                                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+                                        <select name="new_currency" style="padding:10px; border:1px solid #d1d5db; border-radius:8px;" required>
+                                            <option value="HTG">HTG</option>
+                                            <option value="USD">USD</option>
+                                            <option value="EUR">EUR</option>
+                                            <option value="DOP">DOP</option>
+                                        </select>
+                                        <input type="text" name="new_description" placeholder="Description" style="padding:10px; border:1px solid #d1d5db; border-radius:8px;" required>
+                                    </div>
+                                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+                                        <input type="number" step="0.01" name="new_min_amount" placeholder="Montant min" style="padding:10px; border:1px solid #d1d5db; border-radius:8px;" required>
+                                        <input type="number" step="0.01" name="new_max_amount" placeholder="Montant max" style="padding:10px; border:1px solid #d1d5db; border-radius:8px;" required>
+                                    </div>
+                                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+                                        <input type="number" step="0.01" name="new_total_fee" placeholder="Frais total" style="padding:10px; border:1px solid #d1d5db; border-radius:8px;" required>
+                                        <input type="number" step="0.01" name="new_system_fee" placeholder="Commission système" style="padding:10px; border:1px solid #d1d5db; border-radius:8px;" required>
+                                    </div>
+                                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+                                        <input type="number" step="0.01" name="new_agent_fee" placeholder="Commission agent" style="padding:10px; border:1px solid #d1d5db; border-radius:8px;" required>
+                                        <div></div>
+                                    </div>
+                                    <div style="display:flex; align-items:center; gap:12px;">
+                                        <label style="display:flex; align-items:center; gap:8px;"><input type="checkbox" name="new_active" checked> Active</label>
+                                        <button type="submit" class="fintech-btn btn-primary" style="padding:10px 18px;">Ajouter tranche</button>
+                                    </div>
+                                </form>
+                            </div>
+                        {% endif %}
+                    </div>
+                {% endif %}
+                {% if request.user.is_staff and not transfer_commission_tiers %}
+                    <div style="margin-top:24px; padding:18px; border-radius:14px; background:#ffffff; border:1px solid #e2e8f0;">
+                        <h5 style="margin:0 0 12px 0; color:#0f172a;">Ajouter une tranche de commission</h5>
+                        <div style="margin-top:18px; padding:14px; border:1px solid #e2e8f0; border-radius:12px; background:#f8fafc;">
+                            <form method="POST" action="" style="display:grid; gap:12px;">
+                                {% csrf_token %}
+                                <input type="hidden" name="create_transfer_tier" value="1">
+                                <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+                                    <select name="new_currency" style="padding:10px; border:1px solid #d1d5db; border-radius:8px;" required>
+                                        <option value="HTG">HTG</option>
+                                        <option value="USD">USD</option>
+                                        <option value="EUR">EUR</option>
+                                        <option value="DOP">DOP</option>
+                                    </select>
+                                    <input type="text" name="new_description" placeholder="Description" style="padding:10px; border:1px solid #d1d5db; border-radius:8px;" required>
+                                </div>
+                                <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+                                    <input type="number" step="0.01" name="new_min_amount" placeholder="Montant min" style="padding:10px; border:1px solid #d1d5db; border-radius:8px;" required>
+                                    <input type="number" step="0.01" name="new_max_amount" placeholder="Montant max" style="padding:10px; border:1px solid #d1d5db; border-radius:8px;" required>
+                                </div>
+                                <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+                                    <input type="number" step="0.01" name="new_total_fee" placeholder="Frais total" style="padding:10px; border:1px solid #d1d5db; border-radius:8px;" required>
+                                    <input type="number" step="0.01" name="new_system_fee" placeholder="Commission système" style="padding:10px; border:1px solid #d1d5db; border-radius:8px;" required>
+                                </div>
+                                <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+                                    <input type="number" step="0.01" name="new_agent_fee" placeholder="Commission agent" style="padding:10px; border:1px solid #d1d5db; border-radius:8px;" required>
+                                    <div></div>
+                                </div>
+                                <div style="display:flex; align-items:center; gap:12px;">
+                                    <label style="display:flex; align-items:center; gap:8px;"><input type="checkbox" name="new_active" checked> Active</label>
+                                    <button type="submit" class="fintech-btn btn-primary" style="padding:10px 18px;">Ajouter tranche</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+        
+        <!-- Multi-device Wallet Section -->
+        <div class="fintech-section">
+            <div class="wallet-header">
+                <div class="wallet-header-left">
+                    <div class="wallet-icon">🌐</div>
+                    <div>
+                        <h4 style="margin:0; color:#0f172a;">MicroSDICash Multi-appareils</h4>
+                        <p style="margin:6px 0 0; color:#1e293b; font-weight: 500;">Soldes par devise pour commissions et paiements.</p>
+                    </div>
+                </div>
+                <button id="withdraw-multi-btn" class="fintech-btn btn-success">Retirer</button>
+            </div>
+            <div class="wallet-stats">
+                <div class="wallet-stat">
+                    <div class="wallet-stat-value">{{ wallet.commission_balance_usd|default:0 }}</div>
+                    <div class="wallet-stat-label">USD</div>
+                </div>
+                <div class="wallet-stat">
+                    <div class="wallet-stat-value">{{ wallet.commission_balance_htg|default:0 }}</div>
+                    <div class="wallet-stat-label">HTG</div>
+                </div>
+                <div class="wallet-stat">
+                    <div class="wallet-stat-value">{{ wallet.commission_balance_eur|default:0 }}</div>
+                    <div class="wallet-stat-label">EUR</div>
+                </div>
+                <div class="wallet-stat">
+                    <div class="wallet-stat-value">{{ wallet.commission_balance_peso|default:0 }}</div>
+                    <div class="wallet-stat-label">DOP</div>
+                </div>
+            </div>
+            <div style="display: flex; gap: 12px; margin-top: 20px; flex-wrap: wrap;">
+                <a href="{% url 'view_peuple_commission' %}" class="fintech-btn btn-primary" style="padding: 12px 18px; text-decoration: none;">💰 Commission Peuple</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Withdraw Modal -->
+    <div id="withdraw-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background-color:rgba(0,0,0,0.5); z-index:1000; justify-content:center; align-items:center;">
+        <div style="background:white; padding:30px; border-radius:12px; box-shadow:0 4px 6px rgba(0,0,0,0.1); max-width:400px; width:90%;">
+            <h3 style="margin-top:0; color:#007bff;">💸 Retirer des fonds</h3>
+            <form id="withdraw-form">
+                <div style="margin-bottom:15px;">
+                    <label for="account-type" style="display:block; font-weight:600; margin-bottom:5px;">Type de compte</label>
+                    <select id="account-type" name="account_type" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:8px;">
+                        <option value="principal">Principal</option>
+                        <option value="multidevice">Multi-appareils</option>
+                    </select>
+                </div>
+                <div style="margin-bottom:15px;">
+                    <label for="currency" style="display:block; font-weight:600; margin-bottom:5px;">Devise</label>
+                    <select id="currency" name="currency" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:8px;">
+                        <option value="USD">USD</option>
+                        <option value="HTG">HTG</option>
+                        <option value="DOP">DOP</option>
+                        <option value="EUR">EUR</option>
+                    </select>
+                </div>
+                <div style="margin-bottom:15px;">
+                    <label for="amount" style="display:block; font-weight:600; margin-bottom:5px;">Montant</label>
+                    <input type="number" id="amount" name="amount" step="0.01" min="0" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:8px;" required>
+                </div>
+                <div style="margin-bottom:15px;">
+                    <p id="withdraw-fee-text" style="margin:0; color:#475569; font-size:0.95rem; display:none;"></p>
+                </div>
+                <div style="margin-bottom:15px;">
+                    <label for="pin-code" style="display:block; font-weight:600; margin-bottom:5px;">Code PIN (8 chiffres)</label>
+                    <input type="password" id="pin-code" name="pin_code" maxlength="8" pattern="\d{8}" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:8px;" required>
+                </div>
+                <div style="margin-bottom:20px;">
+                    <label for="final-code" style="display:block; font-weight:600; margin-bottom:5px;">Code final (4 chiffres)</label>
+                    <input type="password" id="final-code" name="final_code" maxlength="4" pattern="\d{4}" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:8px;" required>
+                </div>
+                <div style="display:flex; gap:10px; justify-content:flex-end; flex-wrap:wrap;">
+                    <button type="button" id="cancel-withdraw" class="fintech-btn btn-secondary">Annuler</button>
+                    <button type="submit" class="fintech-btn btn-success">Confirmer</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Receipt Upload Modal -->
+    <div id="receipt-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background-color:rgba(0,0,0,0.5); z-index:1000; justify-content:center; align-items:center;">
+        <div style="background:white; padding:30px; border-radius:12px; box-shadow:0 4px 6px rgba(0,0,0,0.1); max-width:400px; width:90%;">
+            <h3 style="margin-top:0; color:#28a745;">📄 Ajouter reçu MonCash</h3>
+            <form id="receipt-form" method="post" enctype="multipart/form-data" action="{% url 'upload_receipt' %}">
+                {% csrf_token %}
+                <div style="margin-bottom:15px;">
+                    <label for="id_receipt_proof_modal" style="display:block; font-weight:600; margin-bottom:5px;">Sélectionner le reçu</label>
+                    <input type="file" id="id_receipt_proof_modal" name="receipt_proof" accept="image/*" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:8px;" required>
+                    <p id="receipt-error-message" style="color:#dc3545; font-size:0.9rem; margin:8px 0 0 0; display:none;"></p>
+                </div>
+                <div style="margin-bottom:20px;">
+                    <p style="color:#1e293b; font-size:0.9rem; margin:0; font-weight: 500;">Formats acceptés : JPG, PNG, GIF. Taille maximale : 5MB.</p>
+                    {% if profile.receipt_proof %}
+                        <p style="color:#28a745; font-size:0.9rem; margin:5px 0 0 0; font-weight: 600;">Vous avez déjà un reçu. Le nouveau fichier le remplacera.</p>
+                    {% endif %}
+                </div>
+                <div style="display:flex; gap:10px; justify-content:flex-end; flex-wrap:wrap;">
+                    <button type="button" id="cancel-receipt" class="fintech-btn btn-secondary">Annuler</button>
+                    <button type="submit" class="fintech-btn btn-success">Téléverser</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Identity Upload Modal -->
+    <div id="identity-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background-color:rgba(0,0,0,0.5); z-index:1000; justify-content:center; align-items:center;">
+        <div style="background:white; padding:30px; border-radius:12px; box-shadow:0 4px 6px rgba(0,0,0,0.1); max-width:400px; width:90%;">
+            <h3 style="margin-top:0; color:#0069d9;">🪪 Ajouter votre carte identité ou carte SDI</h3>
+            <form id="identity-form" method="post" enctype="multipart/form-data" action="{% url 'upload_identity' %}">
+                {% csrf_token %}
+                <div style="margin-bottom:15px;">
+                    <label for="id_identity_document_modal" style="display:block; font-weight:600; margin-bottom:5px;">Sélectionner l’image de votre carte</label>
+                    <input type="file" id="id_identity_document_modal" name="identity_document" accept="image/*" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:8px;" required>
+                    <p id="identity-error-message" style="color:#dc3545; font-size:0.9rem; margin:8px 0 0 0; display:none;"></p>
+                </div>
+                <div style="margin-bottom:20px;">
+                    <p style="color:#1e293b; font-size:0.9rem; margin:0; font-weight: 500;">Formats acceptés : JPG, PNG, GIF. Taille maximale : 5MB.</p>
+                    {% if profile.identity_document %}
+                        <p style="color:#28a745; font-size:0.9rem; margin:5px 0 0 0; font-weight: 600;">Vous avez déjà téléversé un document. Le nouveau fichier le remplacera.</p>
+                    {% endif %}
+                </div>
+                <div style="display:flex; gap:10px; justify-content:flex-end; flex-wrap:wrap;">
+                    <button type="button" id="cancel-identity" class="fintech-btn btn-secondary">Annuler</button>
+                    <button type="submit" class="fintech-btn btn-primary">Téléverser</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Recharge Message Modal -->
+    <div id="message-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background-color:rgba(0,0,0,0.5); z-index:1000; justify-content:center; align-items:center;">
+        <div style="background:white; padding:30px; border-radius:12px; box-shadow:0 4px 6px rgba(0,0,0,0.1); max-width:500px; width:90%;">
+            <h3 style="margin-top:0; color:#d97706;">📝 Ajouter un message de recharge</h3>
+            <form id="message-form" method="post" action="{% url 'save_recharge_message' %}">
+                {% csrf_token %}
+                <div style="margin-bottom:15px;">
+                    <label for="id_recharge_message" style="display:block; font-weight:600; margin-bottom:5px;">Pourquoi cet argent ?</label>
+                    <textarea id="id_recharge_message" name="recharge_message" rows="5" required style="width:100%; padding:10px; border:1px solid #ddd; border-radius:8px;">{{ profile.recharge_message }}</textarea>
+                </div>
+                <div style="display:flex; gap:10px; justify-content:flex-end; flex-wrap:wrap;">
+                    <button type="button" id="cancel-message" class="fintech-btn btn-secondary">Annuler</button>
+                    <button type="submit" class="fintech-btn btn-success">Enregistrer</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Selfie Upload Modal -->
+    <div id="selfie-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background-color:rgba(0,0,0,0.5); z-index:1000; justify-content:center; align-items:center;">
+        <div style="background:white; padding:30px; border-radius:12px; box-shadow:0 4px 6px rgba(0,0,0,0.1); max-width:600px; width:95%;">
+            <h3 style="margin-top:0; color:#9333ea;">📷 Prendre un selfie de recharge</h3>
+            <div style="margin-bottom:15px; display:flex; flex-direction:column; gap:12px;">
+                <video id="selfie-video" autoplay playsinline style="width:100%; max-height:320px; border-radius:12px; background:#000; display:none;"></video>
+                <canvas id="selfie-canvas" style="display:none; width:100%; border-radius:12px; background:#f8fafc;"></canvas>
+            </div>
+            <div style="display:flex; gap:10px; flex-wrap:wrap; justify-content:flex-end; margin-bottom:12px;">
+                <button type="button" id="btn-capture-photo" class="fintech-btn btn-primary">Capturer la photo</button>
+                <button type="button" id="btn-save-selfie" class="fintech-btn btn-success" disabled>Enregistrer le selfie</button>
+                <button type="button" id="cancel-selfie" class="fintech-btn btn-secondary">Annuler</button>
+            </div>
+            <p style="margin:0; color:#475569; font-size:0.93rem;">Autorisez la caméra si nécessaire, puis capturez et enregistrez votre selfie.</p>
+        </div>
+    </div>
+
+    <!-- Withdrawal History Section -->
+    <div id="withdrawal-history" class="card" style="margin-top:2rem; background-color:#f8f9fa; border-left:4px solid #28a745;">
+        <h3 style="color:#28a745; margin-bottom:1rem;">📜 Historique des Retraits</h3>
+        {% if withdrawal_history %}
+            <div style="overflow-x:auto;">
+                <table style="width:100%; border-collapse:collapse;">
+                    <thead>
+                        <tr style="background:#d4edda;">
+                            <th style="padding:10px; text-align:left; border-bottom:1px solid #ddd;">Type de Compte</th>
+                            <th style="padding:10px; text-align:left; border-bottom:1px solid #ddd;">Devise</th>
+                            <th style="padding:10px; text-align:right; border-bottom:1px solid #ddd;">Montant</th>
+                            <th style="padding:10px; text-align:left; border-bottom:1px solid #ddd;">Statut</th>
+                            <th style="padding:10px; text-align:left; border-bottom:1px solid #ddd;">Date</th>
+                            <th style="padding:10px; text-align:left; border-bottom:1px solid #ddd;">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for transaction in withdrawal_history %}
+                            <tr>
+                                <td style="padding:10px; border-bottom:1px solid #f0f0f0;">
+                                    {{ transaction.account_type }}
+                                </td>
+                                <td style="padding:10px; border-bottom:1px solid #f0f0f0;">{{ transaction.currency }}</td>
+                                <td style="padding:10px; text-align:right; border-bottom:1px solid #f0f0f0;">{{ transaction.amount }}</td>
+                                <td style="padding:10px; border-bottom:1px solid #f0f0f0;">
+                                    {% if transaction.status == "approved" %}
+                                        <span style="color:#28a745; font-weight:600;">Approuvé</span>
+                                    {% elif transaction.status == "pending" %}
+                                        <span style="color:#ffc107; font-weight:600;">En attente</span>
+                                    {% else %}
+                                        <span style="color:#dc3545; font-weight:600;">Rejeté</span>
+                                    {% endif %}
+                                </td>
+                                <td style="padding:10px; border-bottom:1px solid #f0f0f0;">{{ transaction.created_at|date:"d/m/Y H:i" }}</td>
+                                <td style="padding:10px; border-bottom:1px solid #f0f0f0;">
+                                    {% if transaction.status == "approved" and transaction.is_new_system %}
+                                        <a href="{% url 'view_withdrawal_receipt' transaction.id %}" target="_blank" style="color:#28a745; text-decoration:none; font-weight:600;">📄 Voir Reçu</a>
+                                    {% else %}
+                                        -
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <p style="color:#1e293b; font-weight: 500;">Aucun retrait effectué pour le moment.</p>
+        {% endif %}
+    </div>
+
+    {% if request.user.is_staff %}
+    <div class="card" style="margin-top:2rem; background:#f8fafc; border-left:4px solid #1d4ed8;">
+        <h3 style="color:#1d4ed8; margin-bottom:1rem;">🛡️ Zone Cybersécurité</h3>
+        <p style="color:#1e293b; margin-bottom:1rem; font-weight: 500;">Surveillance en continu et verrouillage d'urgence du système en cas d'attaque.</p>
+
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:14px; margin-bottom:1.5rem;">
+            <div style="padding:18px; background:white; border-radius:14px; border:1px solid #c7d2fe;">
+                <strong>Surveillance active :</strong>
+                <p style="margin:0.5rem 0 0 0; color:{{ system_settings.enable_cybersecurity|yesno:"#10b981,#ef4444" }}; font-weight:600;">{{ system_settings.enable_cybersecurity|yesno:"✓ Activée,✗ Désactivée" }}</p>
+            </div>
+            <div style="padding:18px; background:white; border-radius:14px; border:1px solid #fee2e2;">
+                <strong>Verrouillage d'urgence :</strong>
+                <p style="margin:0.5rem 0 0 0; color:{{ system_settings.emergency_lockdown|yesno:"#dc2626,#10b981" }}; font-weight:600;">{{ system_settings.emergency_lockdown|yesno:"⚠️ ACTIVÉ,✓ Désactivé" }}</p>
+            </div>
+        </div>
+
+        <div style="display:flex; flex-wrap:wrap; gap:10px; margin-bottom:2rem;">
+            <form method="post" style="display:inline;">
+                {% csrf_token %}
+                <input type="hidden" name="security_action" value="toggle_cybersecurity">
+                <button type="submit" class="fintech-btn" style="background:{{ system_settings.enable_cybersecurity|yesno:"#ef4444,#22c55e" }}; color:white;">
+                    {{ system_settings.enable_cybersecurity|yesno:"🔴 Désactiver surveillance,🟢 Activer surveillance" }}
+                </button>
+            </form>
+            <form method="post" style="display:inline;">
+                {% csrf_token %}
+                <input type="hidden" name="security_action" value="toggle_lockdown">
+                <button type="submit" class="fintech-btn" style="background:{{ system_settings.emergency_lockdown|yesno:"#22c55e,#dc2626" }}; color:white;">
+                    {{ system_settings.emergency_lockdown|yesno:"🔓 Désactiver verrouillage,🔒 Activer verrouillage" }}
+                </button>
+            </form>
+        </div>
+
+        <!-- Include the full security dashboard -->
+        {% include 'marketplace/security_dashboard.html' %}
+
+        <!-- Gestion des incidents récents -->
+        <div style="background:white; border:1px solid #e2e8f0; border-radius:14px; padding:18px; margin-bottom:1.5rem;">
+            <h4 style="margin-top:0; color:#1d4ed8;">📋 Alertes et Incidents Récents</h4>
+            {% if security_incidents %}
+            <div style="max-height:400px; overflow-y:auto;">
+                {% for incident in security_incidents %}
+                <div style="padding:12px; background:#f8fafc; border-radius:8px; border-left:4px solid {{ incident.severity|yesno:"#dc2626,#f97316,#3b82f6" }}; margin-bottom:10px; display:flex; justify-content:space-between; align-items:start;">
+                    <div style="flex:1;">
+                        <strong style="color:{{ incident.severity|yesno:"#dc2626,#f97316,#3b82f6" }};">{{ incident.get_severity_display }}</strong>
+                        <span style="color:#64748b; font-size:0.9rem;">{{ incident.get_incident_type_display }}</span>
+                        {% if incident.description %}
+                        <p style="margin:6px 0 0 0; color:#475569; font-size:0.9rem;">{{ incident.description }}</p>
+                        {% endif %}
+                        <small style="color:#64748b;">IP: {{ incident.source_ip|default:"inconnue" }} • {{ incident.created_at|date:"d/m/Y H:i" }}</small>
+                    </div>
+                    {% if not incident.resolved %}
+                    <form method="post" style="display:inline; margin-left:10px;">
+                        {% csrf_token %}
+                        <input type="hidden" name="security_action" value="resolve_incident">
+                        <input type="hidden" name="incident_id" value="{{ incident.id }}">
+                        <button type="submit" class="fintech-btn btn-success" style="padding:6px 10px; font-size:0.85rem; white-space:nowrap;">✓ Résolu</button>
+                    </form>
+                    {% else %}
+                    <span style="color:#10b981; font-weight:600; font-size:0.9rem;">✓ Résolu</span>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p style="color:#1e293b; margin:0; font-weight: 500;">Aucune alerte de cybersécurité enregistrée pour le moment.</p>
+            {% endif %}
+        </div>
+
+        <!-- Gestion des IPs bloquées -->
+        <div style="background:white; border:1px solid #e2e8f0; border-radius:14px; padding:18px; margin-bottom:1.5rem;">
+            <h4 style="margin-top:0; color:#1d4ed8;">🚫 Gestion des IPs Bloquées</h4>
+            {% if blocked_ips %}
+            <div style="max-height:300px; overflow-y:auto;">
+                <table style="width:100%; border-collapse:collapse;">
+                    <thead>
+                        <tr style="background:#f8fafc; border-bottom:1px solid #cbd5e1;">
+                            <th style="padding:10px; text-align:left;">Adresse IP</th>
+                            <th style="padding:10px; text-align:left;">Raison</th>
+                            <th style="padding:10px; text-align:left;">Date</th>
+                            <th style="padding:10px; text-align:center;">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for ip_record in blocked_ips %}
+                        <tr style="border-bottom:1px solid #e2e8f0;">
+                            <td style="padding:10px;"><code style="background:#f1f5f9; padding:4px 8px; border-radius:4px;">{{ ip_record.ip_address }}</code></td>
+                            <td style="padding:10px;">{{ ip_record.reason|default:"Blocage depuis tableau de bord" }}</td>
+                            <td style="padding:10px; font-size:0.9rem;">{{ ip_record.created_at|date:"d/m/Y H:i" }}</td>
+                            <td style="padding:10px; text-align:center;">
+                                <form method="post" style="display:inline;">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="security_action" value="unblock_ip">
+                                    <input type="hidden" name="ip_address" value="{{ ip_record.ip_address }}">
+                                    <button type="submit" class="fintech-btn btn-secondary" style="padding:6px 10px; font-size:0.85rem;">Débloquer</button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p style="color:#1e293b; margin:0; font-weight: 500;">Aucune IP actuellement bloquée.</p>
+            {% endif %}
+        </div>
+
+        <!-- Créer une alerte manuelle -->
+        <div style="background:white; border:1px solid #e2e8f0; border-radius:14px; padding:18px;">
+            <h4 style="margin-top:0; color:#1d4ed8;">➕ Créer une Alerte Manuelle</h4>
+            <form method="post" style="display:grid; gap:1rem; max-width:640px;">
+                {% csrf_token %}
+                <input type="hidden" name="security_action" value="create_security_alert">
+                <div>
+                    <label style="display:block; font-weight:600; margin-bottom:6px;"><strong>Type d'alerte</strong></label>
+                    <select name="incident_type" style="width:100%; padding:10px; border:1px solid #cbd5e1; border-radius:8px; font-size:0.95rem;">
+                        <option value="brute_force">🔑 Brute force / Attaque dictionnaire</option>
+                        <option value="injection">💉 Injection SQL / XSS</option>
+                        <option value="suspicious_access">👁️ Accès suspect / Comportement anormal</option>
+                        <option value="malware">🦠 Malware / fichier malveillant</option>
+                        <option value="other">⚠️ Autre</option>
+                    </select>
+                </div>
+                <div>
+                    <label style="display:block; font-weight:600; margin-bottom:6px;"><strong>Niveau de gravité</strong></label>
+                    <select name="severity" style="width:100%; padding:10px; border:1px solid #cbd5e1; border-radius:8px; font-size:0.95rem;">
+                        <option value="info">ℹ️ Info - Pour information</option>
+                        <option value="warning" selected>⚠️ Alerte - À surveiller</option>
+                        <option value="critical">🚨 Critique - Action immédiate requise</option>
+                    </select>
+                </div>
+                <div>
+                    <label style="display:block; font-weight:600; margin-bottom:6px;"><strong>Description de la menace</strong></label>
+                    <textarea name="security_description" rows="3" style="width:100%; padding:10px; border:1px solid #cbd5e1; border-radius:8px; font-family:sans-serif;" placeholder="Décris ce qui a été détecté ou la menace suspectée (ex: 1000 tentatives échouées depuis IP 192.168.1.1)..."></textarea>
+                </div>
+                <button type="submit" class="fintech-btn btn-primary" style="background:#2563eb; color:white; align-self:flex-start;">🔔 Enregistrer l'alerte</button>
+            </form>
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="profile-action-cluster">
+    <h3 class="profile-action-heading">👤 Mon espace</h3>
+    <button id="edit-profile-button" class="button" type="button" style="margin-top:1.5rem;">Modifier mon profil</button>
+    {% if request.user.is_seller or request.user.is_staff %}
+    <a href="{% url 'my_shop' %}" class="button" style="margin-top:1.5rem; margin-left:1rem; background-color: #28a745; color: white;">Ma Boutique</a>
+    {% endif %}
+    {% if can_manage_beauty_studio_requests %}
+    <a href="{% url 'studio_beaute_requests_admin' %}" class="button" style="margin-top:1.5rem; margin-left:1rem; background-color: #8b5cf6; color: white;">🧴 Validation Studio Beauté</a>
+    {% endif %}
+    {% if request.user.is_superuser or request.user.role == 'super_admin' %}
+    <button type="button" class="button" style="margin-top:1.5rem; margin-left:1rem; background-color: #0f172a; color: white;" onclick="window.history.back();">← Retour</button>
+    <a href="{% url 'system_control_panel' %}" class="button" style="margin-top:1.5rem; margin-left:1rem; background-color: #dc3545; color: white;">🔒 Contrôle Système</a>
+    <a href="{% url 'manage_admin_permissions' %}" class="button" style="margin-top:1.5rem; margin-left:1rem; background-color: #6b7280; color: white;">Pouvoir admin principale</a>
+    <form action="{% url 'refresh_exchange_rates' %}" method="post" style="display:inline-block; margin-top:1.5rem; margin-left:1rem;">
+        {% csrf_token %}
+        <button type="submit" class="button" style="background-color: #2563eb; color: white;">🔄 Actualiser le taux de change</button>
+    </form>
+    {% endif %}
+    </div>
+    
+    <!-- Section des commandes en attente de confirmation -->
+    {% if pending_orders %}
+    <div class="card" style="margin-top:1.5rem; background-color:#fff3cd; border-left:4px solid #ffc107;">
+        <h3 style="color:#856404; margin-bottom:1rem;">📦 Commandes en attente de confirmation</h3>
+        <p style="color:#856404; margin-bottom:1rem;">Vous avez des commandes marquées comme livrées. Veuillez confirmer leur réception.</p>
+        
+        {% for order in pending_orders %}
+        <div style="background:white; padding:15px; border-radius:6px; margin-bottom:10px; border:1px solid #ffeaa7;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                <strong>Commande #{{ order.id }}</strong>
+                <span style="color:#28a745; font-weight:600;">{{ order.total_amount }} HTG</span>
+            </div>
+            <p style="margin:5px 0; color:#64748b;">Produit: {{ order.product_name|default:"Commande multiple" }}</p>
+            <p style="margin:5px 0; color:#64748b;">Date: {{ order.date_achat|date:"d/m/Y H:i" }}</p>
+            <a href="{% url 'confirm_delivery_buyer' order.id %}" class="button" style="background:#28a745; color:white; text-decoration:none; padding:8px 16px; border-radius:4px; font-size:14px;">
+                ✅ Confirmer la réception
+            </a>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+    
+    <div id="profile-edit-form" class="{% if not show_edit_form %}hidden-profile-form{% endif %}" style="margin-top:1.5rem;">
+        <form method="post" enctype="multipart/form-data">
+            {% csrf_token %}
+            <div style="display:grid; gap:1rem; max-width:520px;">
+                <label for="id_address"><strong>Adresse</strong></label>
+                {{ form.address }}
+                <label for="id_phone"><strong>Téléphone</strong></label>
+                {{ form.phone }}
+                <label for="id_photo"><strong>Photo de profil</strong></label>
+                {{ form.photo }}
+                <button class="button" type="submit">Enregistrer les modifications</button>
+            </div>
+        </form>
+    </div>
+
+    {% if request.user.is_staff %}
+    <div class="card" style="margin-top:1rem;">
+        <h3>Gestion des commissions</h3>
+        <p style="margin-bottom:1rem; color:#475569;">Modifiez les paramètres de commission globaux et par catégorie.</p>
+
+        <div style="display:grid; gap:1.5rem;">
+            <div style="overflow-x:auto;">
+                <table style="width:100%; border-collapse:collapse;">
+                    <thead>
+                        <tr style="background:#eef2ff;">
+                            <th style="padding:10px; text-align:left; border-bottom:1px solid #ddd;">Nom</th>
+                            <th style="padding:10px; text-align:left; border-bottom:1px solid #ddd;">Type</th>
+                            <th style="padding:10px; text-align:right; border-bottom:1px solid #ddd;">Valeur</th>
+                            <th style="padding:10px; text-align:center; border-bottom:1px solid #ddd;">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for commission in commission_configs %}
+                        <tr>
+                            <td style="padding:10px; border-bottom:1px solid #f0f0f0;">{{ commission.nom }}</td>
+                            <td style="padding:10px; border-bottom:1px solid #f0f0f0;">{{ commission.type }}</td>
+                            <td style="padding:10px; text-align:right; border-bottom:1px solid #f0f0f0;">{{ commission.valeur }}</td>
+                            <td style="padding:10px; text-align:center; border-bottom:1px solid #f0f0f0;">
+                                <form method="post" style="display:flex; gap:0.5rem; justify-content:center; flex-wrap:wrap;">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="commission_id" value="{{ commission.id }}">
+                                    <input type="text" name="commission_value" value="{{ commission.valeur }}" style="width:100px; padding:6px;">
+                                    <button class="button alt" name="update_commission" value="1" type="submit">Sauvegarder</button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="4" style="padding:10px; color:#475569;">Aucune configuration de commission trouvée.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <div style="border-top:1px solid #e2e8f0; padding-top:1rem;">
+                <h4 style="margin-top:0;">Commission par catégorie</h4>
+                <form method="post" style="display:grid; gap:0.75rem; max-width:520px;">
+                    {% csrf_token %}
+                    <label for="id_category_id"><strong>Catégorie</strong></label>
+                    <select name="category_id" id="id_category_id" required style="padding:8px;">
+                        <option value="">Sélectionnez une catégorie</option>
+                        {% for category in categories %}
+                            <option value="{{ category.id }}">{{ category.get_full_path }}</option>
+                        {% endfor %}
+                    </select>
+
+                    <label for="id_category_commission_value"><strong>Valeur (%)</strong></label>
+                    <input id="id_category_commission_value" type="text" name="category_commission_value" placeholder="Ex: 0.12" required style="padding:8px;">
+
+                    <button class="button" name="update_category_commission" value="1" type="submit">Enregistrer la commission catégorie</button>
+                </form>
+
+                {% if category_commission_configs %}
+                <div style="margin-top:1rem;">
+                    <h5 style="margin-bottom:0.5rem;">Commissions par catégorie existantes</h5>
+                    <ul style="margin:0; padding-left:1.2rem; color:#475569;">
+                        {% for category_config in category_commission_configs %}
+                            <li><strong>{{ category_config.nom|cut:"taux_commission_categorie_"|capfirst }}</strong> : {{ category_config.valeur }}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            var editButton = document.getElementById('edit-profile-button');
+            var formContainer = document.getElementById('profile-edit-form');
+            if (editButton && formContainer) {
+                editButton.addEventListener('click', function() {
+                    if (formContainer.style.display === 'none' || formContainer.style.display === '') {
+                        formContainer.style.display = 'block';
+                        editButton.textContent = 'Masquer la modification';
+                    } else {
+                        formContainer.style.display = 'none';
+                        editButton.textContent = 'Modifier mon profil';
+                    }
+                });
+            }
+
+            // Gestion du bouton d'édition des codes de retrait
+            var editCodesBtn = document.getElementById('edit-codes-btn');
+            var editCodesForm = document.getElementById('edit-codes-form');
+            if (editCodesBtn && editCodesForm) {
+                editCodesBtn.addEventListener('click', function() {
+                    if (editCodesForm.style.display === 'none' || editCodesForm.style.display === '') {
+                        editCodesForm.style.display = 'block';
+                        editCodesBtn.textContent = '❌ Annuler';
+                    } else {
+                        editCodesForm.style.display = 'none';
+                        editCodesBtn.textContent = '✏️ Modifier';
+                    }
+                });
+            }
+
+            // Withdraw modal functionality
+            var withdrawMainBtn = document.getElementById('withdraw-main-btn');
+            var withdrawMultiBtn = document.getElementById('withdraw-multi-btn');
+            var withdrawModal = document.getElementById('withdraw-modal');
+            var cancelWithdrawBtn = document.getElementById('cancel-withdraw');
+            var withdrawForm = document.getElementById('withdraw-form');
+            var accountTypeSelect = document.getElementById('account-type');
+
+            function calculateHtgWithdrawalFee(amount) {
+                var value = parseFloat(amount);
+                if (isNaN(value)) {
+                    return 0;
+                }
+                var ranges = [
+                    {min:20, max:99.99, fee:6},
+                    {min:100, max:249.99, fee:12},
+                    {min:250, max:499.99, fee:15},
+                    {min:500, max:999.99, fee:40},
+                    {min:1000, max:1999.99, fee:65},
+                    {min:2000, max:3999.99, fee:115},
+                    {min:4000, max:7999.99, fee:185},
+                    {min:8000, max:11999.99, fee:275},
+                    {min:12000, max:19999.99, fee:380},
+                    {min:20000, max:39999.99, fee:640},
+                    {min:40000, max:59999.99, fee:1050},
+                    {min:60000, max:74999.99, fee:1400},
+                    {min:75000, max:100000.00, fee:1600}
+                ];
+                for (var i = 0; i < ranges.length; i++) {
+                    if (value >= ranges[i].min && value <= ranges[i].max) {
+                        return ranges[i].fee;
+                    }
+                }
+                return 0;
+            }
+
+            function updateWithdrawalFeeText() {
+                var feeText = document.getElementById('withdraw-fee-text');
+                if (!withdrawForm || !feeText) return;
+                var accountType = accountTypeSelect.value;
+                var currency = document.getElementById('currency').value;
+                var amount = document.getElementById('amount').value;
+                if (accountType === 'multidevice' && currency === 'HTG') {
+                    var fee = calculateHtgWithdrawalFee(amount);
+                    if (fee > 0) {
+                        feeText.textContent = 'Frais estimés pour ce retrait HTG : ' + fee.toFixed(2) + ' HTG.';
+                    } else if (amount && parseFloat(amount) >= 5) {
+                        feeText.textContent = 'Aucun frais HTG défini pour cette tranche. Le coût exact sera confirmé à la validation.';
+                    } else {
+                        feeText.textContent = 'Entrez un montant pour afficher les frais HTG.';
+                    }
+                    feeText.style.display = 'block';
+                } else {
+                    feeText.style.display = 'none';
+                }
+            }
+
+            if (withdrawForm) {
+                var currencySelect = document.getElementById('currency');
+                var amountInput = document.getElementById('amount');
+                if (accountTypeSelect) {
+                    accountTypeSelect.addEventListener('change', updateWithdrawalFeeText);
+                }
+                if (currencySelect) {
+                    currencySelect.addEventListener('change', updateWithdrawalFeeText);
+                }
+                if (amountInput) {
+                    amountInput.addEventListener('input', updateWithdrawalFeeText);
+                }
+            }
+
+            if (withdrawMainBtn) {
+                withdrawMainBtn.addEventListener('click', function() {
+                    closeAllModals();
+                    accountTypeSelect.value = 'principal';
+                    setModalState(withdrawModal, true);
+                });
+            }
+
+            if (new URLSearchParams(window.location.search).get('open_withdraw') === '1' && withdrawMainBtn) {
+                withdrawMainBtn.click();
+            }
+
+            if (withdrawMultiBtn) {
+                withdrawMultiBtn.addEventListener('click', function() {
+                    closeAllModals();
+                    accountTypeSelect.value = 'multidevice';
+                    setModalState(withdrawModal, true);
+                });
+            }
+
+            if (cancelWithdrawBtn) {
+                cancelWithdrawBtn.addEventListener('click', function() {
+                    setModalState(withdrawModal, false);
+                    withdrawForm.reset();
+                });
+            }
+
+            // Close modal when clicking outside
+            if (withdrawModal) {
+                withdrawModal.addEventListener('click', function(event) {
+                    if (event.target === withdrawModal) {
+                        setModalState(withdrawModal, false);
+                        withdrawForm.reset();
+                    }
+                });
+            }
+
+            // Toggle account code visibility
+            var toggleAccountCodeBtn = document.getElementById('toggle-account-code');
+            var accountCodeDisplay = document.getElementById('account-code-display');
+            if (toggleAccountCodeBtn && accountCodeDisplay) {
+                toggleAccountCodeBtn.addEventListener('click', function() {
+                    if (accountCodeDisplay.style.display === 'none') {
+                        accountCodeDisplay.style.display = 'block';
+                        toggleAccountCodeBtn.textContent = 'Masquer';
+                    } else {
+                        accountCodeDisplay.style.display = 'none';
+                        toggleAccountCodeBtn.textContent = 'Afficher';
+                    }
+                });
+            }
+
+            var transferFormButton = document.getElementById('scroll-transfer-form-btn');
+            var recipientField = document.getElementById('id_recipient_account_code');
+            var recipientVerification = document.getElementById('recipient-verification');
+            var transferSection = document.getElementById('id_recipient_account_code') ? document.getElementById('id_recipient_account_code').closest('form') : null;
+
+            if (transferFormButton && recipientField && transferSection) {
+                transferFormButton.addEventListener('click', function() {
+                    transferSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    recipientField.focus();
+                });
+            }
+
+            function calculateTransferFee(amount, currency, tiers) {
+                var parsedAmount = parseFloat(amount);
+                if (isNaN(parsedAmount) || parsedAmount <= 0) {
+                    return null;
+                }
+                for (var i = 0; i < tiers.length; i++) {
+                    var tier = tiers[i];
+                    var minAmount = parseFloat(tier.min_amount);
+                    var maxAmount = parseFloat(tier.max_amount);
+                    if (currency === tier.currency && parsedAmount >= minAmount && parsedAmount <= maxAmount) {
+                        return {
+                            total_fee: parseFloat(tier.total_fee),
+                            system_fee: parseFloat(tier.system_fee),
+                            agent_fee: parseFloat(tier.agent_fee)
+                        };
+                    }
+                }
+                return null;
+            }
+
+            var transferCommissionTiers = JSON.parse('{{ transfer_commission_tiers_json|escapejs }}');
+            var feeTextNode = document.getElementById('transfer-fee-text');
+            var amountInputField = document.getElementById('id_amount');
+            var currencyInputField = document.getElementById('id_currency');
+
+            function refreshTransferFeeText() {
+                if (!feeTextNode || !amountInputField || !currencyInputField) return;
+                var feeData = calculateTransferFee(amountInputField.value, currencyInputField.value, transferCommissionTiers);
+                if (feeData) {
+                    feeTextNode.style.display = 'block';
+                    feeTextNode.textContent = 'Frais estimés (payés par vous) : ' + feeData.total_fee.toFixed(2) + ' ' + currencyInputField.value + ' — système : ' + feeData.system_fee.toFixed(2) + ', agent : ' + feeData.agent_fee.toFixed(2) + '.';
+                } else if (amountInputField.value) {
+                    feeTextNode.style.display = 'block';
+                    feeTextNode.textContent = 'Aucune tranche de commission définie pour ce montant / cette devise. Vous risquez de payer un frais non configuré.';
+                } else {
+                    feeTextNode.style.display = 'none';
+                }
+            }
+
+            if (amountInputField) {
+                amountInputField.addEventListener('input', refreshTransferFeeText);
+            }
+            if (currencyInputField) {
+                currencyInputField.addEventListener('change', refreshTransferFeeText);
+            }
+            refreshTransferFeeText();
+
+            if (recipientField && recipientVerification) {
+                recipientField.addEventListener('blur', function() {
+                    var code = recipientField.value.trim();
+                    if (!code) {
+                        recipientVerification.textContent = '';
+                        return;
+                    }
+                    fetch('{% url "get_recipient_account_info" %}?account_code=' + encodeURIComponent(code))
+                        .then(function(response) {
+                            if (!response.ok) {
+                                throw response;
+                            }
+                            return response.json();
+                        })
+                        .then(function(data) {
+                            recipientVerification.style.color = '#166534';
+                            recipientVerification.textContent = 'Compte trouvé : ' + data.recipient_name + ' (' + data.recipient_country + ', ' + data.recipient_currency + ')';
+                        })
+                        .catch(function(error) {
+                            if (error.json) {
+                                error.json().then(function(err) {
+                                    recipientVerification.style.color = '#b91c1c';
+                                    recipientVerification.textContent = err.error || 'Code invalid.';
+                                }).catch(function() {
+                                    recipientVerification.style.color = '#b91c1c';
+                                    recipientVerification.textContent = 'Erreur de validation du compte.';
+                                });
+                            } else {
+                                recipientVerification.style.color = '#b91c1c';
+                                recipientVerification.textContent = 'Erreur de validation du compte.';
+                            }
+                        });
+                });
+            }
+
+            // Modal helper functions
+            var addReceiptBtn = document.getElementById('add-receipt-btn');
+            var receiptModal = document.getElementById('receipt-modal');
+            var cancelReceiptBtn = document.getElementById('cancel-receipt');
+            var receiptForm = document.getElementById('receipt-form');
+            var receiptErrorMessage = document.getElementById('receipt-error-message');
+            var messageModal = document.getElementById('message-modal');
+            var identityModal = document.getElementById('identity-modal');
+            var withdrawModal = document.getElementById('withdraw-modal');
+            var selfieModal = document.getElementById('selfie-modal');
+
+            function setModalState(modal, visible) {
+                if (!modal) return;
+                modal.style.display = visible ? 'flex' : 'none';
+                modal.style.pointerEvents = visible ? 'auto' : 'none';
+            }
+
+            function closeAllModals() {
+                [withdrawModal, receiptModal, identityModal, messageModal, selfieModal].forEach(function(modal) {
+                    setModalState(modal, false);
+                });
+                if (receiptForm) {
+                    receiptForm.reset();
+                }
+                if (receiptErrorMessage) {
+                    receiptErrorMessage.style.display = 'none';
+                }
+            }
+
+            if (addReceiptBtn) {
+                addReceiptBtn.addEventListener('click', function() {
+                    closeAllModals();
+                    setModalState(receiptModal, true);
+                });
+            }
+
+            if (cancelReceiptBtn) {
+                cancelReceiptBtn.addEventListener('click', function() {
+                    setModalState(receiptModal, false);
+                    if (receiptForm) {
+                        receiptForm.reset();
+                    }
+                    if (receiptErrorMessage) {
+                        receiptErrorMessage.style.display = 'none';
+                    }
+                });
+            }
+
+            // Close receipt modal when clicking outside
+            if (receiptModal) {
+                receiptModal.addEventListener('click', function(event) {
+                    if (event.target === receiptModal) {
+                        setModalState(receiptModal, false);
+                        if (receiptForm) {
+                            receiptForm.reset();
+                        }
+                        if (receiptErrorMessage) {
+                            receiptErrorMessage.style.display = 'none';
+                        }
+                    }
+                });
+            }
+
+            if (receiptForm) {
+                receiptForm.addEventListener('submit', function(event) {
+                    var receiptFileInput = document.getElementById('id_receipt_proof_modal');
+                    var errorDisplay = document.getElementById('receipt-error-message');
+
+                    if (!receiptFileInput || receiptFileInput.files.length === 0) {
+                        event.preventDefault();
+                        if (errorDisplay) {
+                            errorDisplay.textContent = 'Veuillez sélectionner une image de reçu.';
+                            errorDisplay.style.display = 'block';
+                        }
+                        return;
+                    }
+
+                    var file = receiptFileInput.files[0];
+                    var maxSize = 5 * 1024 * 1024;
+
+                    if (!file.type.startsWith('image/')) {
+                        event.preventDefault();
+                        if (errorDisplay) {
+                            errorDisplay.textContent = 'Le fichier doit être une image (JPG, PNG, GIF).';
+                            errorDisplay.style.display = 'block';
+                        }
+                        return;
+                    }
+
+                    if (file.size > maxSize) {
+                        event.preventDefault();
+                        if (errorDisplay) {
+                            errorDisplay.textContent = 'Le fichier est trop volumineux. Taille maximale : 5 MB.';
+                            errorDisplay.style.display = 'block';
+                        }
+                        return;
+                    }
+
+                    if (errorDisplay) {
+                        errorDisplay.style.display = 'none';
+                    }
+                });
+            }
+
+            var addIdentityBtn = document.getElementById('add-identity-btn');
+            var identityModal = document.getElementById('identity-modal');
+            var cancelIdentityBtn = document.getElementById('cancel-identity');
+            var identityForm = document.getElementById('identity-form');
+            var identityErrorMessage = document.getElementById('identity-error-message');
+
+            if (addIdentityBtn) {
+                addIdentityBtn.addEventListener('click', function() {
+                    identityModal.style.display = 'flex';
+                });
+            }
+
+            if (cancelIdentityBtn) {
+                cancelIdentityBtn.addEventListener('click', function() {
+                    identityModal.style.display = 'none';
+                    identityForm.reset();
+                    if (identityErrorMessage) {
+                        identityErrorMessage.style.display = 'none';
+                    }
+                });
+            }
+
+            if (identityModal) {
+                identityModal.addEventListener('click', function(event) {
+                    if (event.target === identityModal) {
+                        identityModal.style.display = 'none';
+                        identityForm.reset();
+                        if (identityErrorMessage) {
+                            identityErrorMessage.style.display = 'none';
+                        }
+                    }
+                });
+            }
+
+            if (identityForm) {
+                identityForm.addEventListener('submit', function(event) {
+                    var identityFileInput = document.getElementById('id_identity_document_modal');
+                    var errorDisplay = document.getElementById('identity-error-message');
+
+                    if (!identityFileInput || identityFileInput.files.length === 0) {
+                        event.preventDefault();
+                        if (errorDisplay) {
+                            errorDisplay.textContent = 'Veuillez sélectionner une image de votre carte.';
+                            errorDisplay.style.display = 'block';
+                        }
+                        return;
+                    }
+
+                    var file = identityFileInput.files[0];
+                    var maxSize = 5 * 1024 * 1024;
+
+                    if (!file.type.startsWith('image/')) {
+                        event.preventDefault();
+                        if (errorDisplay) {
+                            errorDisplay.textContent = 'Le fichier doit être une image (JPG, PNG, GIF).';
+                            errorDisplay.style.display = 'block';
+                        }
+                        return;
+                    }
+
+                    if (file.size > maxSize) {
+                        event.preventDefault();
+                        if (errorDisplay) {
+                            errorDisplay.textContent = 'Le fichier est trop volumineux. Taille maximale : 5 MB.';
+                            errorDisplay.style.display = 'block';
+                        }
+                        return;
+                    }
+
+                    if (errorDisplay) {
+                        errorDisplay.style.display = 'none';
+                    }
+                });
+            }
+
+            var addMessageBtn = document.getElementById('add-message-btn');
+            var messageModal = document.getElementById('message-modal');
+            var cancelMessageBtn = document.getElementById('cancel-message');
+            var messageForm = document.getElementById('message-form');
+
+            if (addMessageBtn) {
+                addMessageBtn.addEventListener('click', function() {
+                    if (messageModal) {
+                        messageModal.style.display = 'flex';
+                    }
+                });
+            }
+
+            if (cancelMessageBtn) {
+                cancelMessageBtn.addEventListener('click', function() {
+                    if (messageModal) {
+                        messageModal.style.display = 'none';
+                    }
+                });
+            }
+
+            if (messageModal) {
+                messageModal.addEventListener('click', function(event) {
+                    if (event.target === messageModal) {
+                        messageModal.style.display = 'none';
+                    }
+                });
+            }
+
+            var captureSelfieBtn = document.getElementById('capture-selfie-btn');
+            var selfieModal = document.getElementById('selfie-modal');
+            var cancelSelfieBtn = document.getElementById('cancel-selfie');
+            var capturePhotoBtn = document.getElementById('btn-capture-photo');
+            var saveSelfieBtn = document.getElementById('btn-save-selfie');
+            var selfieVideo = document.getElementById('selfie-video');
+            var selfieCanvas = document.getElementById('selfie-canvas');
+            var selfieStream = null;
+
+            if (captureSelfieBtn) {
+                captureSelfieBtn.addEventListener('click', async function() {
+                    if (!selfieModal) return;
+                    selfieModal.style.display = 'flex';
+
+                    if (!selfieStream) {
+                        try {
+                            selfieStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false });
+                            selfieVideo.srcObject = selfieStream;
+                            selfieVideo.style.display = 'block';
+                            selfieCanvas.style.display = 'none';
+                            saveSelfieBtn.disabled = true;
+                        } catch (err) {
+                            alert('Impossible d\'accéder à la caméra. Veuillez vérifier les permissions.');
+                        }
+                    }
+                });
+            }
+
+            if (cancelSelfieBtn) {
+                cancelSelfieBtn.addEventListener('click', function() {
+                    if (!selfieModal) return;
+                    selfieModal.style.display = 'none';
+                    if (selfieStream) {
+                        selfieStream.getTracks().forEach(track => track.stop());
+                        selfieStream = null;
+                    }
+                    if (selfieVideo) selfieVideo.style.display = 'none';
+                    if (selfieCanvas) selfieCanvas.style.display = 'none';
+                });
+            }
+
+            if (selfieModal) {
+                selfieModal.addEventListener('click', function(event) {
+                    if (event.target === selfieModal) {
+                        selfieModal.style.display = 'none';
+                        if (selfieStream) {
+                            selfieStream.getTracks().forEach(track => track.stop());
+                            selfieStream = null;
+                        }
+                        if (selfieVideo) selfieVideo.style.display = 'none';
+                        if (selfieCanvas) selfieCanvas.style.display = 'none';
+                    }
+                });
+            }
+
+            if (capturePhotoBtn) {
+                capturePhotoBtn.addEventListener('click', function() {
+                    if (!selfieVideo || !selfieCanvas) return;
+                    if (selfieVideo.readyState < 2) {
+                        alert('La caméra n\'est pas encore prête. Veuillez patienter quelques instants.');
+                        return;
+                    }
+                    var context = selfieCanvas.getContext('2d');
+                    selfieCanvas.width = selfieVideo.videoWidth;
+                    selfieCanvas.height = selfieVideo.videoHeight;
+                    context.drawImage(selfieVideo, 0, 0, selfieCanvas.width, selfieCanvas.height);
+                    selfieCanvas.style.display = 'block';
+                    selfieVideo.style.display = 'none';
+                    saveSelfieBtn.disabled = false;
+                });
+            }
+
+            if (saveSelfieBtn) {
+                saveSelfieBtn.addEventListener('click', function() {
+                    if (!selfieCanvas) return;
+                    var dataUrl = selfieCanvas.toDataURL('image/png');
+                    var csrfToken = document.querySelector('[name=csrfmiddlewaretoken]');
+                    if (!csrfToken) {
+                        alert('Token CSRF introuvable.');
+                        return;
+                    }
+
+                    var formData = new FormData();
+                    formData.append('selfie_data', dataUrl);
+                    fetch('{% url "upload_selfie" %}', {
+                        method: 'POST',
+                        headers: {
+                            'X-CSRFToken': csrfToken.value
+                        },
+                        body: formData
+                    })
+                    .then(function(response) {
+                        if (!response.ok) {
+                            throw new Error('Erreur lors de l\'envoi du selfie.');
+                        }
+                        return response.text();
+                    })
+                    .then(function() {
+                        location.reload();
+                    })
+                    .catch(function(error) {
+                        console.error(error);
+                        alert('Une erreur est survenue lors de l\'enregistrement du selfie.');
+                    });
+                });
+            }
+
+            if (withdrawForm) {
+                withdrawForm.addEventListener('submit', function(event) {
+                    event.preventDefault();
+                    
+                    const formData = new FormData(withdrawForm);
+                    const data = {
+                        account: formData.get('account_type'),
+                        amount: formData.get('amount'),
+                        currency: formData.get('currency'),
+                        pin: formData.get('pin_code'),
+                        secure_code: formData.get('final_code')
+                    };
+                    
+                    // Get CSRF token
+                    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+                    
+                    fetch('/withdraw/', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded',
+                            'X-CSRFToken': csrfToken
+                        },
+                        body: new URLSearchParams(data)
+                    })
+                    .then(response => response.json())
+                    .then(result => {
+                        if (result.success) {
+                            alert('Succès: ' + result.message);
+                            location.reload(); // Refresh to update balances
+                        } else {
+                            alert('Erreur: ' + result.message);
+                        }
+                        withdrawModal.style.display = 'none';
+                        withdrawForm.reset();
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        alert('Une erreur s\'est produite. Veuillez réessayer.');
+                        withdrawModal.style.display = 'none';
+                        withdrawForm.reset();
+                    });
+                });
+
+                var transferForm = document.getElementById('agent-transfer-form');
+                var cancelTransferBtn = document.getElementById('cancel-transfer-btn');
+                var recipientField = document.getElementById('id_recipient_account_code');
+                var recipientInfo = document.getElementById('recipient-verification');
+
+                if (transferForm) {
+                    transferForm.addEventListener('submit', function(event) {
+                        if (!confirm('Êtes-vous sûr de vouloir confirmer le transfert ?')) {
+                            event.preventDefault();
+                            return;
+                        }
+                        if (!confirm('Êtes-vous sûr de vouloir confirmer à nouveau le transfert ?')) {
+                            event.preventDefault();
+                            return;
+                        }
+                    });
+                }
+
+                if (cancelTransferBtn && transferForm) {
+                    cancelTransferBtn.addEventListener('click', function() {
+                        if (confirm('Êtes-vous sûr de vouloir annuler le transfert ?')) {
+                            transferForm.reset();
+                            if (recipientInfo) {
+                                recipientInfo.textContent = '';
+                            }
+                        }
+                    });
+                }
+
+                if (recipientField && recipientInfo) {
+                    recipientField.addEventListener('blur', function() {
+                        var code = recipientField.value.trim();
+                        if (!code) {
+                            recipientInfo.textContent = '';
+                            return;
+                        }
+                        fetch('{% url "get_recipient_account_info" %}?account_code=' + encodeURIComponent(code))
+                            .then(function(response) {
+                                return response.json();
+                            })
+                            .then(function(data) {
+                                if (data.error) {
+                                    recipientInfo.textContent = 'Compte destinataire introuvable.';
+                                } else {
+                                    recipientInfo.textContent = 'Destinataire: ' + data.recipient_name + ' • Compte: ' + data.recipient_account_code;
+                                }
+                            })
+                            .catch(function() {
+                                recipientInfo.textContent = 'Impossible de vérifier le compte destinataire pour le moment.';
+                            });
+                    });
+                }
+            }
+
+            // Gestion du bouton D Ui maison
+            var dUiMaisonToggle = document.getElementById('d-ui-maison-toggle');
+            var dUiMaisonSection = document.getElementById('d-ui-maison-section');
+            var dUiMaisonClose = document.getElementById('d-ui-maison-close');
+            var dUiMaisonItems = document.querySelectorAll('.d-ui-maison-item');
+            var dUiMaisonPrev = document.getElementById('d-ui-maison-prev');
+            var dUiMaisonNext = document.getElementById('d-ui-maison-next');
+            var dUiMaisonCounter = document.getElementById('d-ui-maison-counter');
+            var currentItemIndex = 0;
+
+            function updateDUiMaisonDisplay() {
+                dUiMaisonItems.forEach(function(item, index) {
+                    item.style.display = index === currentItemIndex ? 'block' : 'none';
+                });
+                dUiMaisonCounter.textContent = (currentItemIndex + 1) + ' / ' + dUiMaisonItems.length;
+                dUiMaisonPrev.disabled = currentItemIndex === 0;
+                dUiMaisonNext.disabled = currentItemIndex === dUiMaisonItems.length - 1;
+            }
+
+            if (dUiMaisonToggle) {
+                dUiMaisonToggle.addEventListener('click', function() {
+                    if (dUiMaisonSection.style.display === 'none' || dUiMaisonSection.style.display === '') {
+                        dUiMaisonSection.style.display = 'block';
+                        currentItemIndex = 0;
+                        updateDUiMaisonDisplay();
+                    }
+                });
+            }
+
+            if (dUiMaisonClose) {
+                dUiMaisonClose.addEventListener('click', function() {
+                    dUiMaisonSection.style.display = 'none';
+                });
+            }
+
+            if (dUiMaisonPrev) {
+                dUiMaisonPrev.addEventListener('click', function() {
+                    if (currentItemIndex > 0) {
+                        currentItemIndex--;
+                        updateDUiMaisonDisplay();
+                    }
+                });
+            }
+
+            if (dUiMaisonNext) {
+                dUiMaisonNext.addEventListener('click', function() {
+                    if (currentItemIndex < dUiMaisonItems.length - 1) {
+                        currentItemIndex++;
+                        updateDUiMaisonDisplay();
+                    }
+                });
+            }
+        });
+    </script>
+    
+    <div class="card" style="margin-top:1rem;">
+    <h3>Produits achetés</h3>
+    {% if buyer_purchases %}
+        <button class="button alt toggle-section-btn" type="button" data-target="buyer-purchases-details" data-label="détails des achats" style="margin-bottom:1rem;">Voir les achats</button>
+        <div id="buyer-purchases-details" style="display:none;">
+            <div style="overflow-x:auto;">
+                <table style="width:100%; border-collapse:collapse;">
+                    <thead>
+                        <tr style="background:#eef2ff;">
+                            <th style="padding:10px; text-align:left; border-bottom:1px solid #ddd;">Produit</th>
+                            <th style="padding:10px; text-align:right; border-bottom:1px solid #ddd;">Quantité</th>
+                            <th style="padding:10px; text-align:right; border-bottom:1px solid #ddd;">Prix unitaire</th>
+                            <th style="padding:10px; text-align:right; border-bottom:1px solid #ddd;">Total</th>
+                            <th style="padding:10px; text-align:left; border-bottom:1px solid #ddd;">Date</th>
+                            <th style="padding:10px; text-align:left; border-bottom:1px solid #ddd;">Statut</th>
+                            <th style="padding:10px; text-align:center; border-bottom:1px solid #ddd;">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for purchase in buyer_purchases %}
+                            <tr>
+                                <td style="padding:10px; border-bottom:1px solid #f0f0f0;">{{ purchase.product_name }}</td>
+                                <td style="padding:10px; text-align:right; border-bottom:1px solid #f0f0f0;">{{ purchase.quantity }}</td>
+                                <td style="padding:10px; text-align:right; border-bottom:1px solid #f0f0f0;">{{ purchase.price_per_unit }}</td>
+                                <td style="padding:10px; text-align:right; border-bottom:1px solid #f0f0f0;">{{ purchase.total_price }}</td>
+                                <td style="padding:10px; text-align:left; border-bottom:1px solid #f0f0f0;">{{ purchase.order_date|date:'d/m/Y' }}</td>
+                                <td style="padding:10px; text-align:left; border-bottom:1px solid #f0f0f0;">{{ purchase.status }}</td>
+                                <td style="padding:10px; text-align:center; border-bottom:1px solid #f0f0f0;">
+                                    {% if purchase.status == 'awaiting_delivery' %}
+                                        <form method="post" action="{% url 'confirm_delivery' purchase.order_id %}" style="display:inline;">
+                                            {% csrf_token %}
+                                            <button type="submit" class="button" style="padding:6px 12px; font-size:0.85rem; background:#10b981; border:none; border-radius:4px; color:white; cursor:pointer;">✅ Confirmer</button>
+                                        </form>
+                                    {% elif purchase.status == 'delivered' %}
+                                        <span style="color:#10b981; font-weight:bold;">✅ Livré</span>
+                                    {% else %}
+                                        <span style="color:#9ca3af; font-size:0.9rem;">—</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <button class="button alt" type="button" onclick="toggleSection('buyer-purchases-details')" style="margin-top:1rem;">Retour</button>
+        </div>
+    {% else %}
+        <p style="margin:0; color:#475569;">Aucun achat enregistré pour le moment.</p>
+    {% endif %}
+</div>
+
+<div class="card" style="margin-top:1rem;">
+    <h3>💳 Historique des Transactions</h3>
+    {% if transactions %}
+        <button class="button alt toggle-section-btn" type="button" data-target="transactions-details" data-label="historique des transactions" style="margin-bottom:1rem;">Voir les transactions</button>
+        <div id="transactions-details" style="display:none;">
+            <div style="overflow-x:auto;">
+                <table style="width:100%; border-collapse:collapse;">
+                    <thead>
+                        <tr style="background:#eef2ff;">
+                            <th style="padding:10px; text-align:left; border-bottom:1px solid #ddd;">Type</th>
+                            <th style="padding:10px; text-align:left; border-bottom:1px solid #ddd;">Description</th>
+                            <th style="padding:10px; text-align:right; border-bottom:1px solid #ddd;">Montant</th>
+                            <th style="padding:10px; text-align:left; border-bottom:1px solid #ddd;">Expéditeur</th>
+                            <th style="padding:10px; text-align:left; border-bottom:1px solid #ddd;">Destinataire</th>
+                            <th style="padding:10px; text-align:left; border-bottom:1px solid #ddd;">Date</th>
+                            <th style="padding:10px; text-align:left; border-bottom:1px solid #ddd;">Statut</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for transaction in transactions %}
+                            <tr>
+                                <td style="padding:10px; border-bottom:1px solid #f0f0f0;">
+                                    {% if transaction.type == 'payment' %}
+                                        <span style="color:#dc3545;">💳 Paiement</span>
+                                    {% elif transaction.type == 'transfer' %}
+                                        <span style="color:#007bff;">🔄 Transfert</span>
+                                    {% elif transaction.type == 'cashback' %}
+                                        <span style="color:#28a745;">💰 Cashback</span>
+                                    {% elif transaction.type == 'commission' %}
+                                        <span style="color:#ffc107;">📊 Commission</span>
+                                    {% elif transaction.type == 'withdrawal' %}
+                                        <span style="color:#6f42c1;">💸 Retrait</span>
+                                    {% else %}
+                                        <span style="color:#6c757d;">{{ transaction.get_type_display }}</span>
+                                    {% endif %}
+                                </td>
+                                <td style="padding:10px; border-bottom:1px solid #f0f0f0;">{{ transaction.description|truncatechars:50 }}</td>
+                                <td style="padding:10px; text-align:right; border-bottom:1px solid #f0f0f0; font-weight:600;">
+                                    {% if transaction.currency == 'HTG' %}
+                                        {{ transaction.amount }} HTG
+                                    {% elif transaction.currency == 'USD' %}
+                                        ${{ transaction.amount }}
+                                    {% elif transaction.currency == 'EUR' %}
+                                        €{{ transaction.amount }}
+                                    {% elif transaction.currency == 'DOP' %}
+                                        RD${{ transaction.amount }}
+                                    {% else %}
+                                        {{ transaction.amount }} {{ transaction.currency }}
+                                    {% endif %}
+                                </td>
+                                <td style="padding:10px; border-bottom:1px solid #f0f0f0;">
+                                    {% if transaction.sender == request.user %}
+                                        <span style="color:#007bff; font-weight:500;">Vous</span>
+                                    {% else %}
+                                        {{ transaction.sender.username }}
+                                    {% endif %}
+                                </td>
+                                <td style="padding:10px; border-bottom:1px solid #f0f0f0;">
+                                    {% if transaction.receiver == request.user %}
+                                        <span style="color:#007bff; font-weight:500;">Vous</span>
+                                    {% else %}
+                                        {{ transaction.receiver.username }}
+                                    {% endif %}
+                                </td>
+                                <td style="padding:10px; border-bottom:1px solid #f0f0f0;">{{ transaction.created_at|date:"d/m/Y H:i" }}</td>
+                                <td style="padding:10px; border-bottom:1px solid #f0f0f0;">
+                                    {% if transaction.status == 'completed' %}
+                                        <span style="color:#28a745; font-weight:600;">✅ Complété</span>
+                                    {% elif transaction.status == 'pending' %}
+                                        <span style="color:#ffc107; font-weight:600;">⏳ En attente</span>
+                                    {% elif transaction.status == 'failed' %}
+                                        <span style="color:#dc3545; font-weight:600;">❌ Échec</span>
+                                    {% else %}
+                                        <span style="color:#6c757d;">{{ transaction.get_status_display }}</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <button class="button alt" type="button" onclick="toggleSection('transactions-details')" style="margin-top:1rem;">Retour</button>
+        </div>
+    {% else %}
+        <p style="margin:0; color:#475569;">Aucune transaction enregistrée pour le moment.</p>
+    {% endif %}
+</div>
+
+{% if request.user.is_seller or request.user.is_staff %}
+<div class="card" style="margin-top:1rem;">
+    <h3>Produits vendus</h3>
+    {% if seller_sales %}
+        <button class="button alt toggle-section-btn" type="button" data-target="seller-sales-details" data-label="détails des ventes" style="margin-bottom:1rem;">Voir les ventes</button>
+        <div id="seller-sales-details" style="display:none;">
+            <div style="overflow-x:auto;">
+                <table style="width:100%; border-collapse:collapse;">
+                    <thead>
+                        <tr style="background:#eef2ff;">
+                            <th style="padding:10px; text-align:left; border-bottom:1px solid #ddd;">Produit</th>
+                            <th style="padding:10px; text-align:right; border-bottom:1px solid #ddd;">Quantité</th>
+                            <th style="padding:10px; text-align:right; border-bottom:1px solid #ddd;">Prix unitaire</th>
+                            <th style="padding:10px; text-align:right; border-bottom:1px solid #ddd;">Total</th>
+                            <th style="padding:10px; text-align:left; border-bottom:1px solid #ddd;">Acheteur</th>
+                            <th style="padding:10px; text-align:left; border-bottom:1px solid #ddd;">Statut</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for sale in seller_sales %}
+                            <tr>
+                                <td style="padding:10px; border-bottom:1px solid #f0f0f0;">{{ sale.product_name }}</td>
+                                <td style="padding:10px; text-align:right; border-bottom:1px solid #f0f0f0;">{{ sale.quantity }}</td>
+                                <td style="padding:10px; text-align:right; border-bottom:1px solid #f0f0f0;">{{ sale.price_per_unit }}</td>
+                                <td style="padding:10px; text-align:right; border-bottom:1px solid #f0f0f0;">{{ sale.total_sale }}</td>
+                                <td style="padding:10px; text-align:left; border-bottom:1px solid #f0f0f0;">{{ sale.buyer }}</td>
+                                <td style="padding:10px; text-align:left; border-bottom:1px solid #f0f0f0;">{{ sale.status }}</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <button class="button alt" type="button" onclick="toggleSection('seller-sales-details')" style="margin-top:1rem;">Retour</button>
+        </div>
+    {% else %}
+        <p style="margin:0; color:#475569;">Aucune vente enregistrée pour le moment.</p>
+    {% endif %}
+</div>
+{% endif %}
+
+    <div style="display:flex; flex-wrap:wrap; gap:16px; margin-top:1rem;">
+        {% if not profile.delivery_access_granted and request.user.can_request_delivery %}
+            <form method="post" action="{% url 'request_delivery_access' %}" style="margin:0;">
+                {% csrf_token %}
+                <button class="button" type="submit">Devenir Livreur</button>
+            </form>
+        {% endif %}
+    </div>
+    {% if not request.user.is_delivery_agent and wallet %}
+        <div class="card" style="margin-top:1rem;">
+            <h3>Wallet</h3>
+            <p>Solde principal : <strong>${{ wallet.balance }}</strong></p>
+            <p>Transfert autorisé : <strong>{{ wallet.can_transfer }}</strong></p>
+            <p>Compte bloqué : <strong>{{ wallet.is_blocked }}</strong></p>
+        </div>
+    {% endif %}
+    {% if wallet %}
+        <div style="background: linear-gradient(135deg, #1a237e 0%, #283593 100%); padding: 0; margin: 20px 0; border-radius: 12px; box-shadow: 0 8px 20px rgba(0,0,0,0.15); overflow: hidden;">
+            <!-- En-tête -->
+            <div style="background: linear-gradient(135deg, #1a237e 0%, #283593 100%); padding: 20px; color: white;">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <span style="font-size: 28px;">💰</span>
+                    <div>
+                        <h3 style="margin: 0; font-size: 20px;">Comptes Livreur Multi-Devises</h3>
+                        <p style="margin: 5px 0 0 0; font-size: 13px; opacity: 0.9;">Gestion professionnelle de vos soldes</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Soldes -->
+            <div style="padding: 25px; background-color: white;">
+                <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 20px;">
+                    <!-- USD -->
+                    <div style="background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%); padding: 20px; border-radius: 10px; color: white; text-align: center; box-shadow: 0 4px 12px rgba(33,150,243,0.2);">
+                        <p style="margin: 0; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; opacity: 0.9;">💵 USD</p>
+                        <p style="margin: 10px 0 0 0; font-size: 28px; font-weight: bold;">{{ wallet.commission_balance_usd }}</p>
+                        <p style="margin: 5px 0 0 0; font-size: 12px; opacity: 0.8;">Dollars US</p>
+                    </div>
+                    
+                    <!-- HTG -->
+                    <div style="background: linear-gradient(135deg, #ff9800 0%, #f57c00 100%); padding: 20px; border-radius: 10px; color: white; text-align: center; box-shadow: 0 4px 12px rgba(255,152,0,0.2);">
+                        <p style="margin: 0; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; opacity: 0.9;">🇭🇹 HTG</p>
+                        <p style="margin: 10px 0 0 0; font-size: 28px; font-weight: bold;">{{ wallet.commission_balance_htg }}</p>
+                        <p style="margin: 5px 0 0 0; font-size: 12px; opacity: 0.8;">Gourde Haïtienne</p>
+                    </div>
+                    
+                    <!-- EUR -->
+                    <div style="background: linear-gradient(135deg, #4caf50 0%, #388e3c 100%); padding: 20px; border-radius: 10px; color: white; text-align: center; box-shadow: 0 4px 12px rgba(76,175,80,0.2);">
+                        <p style="margin: 0; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; opacity: 0.9;">🇪🇺 EUR</p>
+                        <p style="margin: 10px 0 0 0; font-size: 28px; font-weight: bold;">{{ wallet.commission_balance_eur }}</p>
+                        <p style="margin: 5px 0 0 0; font-size: 12px; opacity: 0.8;">Euro</p>
+                    </div>
+                    
+                    <!-- PESO -->
+                    <div style="background: linear-gradient(135deg, #9c27b0 0%, #7b1fa2 100%); padding: 20px; border-radius: 10px; color: white; text-align: center; box-shadow: 0 4px 12px rgba(156,39,176,0.2);">
+                        <p style="margin: 0; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; opacity: 0.9;">🇩🇴 PESO</p>
+                        <p style="margin: 10px 0 0 0; font-size: 28px; font-weight: bold;">{{ wallet.commission_balance_peso }}</p>
+                        <p style="margin: 5px 0 0 0; font-size: 12px; opacity: 0.8;">Peso Dominicain</p>
+                    </div>
+                </div>
+                
+                <!-- Statut du compte -->
+                <div style="background-color: #f5f5f5; padding: 15px; border-radius: 8px; border-left: 4px solid #1a237e;">
+                    <p style="margin: 0; font-size: 12px; color: #555;"><strong>🔐 État du compte</strong></p>
+                    <div style="display: flex; gap: 15px; margin-top: 10px; flex-wrap: wrap;">
+                        <span style="display: inline-flex; align-items: center; gap: 5px; padding: 6px 12px; background-color: white; border-radius: 6px; font-size: 12px;">
+                            {% if wallet.can_transfer %}
+                                <span style="color: #4caf50;">✅</span>
+                                <span style="color: #2e7d32; font-weight: bold;">Transferts activés</span>
+                            {% else %}
+                                <span style="color: #f44336;">❌</span>
+                                <span style="color: #c62828; font-weight: bold;">Transferts désactivés</span>
+                            {% endif %}
+                        </span>
+                        <span style="display: inline-flex; align-items: center; gap: 5px; padding: 6px 12px; background-color: white; border-radius: 6px; font-size: 12px;">
+                            {% if wallet.is_blocked %}
+                                <span style="color: #f44336; font-size: 14px;">🔒</span>
+                                <span style="color: #c62828; font-weight: bold;">COMPTE BLOQUÉ</span>
+                            {% else %}
+                                <span style="color: #4caf50; font-size: 14px;">🔓</span>
+                                <span style="color: #2e7d32; font-weight: bold;">Compte actif</span>
+                            {% endif %}
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    {% endif %}
+    {% if request.user.is_staff and admin_delivery_users %}
+        <h3>Gestion des accès livreur</h3>
+        <p><small>Gérer les permissions d'accès aux livraisons pour tous les utilisateurs</small></p>
+        <button class="button alt toggle-section-btn" type="button" data-target="delivery-access-section" data-label="Gestion des accès livreur" style="margin-bottom:1rem;">Voir Gestion des accès livreur</button>
+        <div id="delivery-access-section" style="display:none;">
+            <div style="max-height: 400px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; margin: 10px 0;">
+                <table style="width: 100%; border-collapse: collapse;">
+                    <thead>
+                        <tr style="background-color: #f8f9fa;">
+                            <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Utilisateur</th>
+                            <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Rôles</th>
+                            <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Statut accès</th>
+                            <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Reçu MonCash</th>
+                            <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for user_data in admin_delivery_users %}
+                            <tr>
+                                <td style="border: 1px solid #ddd; padding: 8px;">{{ user_data.user.username }}</td>
+                                <td style="border: 1px solid #ddd; padding: 8px;">
+                                    {% if user_data.user.is_seller %}Vendeur{% endif %}
+                                    {% if user_data.user.is_buyer %} Acheteur{% endif %}
+                                    {% if user_data.user.is_delivery_agent %} Livreur{% endif %}
+                                </td>
+                                <td style="border: 1px solid #ddd; padding: 8px;">
+                                    {% if user_data.profile.receipt_proof %}
+                                        <a href="{{ user_data.profile.receipt_proof.url }}" target="_blank" style="color:#2563eb;">Voir reçu</a>
+                                    {% else %}
+                                        <span style="color:#6c757d;">Aucun reçu</span>
+                                    {% endif %}
+                                </td>
+                                <td style="border: 1px solid #ddd; padding: 8px;">
+                                    {% if user_data.profile.delivery_access_granted %}
+                                        <a href="{% url 'manage_delivery_access' user_data.user.id 'revoke' %}" 
+                                           class="button" style="background-color: #dc3545; color: white; padding: 4px 8px; text-decoration: none; font-size: 12px;">
+                                            Révoquer
+                                        </a>
+                                    {% else %}
+                                        <a href="{% url 'manage_delivery_access' user_data.user.id 'grant' %}" 
+                                           class="button" style="background-color: #28a745; color: white; padding: 4px 8px; text-decoration: none; font-size: 12px;">
+                                            Accorder
+                                        </a>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    {% endif %}
+    {% if request.user.is_staff and pending_withdrawals %}
+        <h3>Retraits en attente</h3>
+        <p><small>Valider ou rejeter les demandes de retrait des utilisateurs.</small></p>
+        <button class="button alt toggle-section-btn" type="button" data-target="withdrawal-requests-section" data-label="Retraits en attente" style="margin-bottom:1rem;">Voir Retraits en attente</button>
+        <div id="withdrawal-requests-section" style="display:none;">
+            <div style="max-height: 400px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; margin: 10px 0;">
+                <table style="width: 100%; border-collapse: collapse;">
+                    <thead>
+                        <tr style="background-color: #f8f9fa;">
+                            <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Utilisateur</th>
+                            <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Compte</th>
+                            <th style="border: 1px solid #ddd; padding: 8px; text-align: right;">Montant</th>
+                            <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Devise</th>
+                            <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Demandé le</th>
+                            <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for request_item in pending_withdrawals %}
+                        <tr>
+                            <td style="border: 1px solid #ddd; padding: 8px;">{{ request_item.username }}</td>
+                            <td style="border: 1px solid #ddd; padding: 8px;">{{ request_item.account_type }}</td>
+                            <td style="border: 1px solid #ddd; padding: 8px; text-align:right;">{{ request_item.amount }}</td>
+                            <td style="border: 1px solid #ddd; padding: 8px;">{{ request_item.currency }}</td>
+                            <td style="border: 1px solid #ddd; padding: 8px;">{{ request_item.created_at|date:"d/m/Y H:i" }}</td>
+                            <td style="border: 1px solid #ddd; padding: 8px; display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+                                <form method="post" style="display:inline; margin:0;">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="withdrawal_decision" value="1">
+                                    <input type="hidden" name="withdrawal_id" value="{{ request_item.id }}">
+                                    <input type="hidden" name="action" value="approve">
+                                    <button type="submit" class="button" style="background-color: #28a745; color:white; padding:6px 10px; font-size:12px;">Approuver</button>
+                                </form>
+                                <form method="post" style="display:inline; margin:0;">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="withdrawal_decision" value="1">
+                                    <input type="hidden" name="withdrawal_id" value="{{ request_item.id }}">
+                                    <input type="hidden" name="action" value="reject">
+                                    <input type="text" name="rejection_reason" placeholder="Raison du rejet" style="padding:6px 8px; font-size:12px; width:150px;">
+                                    <button type="submit" class="button" style="background-color: #dc3545; color:white; padding:6px 10px; font-size:12px;">Rejeter</button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    {% endif %}
+    {% if request.user.is_staff and pending_product_access_requests %}
+        <h3>Demandes de produits à approuver</h3>
+        <p><small>Approuver ou rejeter les demandes des vendeurs qui veulent vendre les produits d'une autre boutique.</small></p>
+        <button class="button alt toggle-section-btn" type="button" data-target="product-access-requests-section" data-label="Demandes produits" style="margin-bottom:1rem;">Voir les demandes produit</button>
+        <div id="product-access-requests-section" style="display:none;">
+            <div style="max-height: 420px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; margin: 10px 0;">
+                <table style="width: 100%; border-collapse: collapse;">
+                    <thead>
+                        <tr style="background-color: #f8f9fa;">
+                            <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Vendeur</th>
+                            <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Produit</th>
+                            <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Boutique d'origine</th>
+                            <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Demandé le</th>
+                            <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Commission</th>
+                            <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for request_item in pending_product_access_requests %}
+                        <tr>
+                            <td style="border: 1px solid #ddd; padding: 8px;">{{ request_item.seller.username }}</td>
+                            <td style="border: 1px solid #ddd; padding: 8px;">{{ request_item.product.name }}</td>
+                            <td style="border: 1px solid #ddd; padding: 8px;">{{ request_item.owner_shop.name }}</td>
+                            <td style="border: 1px solid #ddd; padding: 8px;">{{ request_item.created_at|date:"d/m/Y H:i" }}</td>
+                            <td style="border: 1px solid #ddd; padding: 8px;">
+                                <form method="post" style="display:flex; gap:8px; align-items:center; margin:0;">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="access_request_decision" value="1">
+                                    <input type="hidden" name="request_id" value="{{ request_item.id }}">
+                                    <input type="hidden" name="action" value="approve">
+                                    <input type="hidden" name="commission_type" value="percent">
+                                    <input type="text" name="commission_value" placeholder="Commission %" style="width:90px; padding:6px 8px; font-size:12px;" />
+                                    <button type="submit" class="button" style="background-color: #28a745; color:white; padding:6px 10px; font-size:12px;">Approuver</button>
+                                </form>
+                            </td>
+                            <td style="border: 1px solid #ddd; padding: 8px; display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+                                <form method="post" style="display:inline; margin:0;">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="access_request_decision" value="1">
+                                    <input type="hidden" name="request_id" value="{{ request_item.id }}">
+                                    <input type="hidden" name="action" value="reject">
+                                    <button type="submit" class="button" style="background-color: #dc3545; color:white; padding:6px 10px; font-size:12px;">Rejeter</button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    {% endif %}
+    {% if request.user.is_superuser and admin_secondary_candidates %}
+        <h3>Promouvoir un administrateur secondaire</h3>
+        <p><small>Permettre à un autre utilisateur d'accéder au rôle d'admin secondaire.</small></p>
+        <button class="button alt toggle-section-btn" type="button" data-target="secondary-admin-section" data-label="Promouvoir admin secondaire" style="margin-bottom:1rem;">Voir les candidats admin secondaire</button>
+        <div id="secondary-admin-section" style="display:none;">
+            <div style="max-height: 300px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; margin: 10px 0;">
+                <table style="width: 100%; border-collapse: collapse;">
+                    <thead>
+                        <tr style="background-color: #f8f9fa;">
+                            <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Utilisateur</th>
+                            <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Rôle actuel</th>
+                            <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for candidate in admin_secondary_candidates %}
+                        <tr>
+                            <td style="border: 1px solid #ddd; padding: 8px;">{{ candidate.username }}</td>
+                            <td style="border: 1px solid #ddd; padding: 8px;">{{ candidate.role }}</td>
+                            <td style="border: 1px solid #ddd; padding: 8px; display:flex; gap:8px; align-items:center;">
+                                <form method="post" style="display:inline; margin:0;">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="grant_secondary_admin" value="1">
+                                    <input type="hidden" name="user_id" value="{{ candidate.id }}">
+                                    <button type="submit" class="button" style="background-color: #2563eb; color:white; padding:6px 10px; font-size:12px;">Promouvoir</button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    {% endif %}
+    {% if request.user.is_superuser %}
+        <h3><span style="margin-right: 8px;">🔐</span>Accès aux retraits globaux</h3>
+        <p><small>Permettre aux admins secondaires de faire des retraits pour tous les utilisateurs.</small></p>
+        <button class="button alt toggle-section-btn" type="button" data-target="global-withdrawal-access-section" data-targets="global-withdrawal-access-section,withdrawal-requests-section" data-label="Gestion accès retraits globaux" style="margin-bottom:1rem; background-color: #ffc107; color: #000; border: 1px solid #ffc107;">
+            <span style="margin-right: 8px;">⚙️</span>Voir Gestion accès retraits globaux et retraits en attente
+        </button>
+        <div id="global-withdrawal-access-section" style="display:none;">
+            <div style="max-height: 300px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; margin: 10px 0; background-color: #f8f9fa; border-radius: 8px;">
+                <table style="width: 100%; border-collapse: collapse;">
+                    <thead>
+                        <tr style="background-color: #e9ecef;">
+                            <th style="border: 1px solid #ddd; padding: 12px; text-align: left; font-weight: 600; color: #495057;">
+                                <span style="margin-right: 8px;">👤</span>Admin secondaire
+                            </th>
+                            <th style="border: 1px solid #ddd; padding: 12px; text-align: left; font-weight: 600; color: #495057;">
+                                <span style="margin-right: 8px;">📊</span>Statut actuel
+                            </th>
+                            <th style="border: 1px solid #ddd; padding: 12px; text-align: left; font-weight: 600; color: #495057;">
+                                <span style="margin-right: 8px;">🎛️</span>Actions
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for user in admin_secondary_candidates %}
+                            {% if user.role == 'admin_secondary' %}
+                            <tr style="background-color: white; border-bottom: 1px solid #dee2e6;">
+                                <td style="border: 1px solid #ddd; padding: 12px; font-weight: 500;">
+                                    <span style="margin-right: 8px;">👨‍💼</span>{{ user.username }}
+                                </td>
+                                <td style="border: 1px solid #ddd; padding: 12px;">
+                                    {% if user.profile.global_withdrawal_access_granted %}
+                                        <span style="color: #28a745; font-weight: 600; background-color: #d4edda; padding: 4px 8px; border-radius: 4px;">
+                                            <span style="margin-right: 4px;">✅</span>Accordé
+                                        </span>
+                                    {% else %}
+                                        <span style="color: #dc3545; font-weight: 600; background-color: #f8d7da; padding: 4px 8px; border-radius: 4px;">
+                                            <span style="margin-right: 4px;">❌</span>Révoqué
+                                        </span>
+                                    {% endif %}
+                                </td>
+                                <td style="border: 1px solid #ddd; padding: 12px; display:flex; gap:8px; align-items:center;">
+                                    {% if user.profile.global_withdrawal_access_granted %}
+                                        <form method="post" style="display:inline; margin:0;" onsubmit="return confirm('Êtes-vous sûr de vouloir révoquer l\'accès aux retraits globaux pour {{ user.username }} ? Cette action sera tracée dans les logs d\'audit.');">
+                                            {% csrf_token %}
+                                            <input type="hidden" name="toggle_global_withdrawal_access" value="1">
+                                            <input type="hidden" name="user_id" value="{{ user.id }}">
+                                            <input type="hidden" name="action" value="revoke">
+                                            <button type="submit" class="button" style="background-color: #dc3545; color:white; padding:8px 12px; font-size:12px; border: none; border-radius: 4px; cursor: pointer; transition: background-color 0.2s;">
+                                                <span style="margin-right: 4px;">🚫</span>Révoquer
+                                            </button>
+                                        </form>
+                                    {% else %}
+                                        <form method="post" style="display:inline; margin:0;">
+                                            {% csrf_token %}
+                                            <input type="hidden" name="toggle_global_withdrawal_access" value="1">
+                                            <input type="hidden" name="user_id" value="{{ user.id }}">
+                                            <input type="hidden" name="action" value="grant">
+                                            <button type="submit" class="button" style="background-color: #28a745; color:white; padding:8px 12px; font-size:12px; border: none; border-radius: 4px; cursor: pointer; transition: background-color 0.2s;">
+                                                <span style="margin-right: 4px;">✅</span>Accorder
+                                            </button>
+                                        </form>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endif %}
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    {% endif %}
+    {% if request.user.is_staff and commission_configs %}
+        <h3>Gestion des commissions</h3>
+        <p><small>Modifier les taux et règles de commission du système</small></p>
+        <button class="button alt toggle-section-btn" type="button" data-target="commission-management-section" data-label="Gestion des commissions" style="margin-bottom:1rem;">Voir Gestion des commissions</button>
+        <div id="commission-management-section" style="display:none;">
+            <div style="max-height: 600px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; margin: 10px 0;">
+                <table style="width: 100%; border-collapse: collapse;">
+                    <thead>
+                        <tr style="background-color: #f8f9fa;">
+                            <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Nom</th>
+                            <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Valeur</th>
+                            <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Type</th>
+                            <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Description</th>
+                            <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Statut</th>
+                            <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for config in commission_configs %}
+                            <tr>
+                                <td style="border: 1px solid #ddd; padding: 8px;">{{ config.nom }}</td>
+                                <td style="border: 1px solid #ddd; padding: 8px;">
+                                    <form method="post" style="display: inline;">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="commission_id" value="{{ config.id }}">
+                                        <input type="number" name="commission_value" value="{{ config.valeur }}" step="0.01" min="0" required style="width: 80px;">
+                                </td>
+                                <td style="border: 1px solid #ddd; padding: 8px;">{{ config.get_type_display }}</td>
+                                <td style="border: 1px solid #ddd; padding: 8px;">{{ config.description }}</td>
+                                <td style="border: 1px solid #ddd; padding: 8px;">
+                                    {% if config.actif %}
+                                        <span style="color: green;">✓ Actif</span>
+                                    {% else %}
+                                        <span style="color: red;">✗ Inactif</span>
+                                    {% endif %}
+                                </td>
+                                <td style="border: 1px solid #ddd; padding: 8px;">
+                                    <button type="submit" name="update_commission" class="button" style="background-color: #007bff; color: white; padding: 4px 8px; text-decoration: none; font-size: 12px;">
+                                        Modifier
+                                    </button>
+                                    </form>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    {% endif %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        var toggles = document.querySelectorAll('.toggle-section-btn');
+        toggles.forEach(function(button) {
+            button.addEventListener('click', function() {
+                var targetIds = button.getAttribute('data-targets');
+                if (targetIds) {
+                    var ids = targetIds.split(',').map(function(id) { return id.trim(); });
+                    ids.forEach(function(targetId) {
+                        var targetEl = document.getElementById(targetId);
+                        if (!targetEl) return;
+                        if (targetEl.style.display === 'none' || targetEl.style.display === '') {
+                            targetEl.style.display = 'block';
+                        } else {
+                            targetEl.style.display = 'none';
+                        }
+                    });
+                    button.textContent = button.textContent.startsWith('Voir') ? 'Masquer ' + button.getAttribute('data-label') : 'Voir ' + button.getAttribute('data-label');
+                    return;
+                }
+                var targetId = button.getAttribute('data-target');
+                var targetEl = document.getElementById(targetId);
+                if (!targetEl) return;
+                if (targetEl.style.display === 'none' || targetEl.style.display === '') {
+                    targetEl.style.display = 'block';
+                    button.textContent = 'Masquer ' + button.getAttribute('data-label');
+                } else {
+                    targetEl.style.display = 'none';
+                    button.textContent = 'Voir ' + button.getAttribute('data-label');
+                }
+            });
+        });
+
+        var hash = window.location.hash;
+        if (hash === '#product-access-requests-section') {
+            var requestsSection = document.getElementById('product-access-requests-section');
+            if (requestsSection) {
+                requestsSection.style.display = 'block';
+            }
+        }
+
+
+        var carouselTrack = document.querySelector('.carousel-track');
+        var prevButton = document.querySelector('.carousel-control.prev');
+        var nextButton = document.querySelector('.carousel-control.next');
+
+        if (carouselTrack && prevButton && nextButton) {
+            prevButton.addEventListener('click', function() {
+                carouselTrack.scrollBy({ left: -360, behavior: 'smooth' });
+            });
+            nextButton.addEventListener('click', function() {
+                carouselTrack.scrollBy({ left: 360, behavior: 'smooth' });
+            });
+        }
+    });
+
+    window.scrollToGlobalWithdrawalSection = function() {
+        var section = document.getElementById('global-withdrawal-access-section');
+        var button = document.querySelector('[data-target="global-withdrawal-access-section"]');
+
+        if (section) {
+            section.style.display = 'block';
+            if (button) {
+                button.textContent = 'Masquer Gestion accès retraits globaux';
+            }
+            section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+    };
+</script>
+
+<style>
+    .carousel-control {
+        border: 1px solid #cbd5e1;
+        border-radius: 999px;
+        width: 42px;
+        height: 42px;
+        background: white;
+        color: #1f2937;
+        font-size: 1.1rem;
+        cursor: pointer;
+        box-shadow: 0 6px 18px rgba(15, 23, 42, 0.08);
+        transition: transform 0.2s ease, background 0.2s ease;
+    }
+    .carousel-control:hover {
+        transform: translateY(-1px);
+        background: #f8fafc;
+    }
+    .carousel-track::-webkit-scrollbar {
+        height: 8px;
+    }
+    .carousel-track::-webkit-scrollbar-thumb {
+        background: #cbd5e1;
+        border-radius: 999px;
+    }
+    .carousel-track {
+        scrollbar-width: thin;
+        scrollbar-color: #cbd5e1 transparent;
+    }
+</style>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const presets = {
+            blue: {
+                '--primary-blue': '#2563eb',
+                '--cyan-accent': '#00d4ff',
+                '--brand': '#1d4ed8'
+            },
+            teal: {
+                '--primary-blue': '#06b6d4',
+                '--cyan-accent': '#00d4ff',
+                '--brand': '#06b6d4'
+            },
+            indigo: {
+                '--primary-blue': '#4f46e5',
+                '--cyan-accent': '#93c5fd',
+                '--brand': '#4f46e5'
+            },
+            green: {
+                '--primary-blue': '#16a34a',
+                '--cyan-accent': '#86efac',
+                '--brand': '#16a34a'
+            }
+        };
+
+        function applyPreset(p) {
+            const root = document.documentElement;
+            Object.entries(p).forEach(([k,v]) => root.style.setProperty(k, v));
+        }
+
+        function savePreset(name) {
+            try {
+                localStorage.setItem('sdi_theme_preset', name);
+            } catch (e) {
+                console.warn('Impossible de sauvegarder le thème localement.', e);
+            }
+        }
+
+        function clearPreset() {
+            try {
+                localStorage.removeItem('sdi_theme_preset');
+            } catch (e) {
+                console.warn('Impossible de réinitialiser le thème localement.', e);
+            }
+            location.reload();
+        }
+
+        document.querySelectorAll('.theme-swatch').forEach(btn => {
+            btn.addEventListener('click', function (event) {
+                event.preventDefault();
+                const name = btn.dataset.preset;
+                const preset = presets[name];
+                if (!preset) return;
+                applyPreset(preset);
+                savePreset(name);
+            });
+        });
+
+        const reset = document.getElementById('theme-reset');
+        if (reset) {
+            reset.addEventListener('click', function (event) {
+                event.preventDefault();
+                clearPreset();
+            });
+        }
+
+        try {
+            const fallback = localStorage.getItem('sdi_theme_preset');
+            if (fallback && presets[fallback]) applyPreset(presets[fallback]);
+        } catch (e) {
+            console.warn('Impossible de charger le thème stocké.', e);
+        }
+
+        // Button color personalizer for commission button (saved in profile)
+        (function(){
+            const preview = document.getElementById('button-color-preview');
+            const input = document.getElementById('button-color-input');
+            const open = document.getElementById('open-color-picker');
+            const reset = document.getElementById('reset-button-color');
+            const hiddenGradient = document.getElementById('commission-button-gradient-input');
+            const target = document.getElementById('peuple-button');
+            const savedGradient = hiddenGradient ? hiddenGradient.value.trim() : '';
+
+            function lighten(hex, percent) {
+                if (!hex) return hex;
+                const h = hex.replace('#','');
+                const num = parseInt(h,16);
+                let r = (num >> 16) + Math.round(255 * (percent/100));
+                let g = ((num >> 8) & 0x00FF) + Math.round(255 * (percent/100));
+                let b = (num & 0x0000FF) + Math.round(255 * (percent/100));
+                r = Math.min(255, r); g = Math.min(255, g); b = Math.min(255, b);
+                return '#' + ( (1<<24) + (r<<16) + (g<<8) + b ).toString(16).slice(1);
+            }
+
+            function applyButtonGradient(gradient) {
+                if (target) {
+                    if (gradient) {
+                        target.style.background = gradient;
+                        target.style.color = '#ffffff';
+                    } else {
+                        target.style.removeProperty('background');
+                        target.style.removeProperty('color');
+                    }
+                }
+                if (preview) {
+                    preview.style.background = gradient || (target ? getComputedStyle(target).background : '');
+                }
+            }
+
+            if (savedGradient) {
+                applyButtonGradient(savedGradient);
+                if (hiddenGradient) hiddenGradient.value = savedGradient;
+            } else {
+                applyButtonGradient('');
+            }
+
+            if (open && input) {
+                open.addEventListener('click', function(){ input.click(); });
+                input.addEventListener('input', function(e){
+                    const hex = e.target.value;
+                    const light = lighten(hex, 25);
+                    const grad = 'linear-gradient(135deg,' + hex + ', ' + light + ')';
+                    if (hiddenGradient) hiddenGradient.value = grad;
+                    applyButtonGradient(grad);
+                });
+            }
+
+            if (reset && hiddenGradient) {
+                reset.addEventListener('click', function(){
+                    hiddenGradient.value = '';
+                    applyButtonGradient('');
+                });
+            }
+        })();
+
+        const optimizeBtn = document.getElementById('optimize-performance-btn');
+        const optimizeStatus = document.getElementById('optimize-performance-status');
+
+        if (optimizeBtn && window.ajax) {
+            optimizeBtn.addEventListener('click', async function () {
+                optimizeBtn.disabled = true;
+                optimizeBtn.textContent = '⚙️ Optimisation en cours...';
+                if (optimizeStatus) {
+                    optimizeStatus.style.display = 'block';
+                    optimizeStatus.textContent = 'Optimisation en cours...';
+                }
+
+                try {
+                    const result = await window.ajax.post('/admin/optimize-performance/', {}, { timeout: 70000 });
+                    if (result.success) {
+                        const durationText = result.duration_ms ? ` en ${result.duration_ms} ms` : '';
+                        const reportText = result.report ? result.report.join(' · ') : '';
+                        if (optimizeStatus) {
+                            optimizeStatus.textContent = `Optimisation terminée avec succès${durationText}. ${reportText}`;
+                        }
+                        alert('Optimisation terminée avec succès');
+                    } else {
+                        if (optimizeStatus) {
+                            optimizeStatus.textContent = `Erreur lors de l’optimisation : ${result.error || 'Échec'}`;
+                        }
+                        alert('Erreur lors de l’optimisation');
+                    }
+                } catch (error) {
+                    if (optimizeStatus) {
+                        optimizeStatus.textContent = 'Erreur lors de l’optimisation. Veuillez réessayer.';
+                    }
+                    alert('Erreur lors de l’optimisation');
+                    console.error('Optimisation performance failed:', error);
+                } finally {
+                    optimizeBtn.disabled = false;
+                    optimizeBtn.textContent = '⚡ Optimiser les performances';
+                }
+            });
+        }
+    });
+</script>
+{% endblock %}
+

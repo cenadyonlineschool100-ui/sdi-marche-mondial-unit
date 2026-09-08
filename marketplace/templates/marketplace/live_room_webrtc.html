@@ -1,0 +1,54 @@
+{% extends 'marketplace/base.html' %}
+
+{% block title %}Live (WebRTC) - {{ course.title }}{% endblock %}
+
+{% block content %}
+<div class="section-header">
+    <h2>Salle Live — WebRTC (démo local)</h2>
+    <p>Ceci est un prototype local utilisant getUserMedia (aperçu local seulement).</p>
+</div>
+
+<div style="display:flex; gap:18px; flex-wrap:wrap;">
+    <div style="flex:1; min-width:320px;">
+        <video id="localVideo" autoplay playsinline muted style="width:100%; background:#000; border-radius:6px;"></video>
+        <div style="margin-top:8px; display:flex; gap:8px;">
+            <button id="startBtn" class="button">Démarrer la caméra</button>
+            <button id="stopBtn" class="button alt">Arrêter</button>
+        </div>
+    </div>
+    <div style="flex:1; min-width:260px;">
+        <div class="card fintech-card">
+            <h3>Notes</h3>
+            <ul>
+                <li>Prototype local: pas de signaling, pas d'autres participants.</li>
+                <li>Pour multi-utilisateurs, implémenter signaling/STUN/TURN ou intégrer Jitsi/BBB/Zoom.</li>
+            </ul>
+        </div>
+    </div>
+</div>
+
+<script>
+const startBtn = document.getElementById('startBtn');
+const stopBtn = document.getElementById('stopBtn');
+const localVideo = document.getElementById('localVideo');
+let localStream = null;
+
+startBtn.addEventListener('click', async ()=>{
+    try{
+        localStream = await navigator.mediaDevices.getUserMedia({video:true,audio:true});
+        localVideo.srcObject = localStream;
+    }catch(err){
+        alert('Erreur accès caméra/micro: '+err.message);
+    }
+});
+
+stopBtn.addEventListener('click', ()=>{
+    if(localStream){
+        localStream.getTracks().forEach(t=>t.stop());
+        localVideo.srcObject = null;
+        localStream = null;
+    }
+});
+</script>
+
+{% endblock %}

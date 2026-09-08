@@ -1,0 +1,332 @@
+﻿{% extends 'marketplace/base.html' %}
+{% load image_tags %}
+
+{% block extra_css %}
+<style>
+    @media (max-width: 599px) {
+        body header .nav-bar > .brand {
+            gap: 7px;
+        }
+    }
+
+    .hero {
+        padding: 34px 0 18px;
+    }
+
+    .hero-inner {
+        width: min(1240px, calc(100% - 36px));
+        padding: 32px;
+        gap: 28px;
+        border-radius: 26px;
+    }
+
+    .hero-copy {
+        gap: 16px;
+    }
+
+    .hero-title {
+        max-width: 760px;
+        line-height: 1.06;
+    }
+
+    .hero-subtitle {
+        margin: 0;
+        line-height: 1.6;
+    }
+
+    .hero-panel {
+        align-self: stretch;
+    }
+
+    .hero + .container {
+        width: min(1240px, calc(100% - 36px));
+    }
+
+    .hero + .container > .section:first-child {
+        margin-top: 34px;
+    }
+
+    .section {
+        margin: 44px 0;
+        padding-inline: 0;
+    }
+
+    .section-header {
+        margin-bottom: 24px;
+    }
+
+    .section-header h2 {
+        font-size: clamp(1.6rem, 2.5vw, 2.1rem);
+        line-height: 1.15;
+    }
+
+    .section-header p {
+        font-size: 1rem;
+        line-height: 1.55;
+    }
+
+    .promo-grid {
+        grid-auto-rows: 1fr;
+        gap: 16px;
+        margin: 0;
+    }
+
+    .promo-card {
+        height: 100%;
+    }
+
+    .promo-thumb {
+        min-height: 150px;
+    }
+
+    .promo-body {
+        min-height: 76px;
+        align-content: center;
+    }
+
+    .shops-grid {
+        gap: 16px;
+    }
+
+    @media (max-width: 720px) {
+        body .hero {
+            padding: 18px 0 10px;
+        }
+
+        body .hero .hero-inner,
+        body .hero + .container {
+            width: min(100% - 24px, 480px);
+        }
+
+        body .hero .hero-inner {
+            padding: 20px 18px;
+            gap: 12px;
+            border-radius: 22px;
+        }
+
+        body .hero .hero-copy {
+            gap: 10px;
+        }
+
+        body .hero .hero-title {
+            line-height: 1.05;
+        }
+
+        body .hero .hero-subtitle {
+            line-height: 1.4;
+        }
+
+        .hero + .container > .section:first-child {
+            margin-top: 26px;
+        }
+
+        .section {
+            margin: 32px 0;
+        }
+
+        .section-header {
+            margin-bottom: 18px;
+        }
+
+        .promo-thumb {
+            min-height: 128px;
+        }
+    }
+
+    @media (min-width: 1200px) {
+        body .hero {
+            padding: 34px 0 18px;
+        }
+
+        body .hero .hero-inner {
+            width: min(1800px, calc(100% - 36px));
+            padding: 32px;
+            gap: 28px;
+            border-radius: 26px;
+        }
+
+        body .hero .hero-copy {
+            gap: 16px;
+        }
+
+        body .hero .hero-title {
+            max-width: 760px;
+            line-height: 1.06;
+        }
+
+        body .hero .hero-subtitle {
+            margin: 0;
+            line-height: 1.6;
+        }
+
+        body .hero + .container > .section:first-child {
+            margin-top: 34px;
+        }
+
+        body .hero + .container > .section:first-child .section-header {
+            margin-bottom: 24px;
+        }
+
+        body .hero + .container > .section:first-child .section-header h2 {
+            font-size: 2.1rem;
+            line-height: 1.15;
+        }
+
+        body .hero + .container > .section:first-child .section-header p {
+            font-size: 1rem;
+            line-height: 1.55;
+        }
+
+        body .hero + .container > .section:first-child .promo-grid {
+            grid-auto-rows: 1fr;
+            gap: 16px;
+            margin: 0;
+        }
+
+        body .hero + .container > .section:first-child .promo-card {
+            height: 100%;
+        }
+
+        body .hero + .container > .section:first-child .promo-thumb {
+            min-height: 150px;
+        }
+
+        body .hero + .container > .section:first-child .promo-body {
+            min-height: 76px;
+            align-content: center;
+        }
+    }
+
+</style>
+{% endblock %}
+
+{% block hero %}
+<div class="hero">
+    <div class="container hero-inner">
+        <div class="hero-copy">
+            <span class="eyebrow">Bienvenue sur SDI microtech Marché Mondial unit</span>
+            <h1 class="hero-title">Une marketplace claire et rapide, qui réunit tous les marchés du monde en un seul espace.</h1>
+            <p class="hero-subtitle">Trouvez des produits, comparez des boutiques et commandez en toute confiance depuis un seul endroit.</p>
+            <form action="{% url 'search' %}" method="get" class="search-form">
+                <input type="search" name="q" placeholder="Recherchez un produit, une boutique ou une catégorie" value="{{ query }}" aria-label="Recherche" />
+                <button type="submit" class="button">Rechercher</button>
+            </form>
+            <div class="hero-actions">
+                <a href="{% url 'search' %}" class="button">Parcourir</a>
+                <a href="{% url 'manage_projet' %}" class="button alt" style="background:#f59e0b; color:white;">Manage Projet</a>
+                {% if not request.user.is_authenticated %}
+                    <a href="{% url 'signup' %}" class="button alt">S'inscrire</a>
+                {% endif %}
+            </div>
+        </div>
+        <div class="hero-panel blue">
+            <h2>Catégories populaires</h2>
+            <ul class="hero-list">
+                {% for category in main_categories|slice:":6" %}
+                    {% if category.slug %}
+                        <li><a href="{% url 'category_products' category.slug %}">{{ category.name }}</a></li>
+                    {% else %}
+                        <li>{{ category.name }}</li>
+                    {% endif %}
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="section">
+    <div class="section-header">
+        <h2>Catégories en vedette</h2>
+        <p>Explorez les collections les plus demandées par nos clients.</p>
+    </div>
+    <div class="promo-grid">
+        {% for category in main_categories|slice:":4" %}
+            {% if category.slug %}
+                <a href="{% url 'category_products' category.slug %}" class="promo-card">
+            {% else %}
+                <div class="promo-card">
+            {% endif %}
+                <div class="promo-thumb">
+                    {% if category.image %}
+                        {% responsive_image category.image category.name "" %}
+                    {% else %}
+                        <span>{{ category.name }}</span>
+                    {% endif %}
+                </div>
+                <div class="promo-body">
+                    <h3>{{ category.name }}</h3>
+                    <p>{{ category.get_products_count }} produits</p>
+                </div>
+            {% if category.slug %}
+                </a>
+            {% else %}
+                </div>
+            {% endif %}
+        {% empty %}
+            <div class="promo-card empty-card">
+                <div class="promo-thumb"><span>Aucune catégorie</span></div>
+                <div class="promo-body"><p>Pas de catégories actives pour le moment.</p></div>
+            </div>
+        {% endfor %}
+    </div>
+</div>
+
+<div class="section" style="background: linear-gradient(135deg, rgba(59,130,246,.08), rgba(255,255,255,0)); border-radius: 24px; padding: 32px; margin: 32px 0;">
+    <div class="section-header">
+        <h2>Manage Projet pour la diaspora haïtienne</h2>
+        <p>Confiez-nous la gestion, le suivi et la réalisation de vos projets en Haïti avec un accompagnement transparent et sécurisé.</p>
+    </div>
+    <div class="dashboard-preview" style="display:grid; gap:24px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));">
+        <div class="feature-card" style="background:white; border-radius:24px; overflow:hidden; box-shadow:0 10px 30px rgba(15,23,42,0.08);">
+            <div style="background:#eff6ff; padding:28px; display:flex; justify-content:center; align-items:center;">
+                <svg width="80" height="80" viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg"><rect width="80" height="80" rx="20" fill="#2563EB"/><path d="M25 44L35 54L55 34" stroke="#FFFFFF" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M20 34H32" stroke="#FFFFFF" stroke-width="4" stroke-linecap="round"/><path d="M20 26H52" stroke="#FFFFFF" stroke-width="4" stroke-linecap="round"/></svg>
+            </div>
+            <div style="padding:24px;">
+                <h3 style="margin:0 0 12px; font-size:1.15rem; color:#0f172a;">Suivi en continu</h3>
+                <p style="margin:0; color:#475569; line-height:1.7;">Recevez des photos, vidéos et rapports réguliers de l’avancée de votre projet, où que vous soyez.</p>
+            </div>
+        </div>
+
+        <div class="feature-card" style="background:white; border-radius:24px; overflow:hidden; box-shadow:0 10px 30px rgba(15,23,42,0.08);">
+            <div style="background:#fef3c7; padding:28px; display:flex; justify-content:center; align-items:center;">
+                <svg width="80" height="80" viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg"><rect width="80" height="80" rx="20" fill="#F59E0B"/><path d="M23 36H57" stroke="#FFFFFF" stroke-width="4" stroke-linecap="round"/><path d="M23 44H45" stroke="#FFFFFF" stroke-width="4" stroke-linecap="round"/><path d="M23 52H39" stroke="#FFFFFF" stroke-width="4" stroke-linecap="round"/><path d="M30 24L42 34L57 24" stroke="#FFFFFF" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+            <div style="padding:24px;">
+                <h3 style="margin:0 0 12px; font-size:1.15rem; color:#0f172a;">Gestion complète</h3>
+                <p style="margin:0; color:#475569; line-height:1.7;">Nous coordonnons les fournisseurs, gérons les paiements, négocions les devis et validons les documents.</p>
+            </div>
+        </div>
+
+        <div class="feature-card" style="background:white; border-radius:24px; overflow:hidden; box-shadow:0 10px 30px rgba(15,23,42,0.08);">
+            <div style="background:#ecfdf5; padding:28px; display:flex; justify-content:center; align-items:center;">
+                <svg width="80" height="80" viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg"><rect width="80" height="80" rx="20" fill="#10B981"/><path d="M40 24C34.477 24 30 28.477 30 34C30 39.523 34.477 44 40 44C45.523 44 50 39.523 50 34C50 28.477 45.523 24 40 24Z" fill="#FFFFFF"/><path d="M21 56C21 47.1634 28.1634 40 37 40H43C51.8366 40 59 47.1634 59 56V60H21V56Z" fill="#FFFFFF"/></svg>
+            </div>
+            <div style="padding:24px;">
+                <h3 style="margin:0 0 12px; font-size:1.15rem; color:#0f172a;">Accompagnement dédié</h3>
+                <p style="margin:0; color:#475569; line-height:1.7;">Votre gestionnaire dédié vous informe personnellement sur chaque action et décision prise.</p>
+            </div>
+        </div>
+    </div>
+    <div class="hero-actions" style="margin-top:24px;">
+        <a href="{% url 'manage_projet' %}" class="button" style="background:#2563eb; color:white;">Voir Manage Projet</a>
+    </div>
+</div>
+
+<div class="section">
+    <div class="section-header">
+        <h2>Boutiques partenaires</h2>
+        <p>Découvrez nos vendeurs actifs et leurs meilleures offres.</p>
+    </div>
+    <div class="shops-grid">
+        {% for shop in shops|slice:":6" %}
+            <div class="shop-card">
+                <h4>{{ shop.name }}</h4>
+                <p>{{ shop.product_set.count }} produits</p>
+                <a href="{% url 'shop_detail' shop.id %}" class="button secondary">Voir la boutique</a>
+            </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

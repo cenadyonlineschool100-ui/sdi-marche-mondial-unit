@@ -1,0 +1,454 @@
+{% extends 'marketplace/base.html' %}
+{% load static %}
+
+{% block content %}
+<link rel="stylesheet" href="{% static 'css/fintech-dashboard.css' %}">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+
+<div class="dashboard-shell">
+    <section class="dashboard-hero fintech-card-glass">
+        <div class="hero-welcome">
+            <p class="eyebrow">MicroSDICash • Tableau de bord</p>
+            <h1>Bonjour {{ request.user.first_name|default:request.user.username }}, votre espace de finance premium est prêt.</h1>
+            <p class="hero-copy">Gérez vos soldes, vos transactions et la sécurité de votre compte dans une interface fintech moderne et claire.</p>
+        </div>
+        <div class="hero-actions">
+            <button class="btn-fintech btn-primary" id="btn-withdraw">💸 Retirer</button>
+            <button class="btn-fintech btn-success" id="btn-transfer">🔄 Transférer</button>
+            <button class="btn-fintech btn-outline" onclick="location.href='{% url 'profile' %}'">⚙️ Paramètres</button>
+        </div>
+    </section>
+
+    <section class="summary-grid">
+        <article class="summary-card fintech-card">
+            <div class="summary-card-header">
+                <span>Solde principal</span>
+                <span class="summary-chip {% if wallet.is_blocked %}chip-danger{% else %}chip-success{% endif %}">{% if wallet.is_blocked %}Bloqué{% else %}Actif{% endif %}</span>
+            </div>
+            <div class="summary-value">{{ wallet.balance|default:0|floatformat:2 }}</div>
+            <p class="summary-subtitle">USD disponible</p>
+        </article>
+
+        <article class="summary-card fintech-card">
+            <div class="summary-card-header">
+                <span>Commissions</span>
+                <span class="summary-chip chip-info">Montant</span>
+            </div>
+            <div class="summary-value">{{ commission_total|default:0|floatformat:2 }}</div>
+            <p class="summary-subtitle">Revenus cumulés</p>
+        </article>
+
+        <article class="summary-card fintech-card">
+            <div class="summary-card-header">
+                <span>Cashback</span>
+                <span class="summary-chip chip-cyan">Prime</span>
+            </div>
+            <div class="summary-value">{{ cashback_total|default:0|floatformat:2 }}</div>
+            <p class="summary-subtitle">Récompenses créditées</p>
+        </article>
+
+        <article class="summary-card fintech-card">
+            <div class="summary-card-header">
+                <span>Commandes récentes</span>
+                <span class="summary-chip chip-muted">Derniers 5</span>
+            </div>
+            <div class="summary-value">{{ recent_orders|length|default:0 }}</div>
+            <p class="summary-subtitle">Transactions client</p>
+        </article>
+
+        <article class="summary-card fintech-card">
+            <div class="summary-card-header">
+                <span>Ti Kanè Digital</span>
+                <span class="summary-chip chip-primary">{% if tikane_account %}{{ tikane_account.get_status_display }}{% else %}{% if tikane_request %}{{ tikane_request.get_status_display }}{% else %}Pas de demande{% endif %}{% endif %}</span>
+            </div>
+            <div class="summary-value">{% if tikane_account %}{{ tikane_account.balance|default:0|floatformat:2 }}{% else %}0.00{% endif %}</div>
+            <p class="summary-subtitle">{% if tikane_account and tikane_account.plan %}{{ tikane_account.plan.name }}{% else %}Accès KYC requis{% endif %}</p>
+        </article>
+
+        <article class="summary-card fintech-card">
+            <div class="summary-card-header">
+                <span>Retraits</span>
+                <span class="summary-chip chip-warning">En attente</span>
+            </div>
+            <div class="summary-value">{{ recent_withdrawals|length|default:0 }}</div>
+            <p class="summary-subtitle">Demandes de retrait récentes</p>
+        </article>
+
+        {% if agent_commission_summary %}
+        <article class="summary-card fintech-card">
+            <div class="summary-card-header">
+                <span>Commission agent</span>
+                <span class="summary-chip chip-success">Solde</span>
+            </div>
+            <div class="summary-value">{{ agent_commission_summary.USD|default:0|floatformat:2 }} USD</div>
+            <p class="summary-subtitle">Commission disponible</p>
+        </article>
+        {% endif %}
+    </section>
+
+    {% if wallet_supervision %}
+    <section class="fintech-card wallet-supervision-card" aria-labelledby="wallet-supervision-title">
+        <div class="panel-header">
+            <div>
+                <h2 id="wallet-supervision-title">💰 Vue globale des wallets</h2>
+                <p class="panel-copy">Lecture des soldes réellement enregistrés pour les utilisateurs.</p>
+            </div>
+            <div class="wallet-supervision-count">{{ wallet_supervision.wallet_count }} wallet{{ wallet_supervision.wallet_count|pluralize }}</div>
+        </div>
+        <div class="wallet-supervision-totals">
+            {% for currency, total in wallet_supervision.totals.items %}
+            <div><span>Total {{ currency }}</span><strong>{{ total|floatformat:2 }} {{ currency }}</strong></div>
+            {% endfor %}
+        </div>
+        <div class="wallet-supervision-table-wrap">
+            <table class="wallet-supervision-table">
+                <thead><tr><th>Utilisateur</th><th>Compte</th><th>Devise</th><th>Solde</th><th>Retraits</th><th>Disponible</th><th>Statut</th></tr></thead>
+                <tbody>
+                    {% for row in wallet_supervision.rows %}
+                    <tr>
+                        <td data-label="Utilisateur">{{ row.username }}</td><td data-label="Compte">{{ row.account_type }}</td>
+                        <td data-label="Devise">{{ row.currency }}</td><td data-label="Solde">{{ row.balance|floatformat:2 }}</td>
+                        <td data-label="Retraits">{{ row.withdrawals|floatformat:2 }}</td><td data-label="Disponible"><strong>{{ row.available|floatformat:2 }}</strong></td>
+                        <td data-label="Statut">{{ row.status }}</td>
+                    </tr>
+                    {% empty %}<tr><td colspan="7">Aucun wallet utilisateur enregistré.</td></tr>{% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+    <style>
+        .wallet-supervision-card { margin-top: 24px; }
+        .wallet-supervision-count { color: #475569; font-weight: 700; }
+        .wallet-supervision-totals { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin: 16px 0; }
+        .wallet-supervision-totals div { padding: 12px; border: 1px solid rgba(148,163,184,.2); border-radius: 10px; background: rgba(239,246,255,.6); }
+        .wallet-supervision-totals span, .wallet-supervision-totals strong { display: block; }
+        .wallet-supervision-totals span { color: #475569; font-size: .85rem; }
+        .wallet-supervision-totals strong { margin-top: 4px; color: #1d4ed8; }
+        .wallet-supervision-table-wrap { overflow-x: auto; }
+        .wallet-supervision-table { width: 100%; min-width: 700px; border-collapse: collapse; }
+        .wallet-supervision-table th, .wallet-supervision-table td { padding: 10px 12px; border-bottom: 1px solid rgba(148,163,184,.18); text-align: left; white-space: nowrap; }
+        .wallet-supervision-table th { color: #334155; font-size: .8rem; text-transform: uppercase; }
+        .wallet-supervision-table td { color: #0f172a; }
+        @media (max-width: 700px) {
+            .wallet-supervision-card { padding: 16px; }
+            .wallet-supervision-table { min-width: 0; }
+            .wallet-supervision-table thead { display: none; }
+            .wallet-supervision-table, .wallet-supervision-table tbody, .wallet-supervision-table tr, .wallet-supervision-table td { display: block; width: 100%; }
+            .wallet-supervision-table tr { margin-bottom: 12px; padding: 10px; border: 1px solid rgba(148,163,184,.2); border-radius: 10px; background: #fff; }
+            .wallet-supervision-table td { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; white-space: normal; }
+            .wallet-supervision-table td::before { content: attr(data-label); color: #475569; font-weight: 700; }
+            .wallet-supervision-table td[colspan] { display: block; }
+        }
+    </style>
+    {% endif %}
+
+    <div class="dashboard-main-grid">
+        <div class="dashboard-left-panel">
+            <div class="fintech-card chart-panel">
+                <div class="panel-header">
+                    <div>
+                        <h2>Revenus mensuels</h2>
+                        <p class="panel-copy">Analyse visuelle de vos revenus et commissions dans le temps.</p>
+                    </div>
+                </div>
+                <div class="chart-container">
+                    <canvas id="revenueChart"></canvas>
+                </div>
+            </div>
+
+            <div class="fintech-card activity-panel">
+                <div class="panel-header">
+                    <div>
+                        <h3>Activités récentes</h3>
+                        <p class="panel-copy">Suivez les dernières commandes et mouvements de trésorerie.</p>
+                    </div>
+                </div>
+                <div class="activity-list">
+                    {% if recent_orders.exists %}
+                        {% for order in recent_orders %}
+                            <article class="activity-item">
+                                <div class="activity-left">
+                                    <span class="activity-icon">💼</span>
+                                    <div>
+                                        <p class="activity-title">Commande #{{ order.id }}</p>
+                                        <p class="activity-meta">{{ order.created_at|date:'d M Y H:i' }} • {{ order.status }}</p>
+                                    </div>
+                                </div>
+                                <div class="activity-right">{{ order.total_amount|floatformat:2 }} USD</div>
+                            </article>
+                        {% endfor %}
+                    {% else %}
+                        <div class="empty-state">
+                            <div class="empty-state-icon">📭</div>
+                            <p>Aucune commande récente pour le moment.</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="fintech-card activity-panel">
+                <div class="panel-header">
+                    <div>
+                        <h3>Activités Ti Kanè et retraits</h3>
+                        <p class="panel-copy">Suivez votre plan et les demandes de retrait récentes.</p>
+                    </div>
+                </div>
+                <div class="activity-list">
+                    {% if tikane_account %}
+                    <div class="activity-item">
+                        <div class="activity-left">
+                            <span class="activity-icon">🏦</span>
+                            <div>
+                                <p class="activity-title">Compte Ti Kanè actif</p>
+                                <p class="activity-meta">Plan {% if tikane_account.plan %}{{ tikane_account.plan.name }}{% else %}non défini{% endif %} • {% if tikane_account.days_until_maturity is not None %}{{ tikane_account.days_until_maturity }} jours jusqu'à maturité{% else %}Date de maturité non définie{% endif %}</p>
+                            </div>
+                        </div>
+                        <div class="activity-right">{{ tikane_account.balance|floatformat:2 }} USD</div>
+                    </div>
+                    {% if tikane_daily_payments %}
+                    <article class="activity-item">
+                        <div class="activity-left">
+                            <span class="activity-icon">📅</span>
+                            <div>
+                                <p class="activity-title">Paiements journaliers</p>
+                                <p class="activity-meta">{{ tikane_paid_days }} jours payés sur {{ tikane_account.plan.duration_days }}</p>
+                            </div>
+                        </div>
+                        <div class="activity-right">{{ tikane_account.plan.duration_days }} jours</div>
+                    </article>
+                    {% endif %}
+                    {% endif %}
+
+                    {% if recent_withdrawals %}
+                        {% for withdrawal in recent_withdrawals %}
+                        <article class="activity-item">
+                            <div class="activity-left">
+                                <span class="activity-icon">💸</span>
+                                <div>
+                                    <p class="activity-title">Retrait {{ withdrawal.currency }}</p>
+                                    <p class="activity-meta">{{ withdrawal.created_at|date:'d M Y H:i' }} • {{ withdrawal.account_type|capfirst }}</p>
+                                </div>
+                            </div>
+                            <div class="activity-right">-{{ withdrawal.amount|floatformat:2 }} {{ withdrawal.currency }}</div>
+                        </article>
+                        {% endfor %}
+                    {% else %}
+                        <div class="empty-state">
+                            <div class="empty-state-icon">🔍</div>
+                            <p>Aucun retrait récent enregistré.</p>
+                        </div>
+                    {% endif %}
+
+                    {% if recent_deposits %}
+                        <div style="margin-top: 20px; padding-top: 20px; border-top:1px solid rgba(148,163,184,0.18);">
+                            <h4 style="margin:0 0 12px 0; font-size:1rem; color: #0f172a;">Derniers dépôts reçus</h4>
+                            {% for deposit in recent_deposits %}
+                            <article class="activity-item">
+                                <div class="activity-left">
+                                    <span class="activity-icon">📥</span>
+                                    <div>
+                                        <p class="activity-title">Dépôt de {% if deposit.sender %}{{ deposit.sender.username }}{% else %}Système{% endif %}</p>
+                                        <p class="activity-meta">{{ deposit.created_at|date:'d M Y H:i' }} • {{ deposit.currency }}</p>
+                                    </div>
+                                </div>
+                                <div class="activity-right">+{{ deposit.amount|floatformat:2 }} {{ deposit.currency }}</div>
+                            </article>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="dashboard-right-panel">
+            <div class="fintech-card notification-card">
+                <div class="panel-header">
+                    <div>
+                        <h3>Notifications</h3>
+                        <p class="panel-copy">Toutes les informations importantes en un coup d’œil.</p>
+                    </div>
+                </div>
+                <div class="notification-item notification-info">
+                    <span class="notification-icon">ℹ️</span>
+                    <div>
+                        <strong>2FA recommandée</strong>
+                        <p>Activez l’authentification forte pour sécuriser votre compte.</p>
+                    </div>
+                </div>
+                <div class="notification-item notification-success">
+                    <span class="notification-icon">✓</span>
+                    <div>
+                        <strong>Retrait confirmé</strong>
+                        <p>Votre dernière demande de retrait a été traitée.</p>
+                    </div>
+                </div>
+                <div class="notification-item notification-warning">
+                    <span class="notification-icon">⚠️</span>
+                    <div>
+                        <strong>Mise à jour conseiller</strong>
+                        <p>Changez votre mot de passe pour rester protégé.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="fintech-card security-card">
+                <div class="panel-header">
+                    <div>
+                        <h3>Sécurité du compte</h3>
+                        <p class="panel-copy">Gardez le contrôle de vos accès et de vos sessions.</p>
+                    </div>
+                </div>
+                <div class="security-stack">
+                    <div class="security-item">
+                        <div>
+                            <p class="security-title">Authentification à deux facteurs</p>
+                            <p class="security-desc">Renforcez l’accès à votre portefeuille.</p>
+                        </div>
+                        <span class="security-pill security-pill-off">Inactif</span>
+                    </div>
+                    <div class="security-item">
+                        <div>
+                            <p class="security-title">Email vérifié</p>
+                            <p class="security-desc">{{ request.user.email }}</p>
+                        </div>
+                        <span class="security-pill security-pill-on">Actif</span>
+                    </div>
+                    <div class="security-item">
+                        <div>
+                            <p class="security-title">Mot de passe</p>
+                            <p class="security-desc">Dernière mise à jour il y a 45 jours</p>
+                        </div>
+                        <button class="btn-fintech btn-ghost">Modifier</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="fintech-card device-card">
+                <div class="panel-header">
+                    <div>
+                        <h3>Appareils connectés</h3>
+                        <p class="panel-copy">Sessions actives sur vos appareils récents.</p>
+                    </div>
+                </div>
+                <div class="device-item">
+                    <div>
+                        <p class="device-title">💻 Chrome sur Windows</p>
+                        <p class="device-desc">Actuel • Dernière connexion aujourd’hui</p>
+                    </div>
+                    <span class="device-pill device-pill-active">Actuel</span>
+                </div>
+                <div class="device-item">
+                    <div>
+                        <p class="device-title">📱 Safari sur iPhone</p>
+                        <p class="device-desc">Hier • 08:15 • IP 192.168.1.101</p>
+                    </div>
+                    <button class="btn-fintech btn-ghost">Déconnecter</button>
+                </div>
+            </div>
+
+            <div class="fintech-card exchange-card">
+                <div class="panel-header">
+                    <div>
+                        <h3>Taux de conversion</h3>
+                        <p class="panel-copy">Suivez les devises en temps réel.</p>
+                    </div>
+                </div>
+                <div class="exchange-row">
+                    <span>USD → HTG</span>
+                    <strong>62.50</strong>
+                </div>
+                <div class="exchange-row">
+                    <span>USD → EUR</span>
+                    <strong>0.92</strong>
+                </div>
+                <div class="exchange-row">
+                    <span>USD → DOP</span>
+                    <strong>57.30</strong>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const revenueCtx = document.getElementById('revenueChart');
+        if (revenueCtx) {
+            new Chart(revenueCtx, {
+                type: 'line',
+                data: {
+                    labels: ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Jun'],
+                    datasets: [
+                        {
+                            label: 'Revenus USD',
+                            data: [120, 190, 150, 220, 280, 310],
+                            borderColor: '#0066ff',
+                            backgroundColor: 'rgba(0, 102, 255, 0.12)',
+                            borderWidth: 3,
+                            fill: true,
+                            tension: 0.35,
+                            pointBackgroundColor: '#ffffff',
+                            pointBorderColor: '#0066ff',
+                            pointBorderWidth: 2,
+                            pointRadius: 4,
+                            pointHoverRadius: 6,
+                        },
+                        {
+                            label: 'Commissions',
+                            data: [30, 45, 40, 55, 70, 85],
+                            borderColor: '#00d4ff',
+                            backgroundColor: 'rgba(0, 212, 255, 0.14)',
+                            borderWidth: 3,
+                            fill: true,
+                            tension: 0.35,
+                            pointBackgroundColor: '#ffffff',
+                            pointBorderColor: '#00d4ff',
+                            pointBorderWidth: 2,
+                            pointRadius: 4,
+                            pointHoverRadius: 6,
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'top',
+                            labels: {
+                                usePointStyle: true,
+                                padding: 16,
+                                font: { size: 12, weight: '600' },
+                                color: '#475569'
+                            }
+                        },
+                        filler: { propagate: true }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            grid: { color: 'rgba(148, 163, 184, 0.14)', drawBorder: false },
+                            ticks: { color: '#64748b', font: { size: 12 } }
+                        },
+                        x: {
+                            grid: { display: false, drawBorder: false },
+                            ticks: { color: '#64748b', font: { size: 12 } }
+                        }
+                    }
+                }
+            });
+        }
+
+        document.getElementById('btn-withdraw')?.addEventListener('click', function() {
+            window.location.href = "{% url 'profile' %}?open_withdraw=1";
+        });
+
+        document.getElementById('btn-transfer')?.addEventListener('click', function() {
+            window.location.href = "{% url 'profile' %}#agent-transfer-section";
+        });
+    });
+</script>
+
+{% endblock %}

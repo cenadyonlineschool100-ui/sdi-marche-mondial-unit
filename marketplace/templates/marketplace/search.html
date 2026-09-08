@@ -1,0 +1,438 @@
+{% extends 'marketplace/base.html' %}
+{% load image_tags %}
+{% block extra_css %}
+<style>
+    .products-results-section,
+    .products-results-section * {
+        box-sizing: border-box;
+    }
+    .products-results-section {
+        width: 100%;
+        max-width: 1180px;
+        margin: 40px auto;
+        padding: 0 16px;
+    }
+    .products-results-section .product-results-heading {
+        margin-bottom: 20px;
+        text-align: center;
+    }
+    .products-results-section .product-results-heading h2 {
+        margin: 0 0 6px;
+        color: #0f172a;
+        font-size: clamp(1.6rem, 3vw, 2.2rem);
+        line-height: 1.2;
+    }
+    .products-results-section .product-results-heading p {
+        margin: 0;
+        color: #475569;
+        line-height: 1.5;
+        overflow-wrap: anywhere;
+    }
+    .products-results-section .product-results-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 16px;
+        width: 100%;
+    }
+    .products-results-section .product-card {
+        display: flex;
+        flex-direction: column;
+        width: 100%;
+        min-width: 0;
+        margin: 0;
+        padding: 12px;
+        border-radius: 12px;
+        overflow: hidden;
+    }
+    .products-results-section .product-image,
+    .products-results-section .product-image-fallback {
+        width: 100%;
+        height: clamp(110px, 18vw, 220px);
+        min-height: 110px;
+        margin: 0 0 12px;
+        border-radius: 8px;
+        overflow: hidden;
+    }
+    .products-results-section .product-image img {
+        display: block;
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+    }
+    .products-results-section .product-info {
+        display: flex;
+        flex: 1;
+        flex-direction: column;
+        min-width: 0;
+        gap: 8px;
+    }
+    .products-results-section .product-title,
+    .products-results-section .product-secondary,
+    .products-results-section .product-price,
+    .products-results-section .product-shop,
+    .products-results-section .stock-status {
+        max-width: 100%;
+        margin: 0;
+        overflow-wrap: anywhere;
+        word-break: normal;
+    }
+    .products-results-section .product-title {
+        color: #0f172a;
+        font-size: 1rem;
+        line-height: 1.35;
+    }
+    .products-results-section .product-price {
+        color: #1d4ed8;
+        font-size: 1.05rem;
+        font-weight: 800;
+        line-height: 1.3;
+    }
+    .products-results-section .product-shop,
+    .products-results-section .product-secondary {
+        color: #475569;
+        font-size: .9rem;
+        line-height: 1.45;
+    }
+    .products-results-section .product-actions {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 8px;
+        width: 100%;
+        margin-top: auto;
+        padding-top: 8px;
+    }
+    .products-results-section .product-actions .button {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
+        min-width: 0;
+        min-height: 40px;
+        margin: 0;
+        padding: 8px 10px;
+        overflow-wrap: anywhere;
+        text-align: center;
+    }
+    .product-search-bar {
+        margin: 24px 0 24px;
+    }
+    .product-search-bar form {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: nowrap;
+    }
+    .product-search-bar input {
+        flex: 1 1 auto;
+        height: 44px;
+        min-height: 44px;
+        padding: 10px 12px;
+        border-radius: 10px;
+    }
+    .product-search-bar button {
+        flex: 0 0 auto;
+        min-height: 44px;
+        padding: 10px 16px;
+        white-space: nowrap;
+    }
+    @media (max-width: 767px) {
+        .products-results-section {
+            margin: 24px auto;
+            padding: 0 12px;
+        }
+        .products-results-section .product-results-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
+        }
+        .product-catalog-grid {
+            grid-template-columns: 1fr;
+            gap: 12px;
+        }
+        .products-results-section .product-card {
+            padding: 10px;
+        }
+        .products-results-section .product-image,
+        .products-results-section .product-image-fallback {
+            height: 150px;
+            min-height: 150px;
+            margin-bottom: 10px;
+        }
+        .products-results-section .product-results-heading h2 {
+            font-size: 1.5rem;
+        }
+        .product-search-bar form {
+            flex-direction: column;
+            align-items: stretch;
+            flex-wrap: nowrap;
+        }
+        .product-search-bar input,
+        .product-search-bar button {
+            width: 100%;
+            flex: 0 0 auto;
+        }
+        .product-search-bar input {
+            height: 44px;
+            min-height: 44px;
+            flex: 0 0 auto !important;
+        }
+        .product-search-bar .button,
+        .products-results-section .product-actions .button {
+            width: 100%;
+        }
+        .product-priority {
+            margin-top: 18px;
+        }
+        #filtersCard .grid {
+            grid-template-columns: 1fr !important;
+        }
+    }
+    @media (max-width: 480px) {
+        .products-results-section {
+            margin: 28px auto;
+            padding: 0 10px;
+        }
+        .products-results-section .product-results-grid {
+            gap: 10px;
+        }
+        .products-results-section .product-card {
+            padding: 8px;
+        }
+        .products-results-section .product-image,
+        .products-results-section .product-image-fallback {
+            height: 110px;
+            min-height: 110px;
+            margin-bottom: 8px;
+        }
+        .products-results-section .product-title {
+            font-size: .9rem;
+        }
+        .products-results-section .product-price {
+            font-size: .95rem;
+        }
+        .products-results-section .product-shop,
+        .products-results-section .product-secondary {
+            font-size: .82rem;
+        }
+        .products-results-section .product-actions .button {
+            min-height: 38px;
+            padding: 7px 6px;
+            font-size: .82rem;
+        }
+
+        .product-priority {
+            margin-top: 18px;
+        }
+    }
+</style>
+{% endblock %}
+{% block content %}
+<section class="product-priority" aria-labelledby="products-title">
+    {% for shelf in "12"|make_list %}
+        <div class="product-shelf" data-product-shelf>
+            <div class="product-shelf-heading">
+                <h2>Ligne {{ forloop.counter }}</h2>
+                <button type="button" class="product-shelf-arrow" data-shelf-next aria-label="Faire défiler la ligne {{ forloop.counter }}">&#8594;</button>
+            </div>
+            <div class="product-shelf-track">
+                {% if forloop.first %}{% for product in products|slice:":10" %}
+                    <a class="product-card product-card-compact" href="{% url 'product_detail' product.id %}">
+                        {% with primary_image=product.get_primary_image %}{% if primary_image %}{% responsive_image primary_image product.name "product-image" %}{% else %}<div class="product-image-fallback">Pas d'image</div>{% endif %}{% endwith %}
+                        <span class="product-info"><strong class="product-title">{{ product.name }}</strong><span class="product-price">{{ current_currency|currency_symbol }}{{ product|format_product_price:current_currency }}</span></span>
+                    </a>
+                {% endfor %}{% else %}{% for product in products|slice:"10:20" %}
+                    <a class="product-card product-card-compact" href="{% url 'product_detail' product.id %}">
+                        {% with primary_image=product.get_primary_image %}{% if primary_image %}{% responsive_image primary_image product.name "product-image" %}{% else %}<div class="product-image-fallback">Pas d'image</div>{% endif %}{% endwith %}
+                        <span class="product-info"><strong class="product-title">{{ product.name }}</strong><span class="product-price">{{ current_currency|currency_symbol }}{{ product|format_product_price:current_currency }}</span></span>
+                    </a>
+                {% endfor %}{% endif %}
+            </div>
+        </div>
+    {% endfor %}
+    <div class="product-catalog-grid">
+        {% for product in products|slice:"20:" %}
+            <a class="product-card product-card-compact" href="{% url 'product_detail' product.id %}">
+                {% with primary_image=product.get_primary_image %}{% if primary_image %}{% responsive_image primary_image product.name "product-image" %}{% else %}<div class="product-image-fallback">Pas d'image</div>{% endif %}{% endwith %}
+                <span class="product-info"><strong class="product-title">{{ product.name }}</strong><span class="product-price">{{ current_currency|currency_symbol }}{{ product|format_product_price:current_currency }}</span></span>
+            </a>
+        {% endfor %}
+    </div>
+</section>
+<div class="product-search-bar" aria-label="Recherche de produits">
+    <form id="search-form" action="{% url 'search' %}" method="get">
+        <input id="search-query" name="q" list="search-suggestions" type="text" placeholder="Rechercher un produit" value="{{ query }}" />
+        <button type="submit" class="button">Rechercher</button>
+    </form>
+</div>
+
+<div style="margin: 10px 0; text-align: center;">
+    <button type="button" id="toggleFiltersBtn" style="background: none; border: none; color: #2563eb; cursor: pointer; font-size: 0.9rem; text-decoration: underline; padding: 4px 0;" onclick="toggleFilters()">
+        🔽 Filtres
+    </button>
+</div>
+
+<div id="filtersCard" class="card" style="display: none;">
+    <form action="{% url 'search' %}" method="get">
+        <div class="grid grid-3" style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px;">
+            <div class="form-group">
+                <label for="category">Catégorie</label>
+                <select id="category" name="category">
+                    <option value="">Toutes</option>
+                    {% for category in categories %}
+                        <option value="{{ category.slug }}" {% if category.slug == selected_category %}selected{% endif %}>{{ category.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="seller">Vendeur</label>
+                <input id="seller" name="seller" type="text" placeholder="Nom du vendeur" value="{{ seller }}" />
+            </div>
+            <div class="form-group">
+                <label for="min_price">Prix min</label>
+                <input id="min_price" name="min_price" type="number" step="0.01" placeholder="0.00" value="{{ min_price }}" />
+            </div>
+            <div class="form-group">
+                <label for="max_price">Prix max</label>
+                <input id="max_price" name="max_price" type="number" step="0.01" placeholder="0.00" value="{{ max_price }}" />
+            </div>
+            <div class="form-group">
+                <label for="rating">Note minimale</label>
+                <select id="rating" name="rating">
+                    <option value="">Toutes</option>
+                    {% for value in "12345"|make_list %}
+                        <option value="{{ value }}" {% if selected_rating == value %}selected{% endif %}>{{ value }} étoiles et plus</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="stock">Stock</label>
+                <select id="stock" name="stock">
+                    <option value="">Tous</option>
+                    <option value="in_stock" {% if selected_stock == 'in_stock' %}selected{% endif %}>En stock</option>
+                    <option value="out_of_stock" {% if selected_stock == 'out_of_stock' %}selected{% endif %}>Rupture</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="sort">Trier par</label>
+                <select id="sort" name="sort">
+                    <option value="">Pertinence</option>
+                    <option value="price_asc" {% if selected_sort == 'price_asc' %}selected{% endif %}>Prix croissant</option>
+                    <option value="price_desc" {% if selected_sort == 'price_desc' %}selected{% endif %}>Prix décroissant</option>
+                    <option value="rating_desc" {% if selected_sort == 'rating_desc' %}selected{% endif %}>Meilleure note</option>
+                    <option value="popularity" {% if selected_sort == 'popularity' %}selected{% endif %}>Popularité</option>
+                </select>
+            </div>
+        </div>
+        <input name="q" type="hidden" value="{{ query }}" />
+        <div style="margin-top: 12px;">
+            <button type="submit" class="button">Appliquer</button>
+        </div>
+    </form>
+</div>
+
+<section class="products-results-section" aria-labelledby="products-results-title">
+    <div class="section-header product-results-heading">
+        <div>
+            <h2 id="products-results-title">Produits</h2>
+            <p>Résultats pour : <strong>{{ query|default:'tous les produits' }}</strong></p>
+        </div>
+    </div>
+
+    <datalist id="search-suggestions"></datalist>
+
+    <div class="grid grid-3 product-results-grid">
+    {% for product in products %}
+    <div class="card product-card">
+        {% with primary_image=product.get_primary_image %}
+            {% if primary_image %}
+                <div class="product-image">
+                    {% responsive_image primary_image product.name "" %}
+                </div>
+            {% else %}
+                <div class="product-image-fallback">Image indisponible</div>
+            {% endif %}
+        {% endwith %}
+        <div class="product-info">
+            <h3 class="product-title">{{ product.name }}</h3>
+            {% if product.description %}
+                <p class="product-secondary">{{ product.description|truncatechars:120 }}</p>
+            {% endif %}
+            <p class="product-price">Prix HT : {{ current_currency|currency_symbol }}{{ product|format_product_price:current_currency }}</p>
+            <p class="product-shop">Boutique : {{ product.shop.name }}</p>
+            {% if product.average_rating %}
+                <p class="product-secondary">Note : <strong>{{ product.average_rating|floatformat:1 }}</strong> / 5 ({{ product.reviews_count }} avis)</p>
+            {% endif %}
+            {% if product.quantity > 0 %}
+                <p class="stock-status product-secondary" style="color:#2e7d32;"><strong>En stock</strong></p>
+            {% else %}
+                <p class="stock-status product-secondary" style="color:#c62828;"><strong>Rupture</strong></p>
+            {% endif %}
+            <div class="product-actions">
+                <a href="{% url 'product_detail' product.id %}" class="button">Voir détails</a>
+                <a href="{% url 'order_product' product.id %}" class="button alt">Acheter</a>
+                {% if request.user.is_authenticated %}
+                    <a href="{% url 'chat' %}?product_to_share={{ product.id }}" class="button alt">Partager</a>
+                {% else %}
+                    <a href="{% url 'login' %}" class="button alt">Connexion</a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% empty %}
+    <div class="card">Aucun produit trouvé.</div>
+    {% endfor %}
+</div>
+</section>
+
+<script>
+function toggleFilters() {
+    const filtersCard = document.getElementById('filtersCard');
+    const btn = document.getElementById('toggleFiltersBtn');
+    
+    if (filtersCard.style.display === 'none') {
+        filtersCard.style.display = 'block';
+        btn.textContent = '🔼 Filtres';
+    } else {
+        filtersCard.style.display = 'none';
+        btn.textContent = '🔽 Filtres';
+    }
+}
+
+const searchInput = document.getElementById('search-query');
+const suggestions = document.getElementById('search-suggestions');
+let autocompleteTimeout;
+
+if (searchInput) {
+    searchInput.addEventListener('input', () => {
+        clearTimeout(autocompleteTimeout);
+        const value = searchInput.value.trim();
+        if (!value) {
+            suggestions.innerHTML = '';
+            return;
+        }
+        autocompleteTimeout = setTimeout(() => {
+            fetch(`{% url 'autocomplete_products' %}?q=${encodeURIComponent(value)}`)
+                .then(response => response.json())
+                .then(data => {
+                    suggestions.innerHTML = '';
+                    data.results.forEach(item => {
+                        const option = document.createElement('option');
+                        option.value = item.name;
+                        suggestions.appendChild(option);
+                    });
+                });
+        }, 250);
+    });
+}
+</script>
+<script>
+document.querySelectorAll('[data-shelf-next]').forEach((button) => {
+    const shelf = button.closest('[data-product-shelf]');
+    const track = shelf.querySelector('.product-shelf-track');
+    if (!track.querySelector('.product-card-compact')) {
+        shelf.remove();
+        return;
+    }
+    button.addEventListener('click', () => track.scrollBy({ left: 260, behavior: 'smooth' }));
+});
+</script>
+{% endblock %}

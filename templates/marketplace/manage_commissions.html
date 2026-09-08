@@ -1,0 +1,294 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Gestion des Commissions Agents{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row">
+        <div class="col-md-12">
+            <h2>Gestion des Commissions - Dépôts Agents</h2>
+            <p class="text-muted">Administrer les commissions des agents et modifier les règles de calcul.</p>
+            
+            {% if messages %}
+            <div class="alert-container">
+                {% for message in messages %}
+                <div class="alert alert-{{ message.tags }}" role="alert">
+                    {{ message }}
+                    <button type="button" class="close" data-dismiss="alert">
+                        <span>&times;</span>
+                    </button>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    
+    <!-- Configuration Globale -->
+    <div class="row mt-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">Configuration Globale des Commissions</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <p><strong>Part Admin:</strong> {{ marketplace_settings.commission_admin_share }}%</p>
+                            <p><strong>Part Réserve de Distribution:</strong> {{ marketplace_settings.commission_distribution_share }}%</p>
+                            <p><strong>Pool de distribution actuel:</strong></p>
+                            <ul class="list-unstyled">
+                                <li>USD: <strong>{{ distribution_balance.USD }}</strong></li>
+                                <li>HTG: <strong>{{ distribution_balance.HTG }}</strong></li>
+                                <li>PESO: <strong>{{ distribution_balance.PESO }}</strong></li>
+                                <li>EUR: <strong>{{ distribution_balance.EUR }}</strong></li>
+                            </ul>
+                        </div>
+                        <div class="col-md-6">
+                            <form method="post" action="{% url 'update_commission_share_settings' %}">
+                                {% csrf_token %}
+                                <div class="form-group">
+                                    <label for="admin_share">Part Admin (%)</label>
+                                    <input type="number" step="0.01" min="0" max="100" class="form-control" name="admin_share" id="admin_share" value="{{ marketplace_settings.commission_admin_share }}">
+                                </div>
+                                <div class="form-group">
+                                    <label for="distribution_share">Part Distribution (%)</label>
+                                    <input type="number" step="0.01" min="0" max="100" class="form-control" name="distribution_share" id="distribution_share" value="{{ marketplace_settings.commission_distribution_share }}">
+                                </div>
+                                <button type="submit" class="btn btn-warning">Mettre à jour les ratios</button>
+                            </form>
+                            <div class="mt-4">
+                                <form method="post" action="{% url 'distribute_commission_pool' %}" class="d-inline-block mr-2">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn btn-success">Distribuer les commissions</button>
+                                </form>
+                                <form method="post" action="{% url 'return_commission_pool_to_system' %}" class="d-inline-block">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn btn-danger">Retourner au système</button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mt-3">
+                        <a href="{% url 'manage_withdrawal_commissions' %}" class="btn btn-outline-primary">Retrait Commission</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Catégories d'Éligibilité -->
+    <div class="row mt-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header bg-secondary text-white">
+                    <h5 class="mb-0">Catégories d'Éligibilité de Distribution</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        {% for entry in commission_categories %}
+                        <div class="col-md-4 mb-3">
+                            <div class="border rounded p-3 h-100">
+                                <h6>{{ entry.category.name }}</h6>
+                                <p class="mb-1"><strong>Statut:</strong> {% if entry.category.is_active %}<span class="badge badge-success">Actif</span>{% else %}<span class="badge badge-danger">Inactif</span>{% endif %}</p>
+                                <p class="mb-1"><strong>Éligibles:</strong> {{ entry.eligible_count }}</p>
+                                <p class="mb-0 text-muted">{{ entry.category.description }}</p>
+                                {% if request.user.is_superuser %}
+                                <div class="mt-2">
+                                    <a href="{% url 'toggle_commission_category' entry.category.id %}" class="btn btn-sm btn-outline-info">{% if entry.category.is_active %}Désactiver{% else %}Activer{% endif %}</a>
+                                </div>
+                                {% else %}
+                                <div class="mt-2" style="color: #6b7280; font-size: 0.875rem;">
+                                    <em>Seul l'admin principal peut modifier</em>
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+
+                    <hr>
+                    {% if request.user.is_superuser %}
+                    <h6>Attribuer / Retirer un utilisateur</h6>
+                    <form method="post" action="{% url 'assign_commission_category' %}">
+                        {% csrf_token %}
+                        <div class="form-row align-items-end">
+                            <div class="col-md-4 mb-2">
+                                <label for="user_identifier">Nom d’utilisateur ou email</label>
+                                <input type="text" class="form-control" id="user_identifier" name="user_identifier" placeholder="Username ou email" required>
+                            </div>
+                            <div class="col-md-3 mb-2">
+                                <label for="category_id">Catégorie</label>
+                                <select class="form-control" id="category_id" name="category_id" required>
+                                    {% for entry in commission_categories %}
+                                    <option value="{{ entry.category.id }}">{{ entry.category.name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-3 mb-2">
+                                <label for="assign_action">Action</label>
+                                <select class="form-control" id="assign_action" name="assign_action" required>
+                                    <option value="assign">Attribuer</option>
+                                    <option value="remove">Retirer</option>
+                                </select>
+                            </div>
+                            <div class="col-md-2 mb-2">
+                                <button type="submit" class="btn btn-primary btn-block">Appliquer</button>
+                            </div>
+                        </div>
+                    </form>
+                    {% else %}
+                    <div class="alert alert-info">
+                        <strong>Accès limité :</strong> Seul l'admin principal peut attribuer ou retirer les catégories de commission. Vous pouvez consulter les informations ci-dessus.
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Règles Globales de Commission -->
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0">Règles de Commission Globales (par défaut)</h5>
+                </div>
+                <div class="card-body">
+                    {% if global_rules %}
+                    <div class="table-responsive">
+                        <table class="table table-sm table-striped">
+                            <thead>
+                                <tr>
+                                    <th>Montant Min</th>
+                                    <th>Montant Max</th>
+                                    <th>Commission</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for rule in global_rules %}
+                                <tr>
+                                    <td>{{ rule.min_amount }}</td>
+                                    <td>{{ rule.max_amount }}</td>
+                                    <td>{{ rule.commission_amount }}</td>
+                                    <td>
+                                        <a href="{% url 'edit_agent_commission_rule' rule.id %}" class="btn btn-sm btn-warning">Modifier</a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <p class="text-warning">Aucune règle globale définie.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Agents et leurs Commissions -->
+    <div class="row mt-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0">Agents ({{ total_agents }})</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        {% for stat in agent_stats %}
+                        <div class="col-md-6 mb-4">
+                            <div class="card border-left-primary">
+                                <div class="card-body">
+                                    <h6 class="card-title">{{ stat.agent.username }}</h6>
+                                    <p class="text-muted small">{{ stat.agent.email }}</p>
+                                    
+                                    <div class="row mt-3">
+                                        <div class="col-6">
+                                            <small class="text-muted">Dépôts:</small>
+                                            <p class="font-weight-bold">{{ stat.total_deposits }}</p>
+                                        </div>
+                                        <div class="col-6">
+                                            <small class="text-muted">Montant Total:</small>
+                                            <p class="font-weight-bold">{{ stat.total_amount }}</p>
+                                        </div>
+                                        <div class="col-6">
+                                            <small class="text-muted">Commission Total:</small>
+                                            <p class="font-weight-bold">{{ stat.total_commission }}</p>
+                                        </div>
+                                        <div class="col-6">
+                                            <small class="text-muted">Commission Gagnée:</small>
+                                            <p class="font-weight-bold text-success">{{ stat.commission_earned }}</p>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="mt-3 pt-3 border-top">
+                                        <h6>Règles Personnalisées</h6>
+                                        {% if stat.commission_rules %}
+                                        <small class="text-muted">{{ stat.commission_rules.count }} règle(s)</small>
+                                        <ul class="list-unstyled mt-2">
+                                            {% for rule in stat.commission_rules %}
+                                            <li class="mb-1">
+                                                <span class="badge badge-info">{{ rule.min_amount }}-{{ rule.max_amount }}: {{ rule.commission_amount }}</span>
+                                                <a href="{% url 'edit_agent_commission_rule' rule.id %}" class="badge badge-warning ml-1">✎</a>
+                                            </li>
+                                            {% endfor %}
+                                        </ul>
+                                        {% else %}
+                                        <small class="text-muted">Utilise les règles globales</small>
+                                        {% endif %}
+                                        <a href="{% url 'add_agent_commission_rule' stat.agent.id %}" class="btn btn-sm btn-success mt-2">+ Ajouter Règle</a>
+                                    </div>
+                                    
+                                    <div class="mt-3">
+                                        <a href="{% url 'view_agent_deposit_history' stat.agent.id %}" class="btn btn-sm btn-info">Historique</a>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% empty %}
+                        <div class="col-md-12">
+                            <p class="text-warning">Aucun agent trouvé.</p>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.card {
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.card-header {
+    padding: 1rem;
+    border-bottom: 1px solid #dee2e6;
+}
+
+.border-left-primary {
+    border-left: 3px solid #007bff;
+}
+
+.font-weight-bold {
+    font-weight: 600;
+}
+
+.alert-container {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 1050;
+    max-width: 400px;
+}
+
+.alert {
+    padding: 1rem;
+    margin-bottom: 0.5rem;
+    border-radius: 0.25rem;
+}
+</style>
+{% endblock %}

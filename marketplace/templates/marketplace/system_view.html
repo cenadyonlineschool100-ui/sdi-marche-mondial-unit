@@ -1,0 +1,73 @@
+{% extends 'marketplace/base.html' %}
+{% block content %}
+<div class="card" style="max-width: 800px; margin: auto;">
+    <h2>Paramètres système</h2>
+    <p>Configurez les fonctionnalités du système pour contrôler votre site.</p>
+    <form method="post">
+        {% csrf_token %}
+        <div class="form-check">
+            {{ form.banner_visible_to_admins }}
+            <label class="form-check-label" for="{{ form.banner_visible_to_admins.id_for_label }}">{{ form.banner_visible_to_admins.label }}</label>
+        </div>
+        <div class="form-check">
+            {{ form.principal_banner_visible }}
+            <label class="form-check-label" for="{{ form.principal_banner_visible.id_for_label }}">{{ form.principal_banner_visible.label }}</label>
+        </div>
+        <hr />
+        <div class="form-check">
+            {{ form.enable_role_management }}
+            <label class="form-check-label" for="{{ form.enable_role_management.id_for_label }}">
+                {{ form.enable_role_management.label }}
+            </label>
+            <small class="form-text text-muted">Structurer les niveaux Super Admin, Admin secondaire et Soutien/employé. Ajouter un vrai système de rôles et permissions.</small>
+        </div>
+        <div class="form-check">
+            {{ form.enable_financial_audit }}
+            <label class="form-check-label" for="{{ form.enable_financial_audit.id_for_label }}">
+                {{ form.enable_financial_audit.label }}
+            </label>
+            <small class="form-text text-muted">Journal financier détaillé indiquant qui a modifié un solde, quand, et avec ancienne valeur/nouvelle valeur.</small>
+        </div>
+        <div class="form-check">
+            {{ form.enable_alerts }}
+            <label class="form-check-label" for="{{ form.enable_alerts.id_for_label }}">
+                {{ form.enable_alerts.label }}
+            </label>
+            <small class="form-text text-muted">Notifications automatiques pour activité suspecte, trop de transactions rapides, bug système, ou solde anormal.</small>
+        </div>
+        <div class="form-check">
+            {{ form.enable_rollback }}
+            <label class="form-check-label" for="{{ form.enable_rollback.id_for_label }}">
+                {{ form.enable_rollback.label }}
+            </label>
+            <small class="form-text text-muted">Capacité d'annuler une action critique comme une transaction, une modification ou une suppression.</small>
+        </div>
+        <div class="form-check">
+            {{ form.enable_dispute_management }}
+            <label class="form-check-label" for="{{ form.enable_dispute_management.id_for_label }}">
+                {{ form.enable_dispute_management.label }}
+            </label>
+            <small class="form-text text-muted">Système de réclamations acheteur, gestion des vendeurs litigieux et intervention administrative.</small>
+        </div>
+        <hr />
+        <div class="mb-3">
+            <label for="{{ form.microsdicash_account_name.id_for_label }}" class="form-label">{{ form.microsdicash_account_name.label }}</label>
+            {{ form.microsdicash_account_name }}
+        </div>
+        <div class="mb-3">
+            <label for="{{ form.microsdicash_account_number.id_for_label }}" class="form-label">{{ form.microsdicash_account_number.label }}</label>
+            {{ form.microsdicash_account_number }}
+        </div>
+        <div class="mb-3">
+            <label for="{{ form.microsdicash_account_phone.id_for_label }}" class="form-label">{{ form.microsdicash_account_phone.label }}</label>
+            {{ form.microsdicash_account_phone }}
+        </div>
+        <div class="mb-3">
+            <label for="{{ form.microsdicash_payment_instructions.id_for_label }}" class="form-label">{{ form.microsdicash_payment_instructions.label }}</label>
+            {{ form.microsdicash_payment_instructions }}
+            <small class="form-text text-muted">Message affiché aux utilisateurs pour expliquer comment recharger MicroSDICash ou ajouter d'autres moyens.</small>
+        </div>
+        <button type="submit" class="btn btn-primary mt-3">Enregistrer les paramètres</button>
+    </form>
+</div>
+{% endblock %}

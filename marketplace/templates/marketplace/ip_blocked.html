@@ -1,0 +1,19 @@
+{% extends 'marketplace/base.html' %}
+
+{% block content %}
+<div style="display:flex; justify-content:center; align-items:center; min-height:70vh; padding:40px;">
+    <div style="max-width:640px; width:100%; background:#fff8f0; border:1px solid #f5c6cb; border-radius:18px; padding:32px; box-shadow:0 20px 40px rgba(15, 23, 42, 0.08);">
+        <h1 style="margin-top:0; color:#b91c1c;">🚫 Adresse IP bloquée</h1>
+        <p style="color:#334155; font-size:1.05rem; line-height:1.7;">Votre adresse IP <strong>{{ client_ip }}</strong> a été bloquée pour des raisons de sécurité.</p>
+        <ul style="color:#475569; margin:1rem 0 0 1.2rem;">
+            <li>Cette mesure est prise pour protéger la plateforme contre les menaces potentielles.</li>
+            <li>Si vous pensez que c'est une erreur, contactez l'administrateur du site.</li>
+            <li>Les administrateurs peuvent gérer la liste des IPs bloquées depuis leur profil.</li>
+        </ul>
+        <div style="margin-top:24px; display:flex; gap:12px; flex-wrap:wrap;">
+            <a href="/login/" style="background:#2563eb; color:white; padding:12px 20px; border-radius:10px; text-decoration:none;">Connexion Admin</a>
+            <a href="/" style="background:#64748b; color:white; padding:12px 20px; border-radius:10px; text-decoration:none;">Retour à l'accueil</a>
+        </div>
+    </div>
+</div>
+{% endblock %}

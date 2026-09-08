@@ -1,0 +1,201 @@
+{% extends 'marketplace/base.html' %}
+{% load image_tags %}
+
+{% block hero %}
+<div class="hero">
+    <div class="container hero-inner">
+        <div class="hero-copy">
+            <span class="eyebrow">Produit</span>
+            <h1 class="hero-title">{{ product.name }}</h1>
+            <p class="hero-subtitle">{{ product.description|default:"Description du produit non disponible." }}</p>
+            <div class="hero-actions">
+                <a href="{% url 'home' %}" class="button alt">Retour à l’accueil</a>
+                {% if request.user.is_authenticated %}
+                    <a href="{% url 'chat' %}?product_to_share={{ product.id }}" class="button">Partager</a>
+                {% endif %}
+            </div>
+        </div>
+        <div class="hero-panel">
+            <div class="product-detail-meta">
+                <span class="product-detail-status">{{ product.shop.name }}</span>
+                <p><strong>Vendeur :</strong> <a href="{% url 'shop_detail' product.shop.id %}" class="small-link">{{ product.shop.owner.username }}</a></p>
+                <p><strong>Stock :</strong> {{ product.quantity }} disponible</p>
+                <p><strong>Prix :</strong> {{ current_currency|currency_symbol }}{{ product|format_product_price:current_currency }}</p>
+                {% if product.price_original and product.price_original_currency %}
+                    <p><small>Prix saisi par le vendeur : {{ product.price_original }} {{ product.price_original_currency }}</small></p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="section">
+    <div class="product-detail-grid">
+        <div class="card">
+            {% with primary_image=product.get_primary_image %}
+                {% if primary_image %}
+                    {% responsive_image primary_image product.name "product-image" element_id="mainImage" %}
+                {% else %}
+                    <div class="product-image-fallback" style="margin-bottom: 20px;">Pas d'image</div>
+                {% endif %}
+            {% endwith %}
+
+            {% if product.images.all %}
+                <div class="thumbnail-row">
+                    {% for image in product.images.all %}
+                        <img data-src="{{ image.image.url }}" alt="{{ image.alt_text }}" class="thumbnail-img lazy-img" loading="lazy" onclick="document.getElementById('mainImage').src='{{ image.image.url }}';" />
+                    {% endfor %}
+                </div>
+            {% endif %}
+        </div>
+
+        <div class="card">
+            <div class="product-detail-meta">
+                {% if product.category %}
+                    {% with category_slug=product.category.slug|slugify %}
+                        <p><strong>Catégorie :</strong>
+                            {% if category_slug %}
+                                <a href="{% url 'category_products' category_slug %}" class="small-link">{{ product.category.get_full_path }}</a>
+                            {% else %}
+                                <span class="small-link">{{ product.category.get_full_path }}</span>
+                            {% endif %}
+                        </p>
+                    {% endwith %}
+                {% endif %}
+                {% if product.largeur or product.hauteur or product.longueur or product.poids %}
+                    <div style="margin-top: 15px; padding: 10px; background: #f8f9fa; border-radius: 8px;">
+                        <h4 style="margin: 0 0 10px 0; font-size: 1rem;">📏 Dimensions & Poids</h4>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 0.9rem;">
+                            {% if product.largeur %}
+                                <span><strong>Largeur :</strong> {{ product.largeur }} cm</span>
+                            {% endif %}
+                            {% if product.hauteur %}
+                                <span><strong>Hauteur :</strong> {{ product.hauteur }} cm</span>
+                            {% endif %}
+                            {% if product.longueur %}
+                                <span><strong>Longueur :</strong> {{ product.longueur }} cm</span>
+                            {% endif %}
+                            {% if product.poids %}
+                                <span><strong>Poids :</strong> {{ product.poids }} kg</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                {% endif %}
+                <div class="product-detail-status">
+                    Note moyenne : {{ average_rating|floatformat:1 }} / 5
+                </div>
+                <p>{{ reviews_count }} avis approuvés</p>
+            </div>
+
+            <div style="display: grid; gap: 14px; margin-top: 20px;">
+                {% if request.user.is_authenticated %}
+                    <a href="{% url 'add_to_cart' product.id %}" class="button">🛒 Ajouter au panier</a>
+                    <a href="{% url 'cart' %}" class="button alt">Voir mon panier</a>
+                    <a href="{% url 'private_chat' product.shop.owner.id %}" class="button alt">Chat avec le vendeur</a>
+                    {% if request.user.is_seller and request.user != product.shop.owner %}
+                        <form method="post" action="{% url 'request_product_access' product.id %}" style="display:inline">
+                            {% csrf_token %}
+                            <button type="submit" class="button">📥 Ajouter à ma boutique</button>
+                        </form>
+                    {% endif %}
+                {% else %}
+                    <a href="{% url 'login' %}" class="button">Se connecter pour acheter</a>
+                {% endif %}
+                <a href="{% url 'shop_detail' product.shop.id %}" class="button alt">Voir la boutique</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="section">
+    <div class="section-header">
+        <h2>⭐ Avis des acheteurs</h2>
+    </div>
+    <div class="card">
+        {% if pending_review %}
+            <p class="message success">Votre avis est en attente de modération.</p>
+        {% endif %}
+
+        {% if can_review %}
+            <form method="post">
+                {% csrf_token %}
+                <div class="form-group">
+                    {{ form.rating.label_tag }}
+                    {{ form.rating }}
+                </div>
+                <div class="form-group">
+                    {{ form.comment.label_tag }}
+                    {{ form.comment }}
+                </div>
+                <button type="submit" class="button">Envoyer mon avis</button>
+            </form>
+        {% else %}
+            <p>Seuls les acheteurs ayant reçu ce produit peuvent laisser un avis.</p>
+        {% endif %}
+    </div>
+
+    {% if approved_reviews %}
+        <div class="grid grid-3" style="margin-top: 20px;">
+            {% for review in approved_reviews %}
+                <div class="card">
+                    <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 10px;">
+                        <strong>{{ review.user.get_full_name|default:review.user.username }}</strong>
+                        <span style="color:#ffc107;">{% for _ in "12345"|make_list %}{% if forloop.counter <= review.rating %}★{% else %}☆{% endif %}{% endfor %}</span>
+                        <small style="color:#64748b;">{{ review.created_at|date:"d/m/Y" }}</small>
+                    </div>
+                    {% if review.comment %}
+                        <p style="color:#334155;">{{ review.comment }}</p>
+                    {% endif %}
+                </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="card">
+            <p>Aucun avis n'a encore été approuvé pour ce produit.</p>
+        </div>
+    {% endif %}
+</div>
+
+{% if similar_products %}
+<div class="section">
+    <div class="section-header">
+        <h2>Produits similaires</h2>
+        <p>Vous pourriez aussi aimer ces articles.</p>
+    </div>
+    <div class="grid grid-3">
+        {% for similar in similar_products %}
+            <div class="product-card">
+                {% with primary_image=similar.get_primary_image %}
+                    {% if primary_image %}
+                        {% responsive_image primary_image similar.name "product-image" %}
+                    {% endif %}
+                {% endwith %}
+                <div class="product-info">
+                    <h3 class="product-title">{{ similar.name }}</h3>
+                    <p class="product-shop">{{ similar.shop.name }}</p>
+                    <p class="product-price">{{ current_currency|currency_symbol }}{{ similar.price_ht|format_currency:current_currency }}</p>
+                    <div class="product-actions">
+                        <a href="{% url 'product_detail' similar.id %}" class="button small">Voir</a>
+                        {% if request.user.is_authenticated %}
+                            <a href="{% url 'add_to_cart' similar.id %}" class="button alt small">Au panier</a>
+                        {% else %}
+                            <a href="{% url 'login' %}" class="button alt small">Connexion</a>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<div class="section">
+    <div class="card">
+        <h3>Informations produit</h3>
+        <p><strong>Ajouté le :</strong> {{ product.created_at|date:"d/m/Y H:i" }}</p>
+        <p><strong>Boutique :</strong> <a href="{% url 'shop_detail' product.shop.id %}" class="small-link">{{ product.shop.name }}</a></p>
+    </div>
+</div>
+{% endblock %}

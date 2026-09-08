@@ -1,0 +1,60 @@
+{% extends 'marketplace/base.html' %}
+{% block content %}
+<div class="container" style="padding: 24px 0;">
+    <div class="fintech-card" style="padding:28px;">
+        <h1 style="margin-top:0;">Administration Ti Kanè</h1>
+        <p style="color:#475569;">Gérez les demandes d’accès et suivez les comptes Ti Kanè Digital en attente d’approbation.</p>
+        <a href="{% url 'admin_tikane_plans' %}" class="fintech-btn btn-success" style="margin-bottom:18px; display:inline-block;">Gérer les plans Ti Kanè</a>
+        <table style="width:100%; border-collapse:collapse; margin-top:18px;">
+            <thead>
+                <tr style="background:#eff6ff; color:#0f172a; text-align:left;">
+                    <th style="padding:12px; border-bottom:1px solid rgba(148,163,184,0.3);">Utilisateur</th>
+                    <th style="padding:12px; border-bottom:1px solid rgba(148,163,184,0.3);">Plan</th>
+                    <th style="padding:12px; border-bottom:1px solid rgba(148,163,184,0.3);">Statut</th>
+                    <th style="padding:12px; border-bottom:1px solid rgba(148,163,184,0.3);">Demandé le</th>
+                    <th style="padding:12px; border-bottom:1px solid rgba(148,163,184,0.3);">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for request in requests_list %}
+                <tr style="border-bottom:1px solid rgba(148,163,184,0.15);">
+                    <td style="padding:14px;">{{ request.user.username }}<br><small>{{ request.full_name }}</small></td>
+                    <td style="padding:14px;">
+                        {% if request.plan %}
+                            {{ request.plan.name }}
+                        {% else %}
+                            Aucun plan sélectionné
+                        {% endif %}
+                    </td>
+                    <td style="padding:14px;"><strong>{{ request.get_status_display }}</strong></td>
+                    <td style="padding:14px;">{{ request.requested_at|date:'d/m/Y H:i' }}</td>
+                    <td style="padding:14px;">
+                        <form method="post" style="display:flex; flex-wrap:wrap; gap:8px;">
+                            {% csrf_token %}
+                            <input type="hidden" name="request_id" value="{{ request.id }}">
+                            <button type="submit" name="action" value="approve_immediate" class="fintech-btn btn-primary" style="padding:8px 12px;">Approuver immédiatement</button>
+                            <button type="submit" name="action" value="approve_delayed" class="fintech-btn btn-secondary" style="padding:8px 12px;">Planifier approbation +30 min</button>
+                            <button type="submit" name="action" value="refuse" class="fintech-btn btn-danger" style="padding:8px 12px;">Refuser</button>
+                            {% if request.status != 'suspended' %}
+                            <button type="submit" name="action" value="suspend" class="fintech-btn btn-warning" style="padding:8px 12px;">Suspendre</button>
+                            {% else %}
+                            <button type="submit" name="action" value="reactivate" class="fintech-btn btn-success" style="padding:8px 12px;">Réactiver</button>
+                            {% endif %}
+                        </form>
+                        {% if request.admin_notes %}
+                        <div style="margin-top:10px; padding:10px; background:#f8fafc; border:1px solid rgba(37,99,235,0.15); border-radius:12px; font-size:0.95rem; color:#334155;">
+                            <strong>Note administrateur :</strong> {{ request.admin_notes }}
+                        </div>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="5" style="padding:18px; text-align:center; color:#475569;">Aucune demande Ti Kanè n’est en attente pour le moment.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

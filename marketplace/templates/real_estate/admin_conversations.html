@@ -1,0 +1,38 @@
+{% extends "marketplace/base.html" %}
+
+{% block title %}Conversations - Admin Immobilier{% endblock %}
+
+{% block content %}
+<div class="container" style="max-width: 1100px; margin: 40px auto; padding: 20px;">
+    <div class="section-header">
+        <h1 style="color: var(--primary-dark); margin-bottom: 10px;">💬 Conversations immobilières</h1>
+        <p style="color: var(--text-secondary); font-size: 1rem;">Voir toutes les conversations et répondre directement dans le module immobilier.</p>
+    </div>
+
+    {% if conversations %}
+        <div style="display: grid; gap: 15px;">
+            {% for convo in conversations %}
+                <div style="background: var(--bg-light); border: 1px solid var(--border-color); border-radius: 12px; padding: 20px;">
+                    <div style="display: flex; justify-content: space-between; gap: 15px; flex-wrap: wrap;">
+                        <div>
+                            <h3 style="margin: 0 0 8px 0;">{{ convo.property.title|truncatewords:10 }}</h3>
+                            <p style="margin: 0; color: var(--text-secondary);">Participants: {{ convo.participants.0.get_full_name|default:convo.participants.0.username }}, {{ convo.participants.1.get_full_name|default:convo.participants.1.username }}</p>
+                            <p style="margin: 5px 0 0 0; color: var(--text-secondary);">Dernier message: {{ convo.last_message|truncatewords:20 }}</p>
+                        </div>
+                        <div style="text-align: right; min-width: 160px;">
+                            <p style="margin: 0 0 8px 0; color: var(--text-secondary);">{{ convo.date|date:"d/m/Y H:i" }}</p>
+                            <p style="margin: 0; color: var(--text-secondary);">Non lus: {{ convo.unread_count }}</p>
+                        </div>
+                    </div>
+                    <a href="{% url 'real_estate:conversation' convo.message_id %}" style="display: inline-block; margin-top: 15px; padding: 10px 18px; background: linear-gradient(135deg, #667eea, #764ba2); color: white; border-radius: 8px; text-decoration: none;">Ouvrir la conversation</a>
+                </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div style="text-align: center; padding: 50px; background: var(--bg-light); border-radius: 12px; border: 1px dashed var(--border-color);">
+            <h2 style="color: var(--primary-dark); margin-bottom: 15px;">Aucune conversation</h2>
+            <p style="color: var(--text-secondary);">Il n'y a pas encore de conversations à afficher.</p>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

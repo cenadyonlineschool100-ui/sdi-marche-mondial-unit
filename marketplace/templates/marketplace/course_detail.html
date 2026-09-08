@@ -1,0 +1,75 @@
+{% extends 'marketplace/base.html' %}
+
+{% block title %}Détail du cours - SDI{% endblock %}
+
+{% block content %}
+<section class="hero">
+    <div class="hero-inner">
+        <div class="hero-copy">
+            <span class="eyebrow">Détail du cours</span>
+            <h1 class="hero-title">{{ course.title }}</h1>
+            <p class="hero-subtitle">{{ course.description }}</p>
+            <div style="margin-top:18px; display:flex; gap:12px; flex-wrap:wrap;">
+                <a href="{% url 'live_webrtc' course.id %}" class="button sdi-sol-button">🎥 Salle WebRTC (démo)</a>
+                <a href="{% url 'live_jitsi' course.id %}" class="button alt">🔗 Rejoindre via Jitsi</a>
+                <a href="{% url 'course_certificates' course.id %}" class="button" style="min-width:180px;">🏅 Mes diplômes</a>
+                <a href="#assignments" class="button alt" style="color:#0f172a; background:#eff6ff; border-color:rgba(37,99,235,.18);">📄 Voir les devoirs</a>
+                <a href="#recordings" class="button" style="min-width:160px;">📼 Enregistrements</a>
+            </div>
+        </div>
+        <div class="card fintech-card">
+            <h3>Informations</h3>
+            <p><strong>Enseignant:</strong> {{ course.instructor }}</p>
+            <p><strong>Prochaine session:</strong> {{ course.next_session }}</p>
+            <div style="margin-top:16px;">
+                <p><strong>Progression du cours :</strong> {{ course.progress }}%</p>
+                <div style="background:#e2e8f0; border-radius:999px; overflow:hidden; height:18px;">
+                    <div style="width:{{ course.progress }}%; background:#38bdf8; height:100%;"></div>
+                </div>
+                <p style="margin-top:10px; font-size:0.95rem; color:#334155;">{{ course.completed_assignments }}/{{ course.total_assignments }} devoirs soumis.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section id="assignments" style="margin-top:32px;">
+    <div class="section-header">
+        <h2>Devoirs</h2>
+            <p>Consultez vos devoirs et soumettez vos travaux.</p>
+        </div>
+        <div class="learning-grid">
+            <div class="learning-card">
+                <h3>Liste des devoirs</h3>
+                <ul class="feature-list">
+                    {% for a in course.demo_assignments %}
+                        <li>{{ a.title }} — <small>{% if a.due_date %}{{ a.due_date|date:"d/m/Y" }}{% else %}À définir{% endif %}</small></li>
+                    {% endfor %}
+                </ul>
+                <p><a href="{% url 'course_assignments' course.id %}" class="button alt">Voir tous les devoirs</a></p>
+            </div>
+            <div class="learning-card">
+                <h3>Soumettre un devoir</h3>
+                <p>Utilisez la page de devoirs pour envoyer vos travaux, ajouter des commentaires et gérer vos fichiers.</p>
+                <p><a href="{% url 'course_assignments' course.id %}" class="button">Aller aux devoirs</a></p>
+            </div>
+        </div>
+    </section>
+
+    <section id="recordings" style="margin-top:32px;">
+        <div class="section-header">
+            <h2>Enregistrements</h2>
+            <p>Accédez aux sessions enregistrées et revoyez les points clés.</p>
+        </div>
+        <div class="learning-grid">
+            {% for r in course.recordings %}
+                <div class="learning-card">
+                    <h3>{{ r.title }}</h3>
+                    <p><a href="{{ r.url }}" class="button">Lire</a></p>
+                </div>
+            {% endfor %}
+            <div class="learning-card">
+                <h3>Bibliothèque des enregistrements</h3>
+                <p>Voir toutes les vidéos disponibles pour ce cours.</p>
+                <p><a href="{% url 'course_recordings' course.id %}" class="button alt">Voir les enregistrements</a></p>
+            </div>
+{% endblock %}
