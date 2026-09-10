@@ -1279,7 +1279,7 @@
             backdrop-filter: blur(16px);
             border-top: 1px solid rgba(255,255,255,0.12);
             box-shadow: 0 -12px 30px rgba(0, 0, 0, 0.18);
-            padding: 8px 8px 10px;
+            padding: 8px 8px calc(10px + env(safe-area-inset-bottom));
             gap: 8px;
             justify-content: space-between;
             align-items: center;
@@ -1326,7 +1326,7 @@
             display: none !important;
         }
         body.mobile-device {
-            padding-bottom: 90px;
+            padding-bottom: calc(90px + env(safe-area-inset-bottom));
         }
         /* Bouton de recherche: encore plus compact */
         header .header-search .button.small {
@@ -5306,7 +5306,7 @@
 
         @media (max-width: 767px) {
             body .responsive-scroll-shell {
-                padding-bottom: var(--responsive-bottom-height, 90px);
+                padding-bottom: calc(var(--responsive-bottom-height, 90px) + env(safe-area-inset-bottom));
             }
 
             body > .compact-footer {
@@ -6331,11 +6331,11 @@
         <!-- Footer Bottom -->
         <div class="footer-bottom">
             <div class="social-links">
-                <a href="#" title="Facebook" aria-label="Facebook"><i class="fab fa-facebook-f"></i></a>
-                <a href="#" title="Twitter" aria-label="Twitter"><i class="fab fa-twitter"></i></a>
-                <a href="#" title="Instagram" aria-label="Instagram"><i class="fab fa-instagram"></i></a>
-                <a href="#" title="LinkedIn" aria-label="LinkedIn"><i class="fab fa-linkedin-in"></i></a>
-                <a href="#" title="YouTube" aria-label="YouTube"><i class="fab fa-youtube"></i></a>
+                <a href="https://facebook.com/" target="_blank" rel="noopener noreferrer" title="Facebook" aria-label="Facebook"><i class="fab fa-facebook-f"></i></a>
+                <a href="https://x.com/" target="_blank" rel="noopener noreferrer" title="X / Twitter" aria-label="X / Twitter"><i class="fab fa-x-twitter"></i></a>
+                <a href="https://instagram.com/" target="_blank" rel="noopener noreferrer" title="Instagram" aria-label="Instagram"><i class="fab fa-instagram"></i></a>
+                <a href="https://www.linkedin.com/" target="_blank" rel="noopener noreferrer" title="LinkedIn" aria-label="LinkedIn"><i class="fab fa-linkedin-in"></i></a>
+                <a href="https://www.youtube.com/" target="_blank" rel="noopener noreferrer" title="YouTube" aria-label="YouTube"><i class="fab fa-youtube"></i></a>
             </div>
             <p>&copy; 2026 <strong>SDI Marche Mondial Unit</strong>. Tous droits réservés.</p>
             <p><small>Développé avec <i class="fas fa-heart" style="color:#ef4444;"></i> pour vous offrir la meilleure expérience</small></p>
