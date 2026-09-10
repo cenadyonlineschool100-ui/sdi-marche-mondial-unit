@@ -5290,6 +5290,8 @@
                 bottom: 0;
                 left: 0;
                 z-index: 45;
+                box-sizing: border-box;
+                padding-bottom: calc(28px + env(safe-area-inset-bottom));
             }
 
             body .responsive-scroll-shell {
@@ -5302,6 +5304,10 @@
         }
 
         @media (max-width: 767px) {
+            body .mobile-bottom-tabs {
+                box-sizing: border-box;
+            }
+
             body .responsive-scroll-shell {
                 padding-bottom: calc(var(--responsive-bottom-height, 90px) + env(safe-area-inset-bottom));
             }
@@ -6469,6 +6475,7 @@
             const shell = document.querySelector('.responsive-scroll-shell');
             const compactFooter = document.querySelector('.compact-footer');
             const footerAnchor = compactFooter ? document.createComment('compact-footer-anchor') : null;
+            let responsiveFrame = 0;
             if (compactFooter && footerAnchor) compactFooter.parentNode.insertBefore(footerAnchor, compactFooter);
 
             function syncCompactFooterHost() {
@@ -6505,10 +6512,29 @@
                 root.style.setProperty('--responsive-bottom-height', `${visibleHeight(bottom)}px`);
             }
 
-            window.addEventListener('resize', updateResponsiveShell, { passive: true });
-            window.addEventListener('orientationchange', updateResponsiveShell, { passive: true });
-            document.addEventListener('DOMContentLoaded', updateResponsiveShell);
-            updateResponsiveShell();
+            function scheduleResponsiveShellUpdate() {
+                cancelAnimationFrame(responsiveFrame);
+                responsiveFrame = requestAnimationFrame(() => {
+                    requestAnimationFrame(updateResponsiveShell);
+                });
+            }
+
+            const responsiveResizeObserver = typeof ResizeObserver === 'function'
+                ? new ResizeObserver(scheduleResponsiveShellUpdate)
+                : null;
+            if (responsiveResizeObserver) {
+                if (compactFooter) responsiveResizeObserver.observe(compactFooter);
+                const mobileTabs = document.querySelector('.mobile-bottom-tabs');
+                if (mobileTabs) responsiveResizeObserver.observe(mobileTabs);
+            }
+
+            window.addEventListener('resize', scheduleResponsiveShellUpdate, { passive: true });
+            window.addEventListener('orientationchange', scheduleResponsiveShellUpdate, { passive: true });
+            if (window.visualViewport) {
+                window.visualViewport.addEventListener('resize', scheduleResponsiveShellUpdate, { passive: true });
+            }
+            document.addEventListener('DOMContentLoaded', scheduleResponsiveShellUpdate);
+            scheduleResponsiveShellUpdate();
         })();
 
     // Scroll to Top/Bottom Button functionality
