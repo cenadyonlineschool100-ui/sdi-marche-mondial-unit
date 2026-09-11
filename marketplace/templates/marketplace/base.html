@@ -5287,7 +5287,7 @@
             body > .compact-footer {
                 position: fixed;
                 right: 0;
-                bottom: 0;
+                bottom: var(--mobile-system-bottom-inset, 0px);
                 left: 0;
                 z-index: 45;
                 box-sizing: border-box;
@@ -5295,7 +5295,7 @@
             }
 
             body .responsive-scroll-shell {
-                padding-bottom: var(--responsive-bottom-height, 0px);
+                padding-bottom: calc(var(--responsive-bottom-height, 0px) + var(--mobile-system-bottom-inset, 0px));
             }
 
             body .mobile-bottom-tabs {
@@ -5313,7 +5313,7 @@
             }
 
             body .responsive-scroll-shell {
-                padding-bottom: calc(var(--responsive-bottom-height, 90px) + env(safe-area-inset-bottom));
+                padding-bottom: calc(var(--responsive-bottom-height, 90px) + env(safe-area-inset-bottom) + var(--mobile-system-bottom-inset, 0px));
             }
 
             body > .compact-footer {
@@ -6495,10 +6495,16 @@
 
             function updateResponsiveShell() {
                 syncCompactFooterHost();
+                const viewport = window.visualViewport;
+                const systemBottomInset = viewport
+                    ? Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop)
+                    : 0;
+                root.style.setProperty('--mobile-system-bottom-inset', `${systemBottomInset}px`);
                 if (window.innerWidth >= 1200) {
                     root.style.removeProperty('--responsive-banner-height');
                     root.style.removeProperty('--responsive-header-height');
                     root.style.removeProperty('--responsive-bottom-height');
+                    root.style.removeProperty('--mobile-system-bottom-inset');
                     return;
                 }
 
