@@ -5308,7 +5308,7 @@
                 box-sizing: border-box;
             }
 
-            body:has(.mobile-nav-panel.open) .mobile-bottom-tabs {
+            body.mobile-menu-open .mobile-bottom-tabs {
                 z-index: 46;
             }
 
@@ -5966,6 +5966,7 @@
                 const isOpen = open === undefined ? !mobilePanel.classList.contains('open') : open;
                 mobilePanel.classList.toggle('open', isOpen);
                 mobileBackdrop.classList.toggle('open', isOpen);
+                document.body.classList.toggle('mobile-menu-open', isOpen);
                 if (mobileToggle) mobileToggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
                 mobilePanel.setAttribute('aria-hidden', isOpen ? 'false' : 'true');
                 if (mobileBackdrop) mobileBackdrop.setAttribute('aria-hidden', isOpen ? 'false' : 'true');
