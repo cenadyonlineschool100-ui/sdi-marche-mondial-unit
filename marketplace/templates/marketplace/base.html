@@ -5308,6 +5308,10 @@
                 box-sizing: border-box;
             }
 
+            body:has(.mobile-nav-panel.open) .mobile-bottom-tabs {
+                z-index: 46;
+            }
+
             body .responsive-scroll-shell {
                 padding-bottom: calc(var(--responsive-bottom-height, 90px) + env(safe-area-inset-bottom));
             }
