@@ -5304,6 +5304,18 @@
         }
 
         @media (max-width: 767px) {
+            body::after {
+                content: '';
+                position: fixed;
+                right: 0;
+                bottom: 0;
+                left: 0;
+                height: var(--mobile-system-bottom-inset, 0px);
+                background: #ffffff;
+                z-index: 44;
+                pointer-events: none;
+            }
+
             body .mobile-bottom-tabs {
                 box-sizing: border-box;
             }
