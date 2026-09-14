@@ -1268,56 +1268,93 @@
         .mobile-nav-toggle:active {
             transform: scale(0.95);
         }
-        .mobile-bottom-tabs {
-            display: none;
-            position: fixed;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            z-index: 45;
-            background: rgba(7, 18, 49, 0.98);
-            backdrop-filter: blur(16px);
-            border-top: 1px solid rgba(255,255,255,0.12);
-            box-shadow: 0 -12px 30px rgba(0, 0, 0, 0.18);
-            padding: 8px 8px calc(10px + env(safe-area-inset-bottom));
-            gap: 8px;
-            justify-content: space-between;
-            align-items: center;
-        }
-        body.mobile-device .mobile-bottom-tabs {
-            display: flex;
-        }
-        .mobile-bottom-tab {
-            display: inline-flex;
-            flex: 1;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            min-height: 56px;
-            padding: 6px 4px;
-            margin: 0 2px;
-            border-radius: 18px;
-            color: #0f172a;
-            text-decoration: none;
-            background: rgba(255,255,255,0.95);
-            box-shadow: inset 0 0 0 1px rgba(15,23,42,0.06);
-            font-size: 0.72rem;
-            font-weight: 700;
-            transition: background 0.2s ease, transform 0.2s ease;
-        }
-        .mobile-bottom-tab:hover,
-        .mobile-bottom-tab:focus-visible {
-            background: rgba(255,255,255,1);
-            transform: translateY(-1px);
-        }
-        .mobile-bottom-tab .tab-icon {
-            font-size: 1.25rem;
-            margin-bottom: 4px;
-            line-height: 1;
-        }
-        .mobile-bottom-tab .tab-label {
-            display: block;
-            line-height: 1.2;
+        @media (max-width: 767px) {
+            .mobile-bottom-tabs {
+                --responsive-bottom-height: 68px;
+                display: none;
+                position: fixed;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                width: 100vw;
+                max-width: 100vw;
+                margin: 0;
+                box-sizing: border-box;
+                z-index: 45;
+                height: var(--responsive-bottom-height);
+                background: #ffffff;
+                border-top-left-radius: 16px;
+                border-top-right-radius: 16px;
+                border: 0;
+                border-bottom: 0;
+                box-shadow: 0 -4px 12px rgba(15, 23, 42, 0.08);
+                padding: 4px 0 calc(8px + env(safe-area-inset-bottom, 0px));
+                gap: 0;
+                justify-content: space-between;
+                align-items: stretch;
+            }
+            body.mobile-device .mobile-bottom-tabs {
+                display: flex;
+            }
+            .mobile-bottom-tab {
+                display: inline-flex;
+                flex: 1;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                min-height: 0;
+                padding: 4px 0 2px;
+                margin: 0;
+                border-radius: 0;
+                color: #4b5563;
+                text-decoration: none;
+                background: transparent;
+                box-shadow: none;
+                font-size: 0.5rem;
+                font-weight: 700;
+                line-height: 1.08;
+                letter-spacing: 0;
+                transition: none;
+                text-align: center;
+            }
+            .mobile-bottom-tab:hover,
+            .mobile-bottom-tab:focus-visible {
+                background: transparent;
+                transform: none;
+            }
+            .mobile-bottom-tab.active {
+                color: #f97316;
+                background: transparent;
+            }
+            .mobile-bottom-tab .tab-icon {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                width: 22px;
+                height: 22px;
+                margin-bottom: 2px;
+                line-height: 1;
+                color: #2563eb;
+                flex-shrink: 0;
+            }
+            .mobile-bottom-tab .tab-icon svg {
+                width: 18px;
+                height: 18px;
+                stroke: currentColor;
+                fill: none;
+                stroke-width: 1.9;
+                stroke-linecap: round;
+                stroke-linejoin: round;
+            }
+            .mobile-bottom-tab .tab-label {
+                display: block;
+                line-height: 1.08;
+                font-size: 0.5rem;
+                font-weight: 700;
+                color: currentColor;
+                white-space: nowrap;
+                text-align: center;
+            }
         }
         body.mobile-device .professional-footer {
             display: none !important;
@@ -5259,7 +5296,7 @@
                 overflow-y: auto;
                 overscroll-behavior-y: contain;
                 padding-top: calc(var(--responsive-banner-height, 0px) + var(--responsive-header-height, 0px));
-                padding-bottom: var(--responsive-bottom-height, 0px);
+                padding-bottom: calc(var(--responsive-bottom-height, 0px) + 12px);
             }
 
             body > .site-top-banner {
@@ -5305,15 +5342,7 @@
 
         @media (max-width: 767px) {
             body::after {
-                content: '';
-                position: fixed;
-                right: 0;
-                bottom: 0;
-                left: 0;
-                height: var(--mobile-system-bottom-inset, 0px);
-                background: #ffffff;
-                z-index: 44;
-                pointer-events: none;
+                display: none !important;
             }
 
             body .mobile-bottom-tabs {
@@ -5325,7 +5354,7 @@
             }
 
             body .responsive-scroll-shell {
-                padding-bottom: calc(var(--responsive-bottom-height, 90px) + env(safe-area-inset-bottom) + var(--mobile-system-bottom-inset, 0px));
+                padding-bottom: calc(var(--responsive-bottom-height, 68px) + 12px + env(safe-area-inset-bottom, 0px));
             }
 
             body > .compact-footer {
@@ -6368,24 +6397,52 @@
     </div>
 
     <nav class="mobile-bottom-tabs" aria-label="Navigation mobile">
-        <a href="{% url 'home' %}" class="mobile-bottom-tab">
-            <span class="tab-icon">🏠</span>
+        <a href="{% url 'home' %}" class="mobile-bottom-tab{% if request.path == '/' or request.path == '/home/' %} active{% endif %}">
+            <span class="tab-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M3 10.5L12 3l9 7.5"></path>
+                    <path d="M5 9.5V20h14V9.5"></path>
+                    <path d="M9 20v-7h6v7"></path>
+                </svg>
+            </span>
             <span class="tab-label">Home</span>
         </a>
         <a href="{% url 'search' %}" class="mobile-bottom-tab">
-            <span class="tab-icon">👁️</span>
+            <span class="tab-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"></path>
+                    <circle cx="12" cy="12" r="3.5"></circle>
+                </svg>
+            </span>
             <span class="tab-label">Tips</span>
         </a>
         <a href="{% url 'private_chat_contacts' %}" class="mobile-bottom-tab">
-            <span class="tab-icon">💬</span>
+            <span class="tab-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M5.5 18.5V7.5A2.5 2.5 0 0 1 8 5h8a2.5 2.5 0 0 1 2.5 2.5v7A2.5 2.5 0 0 1 16 17H9l-3.5 1.5Z"></path>
+                    <path d="M8.5 9h7"></path>
+                    <path d="M8.5 12h5"></path>
+                </svg>
+            </span>
             <span class="tab-label">Messenger</span>
         </a>
         <a href="{% url 'cart' %}" class="mobile-bottom-tab">
-            <span class="tab-icon">🛒</span>
+            <span class="tab-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <circle cx="9" cy="18" r="1.5"></circle>
+                    <circle cx="17" cy="18" r="1.5"></circle>
+                    <path d="M3 5h2l2.2 9.5a1 1 0 0 0 1 .8H17a1 1 0 0 0 1-.8L20 7H6"></path>
+                </svg>
+            </span>
             <span class="tab-label">Cart</span>
         </a>
         <a href="{% url 'profile' %}" class="mobile-bottom-tab">
-            <span class="tab-icon">👤</span>
+            <span class="tab-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <circle cx="12" cy="8" r="4"></circle>
+                    <path d="M4.5 19a7.5 7.5 0 0 1 15 0"></path>
+                </svg>
+            </span>
             <span class="tab-label">My SDI</span>
         </a>
     </nav>

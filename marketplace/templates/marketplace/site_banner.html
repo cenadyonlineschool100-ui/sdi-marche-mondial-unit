@@ -964,7 +964,9 @@
             width: 100%;
             flex-direction: row;
             align-items: center;
-            gap: 0.3rem;
+            gap: 0.35rem;
+            row-gap: 0.35rem;
+            flex-wrap: wrap;
         }
 
         .site-top-banner-price,
@@ -975,12 +977,31 @@
         }
 
         .site-top-banner-price {
+            min-width: 2.5rem;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .site-top-banner-button {
+            min-width: 5.25rem;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .site-top-banner-price {
             padding: 0.25rem 0.35rem;
         }
 
         .site-top-banner-button {
             min-height: 14px;
             padding: 0.15rem 0.175rem;
+        }
+
+        .site-top-banner-expand-toggle {
+            min-height: 30px;
+            padding: 0.35rem 0.55rem;
+            font-size: clamp(0.56rem, 2.5vw, 0.7rem);
         }
 
         .site-top-banner-product-track,
@@ -1009,6 +1030,9 @@
     }
 
     .site-top-banner-expand-toggle {
+        width: auto;
+        max-width: 100%;
+        min-width: 0;
         min-height: 44px;
         padding: 0.65rem 1rem;
         border: 1px solid rgba(255,255,255,0.55);
@@ -1016,6 +1040,11 @@
         background: rgba(15, 23, 42, 0.72);
         color: #fff;
         font-weight: 800;
+        line-height: 1.1;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        flex: 0 1 auto;
         cursor: pointer;
         transition: background 0.2s ease, transform 0.2s ease;
     }
