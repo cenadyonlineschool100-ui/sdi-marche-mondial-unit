@@ -848,6 +848,7 @@ class SystemSettingsForm(forms.ModelForm):
         fields = [
             'banner_visible_to_admins',
             'principal_banner_visible',
+            'mobile_footer_support_enabled',
             'enable_role_management',
             'enable_financial_audit',
             'enable_alerts',
@@ -862,6 +863,7 @@ class SystemSettingsForm(forms.ModelForm):
         widgets = {
             'banner_visible_to_admins': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
             'principal_banner_visible': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'mobile_footer_support_enabled': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
             'enable_role_management': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
             'enable_financial_audit': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
             'enable_alerts': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
@@ -872,6 +874,9 @@ class SystemSettingsForm(forms.ModelForm):
             'microsdicash_account_number': forms.TextInput(attrs={'class': 'form-control'}),
             'microsdicash_account_phone': forms.TextInput(attrs={'class': 'form-control'}),
             'microsdicash_payment_instructions': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
+        }
+        labels = {
+            'mobile_footer_support_enabled': '⭐ FC',
         }
 
 

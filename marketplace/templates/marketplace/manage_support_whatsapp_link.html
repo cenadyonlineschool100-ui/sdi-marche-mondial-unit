@@ -1,0 +1,44 @@
+{% extends "marketplace/base.html" %}
+
+{% block title %}
+    ⭐ Lien WhatsApp Support SDI
+{% endblock %}
+
+{% block content %}
+<div class="content-container" style="max-width: 760px; margin: 0 auto; padding: 24px 20px 60px;">
+    <h1 style="margin-bottom: 12px;">⭐ Lien WhatsApp Support SDI</h1>
+    <p style="margin: 0 0 24px; color: #475569;">Gérez le lien WhatsApp utilisé par la carte Support SDI.</p>
+
+    {% if messages %}
+        <div style="margin-bottom: 20px;">
+            {% for message in messages %}
+                <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert" style="border-radius: 10px; padding: 12px 14px; margin-bottom: 10px; background: #eef2ff; border: 1px solid #c7d2fe; color: #1f2937;">
+                    {{ message }}
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; padding: 24px; box-shadow: 0 10px 30px rgba(15, 23, 42, 0.05);">
+        <form method="post">
+            {% csrf_token %}
+            <div style="display: grid; gap: 18px;">
+                <div>
+                    <label for="whatsapp_link" style="display: block; margin-bottom: 8px; font-weight: 700; color: #0f172a;">Lien WhatsApp</label>
+                    <input
+                        id="whatsapp_link"
+                        name="whatsapp_link"
+                        type="url"
+                        value="{{ support_card.whatsapp_link|default:'' }}"
+                        placeholder="https://wa.me/"
+                        style="width: 100%; padding: 12px 14px; border: 1px solid #cbd5e1; border-radius: 10px; font-size: 1rem; box-sizing: border-box;"
+                    >
+                </div>
+                <button type="submit" class="btn btn-primary" style="width: fit-content; background: #2563eb; color: #fff; border: none; border-radius: 10px; padding: 12px 20px; font-weight: 700;">
+                    Enregistrer le lien
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

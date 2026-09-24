@@ -2583,6 +2583,10 @@ class SystemSettings(models.Model):
     banner_expanded_height = models.PositiveIntegerField(default=220, verbose_name='Hauteur agrandie du Banner')
     banner_visible_to_admins = models.BooleanField(default=True, verbose_name='Afficher la bannière aux administrateurs')
     principal_banner_visible = models.BooleanField(default=True, verbose_name='Afficher la bannière à l’administrateur principal')
+    mobile_footer_support_enabled = models.BooleanField(
+        default=True,
+        verbose_name='⭐ FC - Afficher le footer mobile/tablette et la carte Support SDI'
+    )
     enable_role_management = models.BooleanField(default=False, verbose_name="Activer la gestion des rôles et permissions")
     enable_financial_audit = models.BooleanField(default=False, verbose_name="Activer la traçabilité financière")
     enable_alerts = models.BooleanField(default=False, verbose_name="Activer le système d'alertes intelligentes")
@@ -2982,6 +2986,7 @@ class SiteConfiguration(models.Model):
         ('main', 'Logo Principal'),
         ('favicon', 'Favicon'),
         ('footer', 'Logo Footer'),
+        ('support_card', 'Carte Support SDI'),
     ]
     
     config_type = models.CharField(
@@ -2992,7 +2997,9 @@ class SiteConfiguration(models.Model):
     )
     image = models.ImageField(
         upload_to='site_config/%Y/%m/',
-        verbose_name='Image/Logo'
+        verbose_name='Image/Logo',
+        blank=True,
+        null=True
     )
     alt_text = models.CharField(
         max_length=255,
@@ -3008,6 +3015,20 @@ class SiteConfiguration(models.Model):
         default=60,
         help_text='Hauteur en pixels',
         blank=True
+    )
+    is_active = models.BooleanField(
+        default=True,
+        verbose_name='Carte active'
+    )
+    whatsapp_link = models.URLField(
+        blank=True,
+        default='',
+        verbose_name='Lien WhatsApp',
+        max_length=500
+    )
+    screen_size_control_enabled = models.BooleanField(
+        default=False,
+        verbose_name='Taille écran + / - activée'
     )
     updated_at = models.DateTimeField(auto_now=True)
     updated_by = models.ForeignKey(

@@ -58,7 +58,7 @@ from .views_commission import (
     commission_peuple_configuration_adm
 )
 from .views_admin_permissions import (
-    manage_admin_permissions, toggle_admin_permission, grant_withdrawal_access, revoke_withdrawal_access,
+    manage_admin_permissions, manage_support_whatsapp_link, toggle_admin_permission, grant_withdrawal_access, revoke_withdrawal_access,
     toggle_principal_power,
 )
 from .views_agent_withdrawal import (
@@ -280,6 +280,7 @@ urlpatterns = [
     path('commission-peuple/', view_peuple_commission, name='view_peuple_commission'),
     # Gestion des permissions administrateur
     path('admin/permissions/', manage_admin_permissions, name='manage_admin_permissions'),
+    path('admin/support-whatsapp/', manage_support_whatsapp_link, name='manage_support_whatsapp_link'),
     path('admin/permissions/toggle/<int:user_id>/<str:permission_codename>/', toggle_admin_permission, name='toggle_admin_permission'),
     path('admin/permissions/grant-withdrawal/<int:user_id>/', grant_withdrawal_access, name='grant_withdrawal_access'),
     path('admin/permissions/revoke-withdrawal/<int:user_id>/', revoke_withdrawal_access, name='revoke_withdrawal_access'),

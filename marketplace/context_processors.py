@@ -27,7 +27,13 @@ def currency_context(request):
 
 def site_config_context(request):
     """Add site configuration to context"""
-    return {'site_configs': {}}
+    try:
+        from .models import SiteConfiguration
+
+        configs = {config.config_type: config for config in SiteConfiguration.objects.all()}
+        return {'site_configs': configs}
+    except Exception:
+        return {'site_configs': {}}
 
 
 def activity_menu_context(request):
@@ -51,6 +57,12 @@ def site_banner_context(request):
         from django.db import models
         from .models import Product, SiteBanner, SystemSettings
 
+        user = getattr(request, 'user', None)
+        is_authenticated = bool(user and getattr(user, 'is_authenticated', False))
+        user_role = getattr(user, 'role', '') if is_authenticated else ''
+        is_principal = is_authenticated and (getattr(user, 'is_superuser', False) or user_role == 'super_admin')
+        is_admin = is_authenticated and getattr(user, 'is_staff', False)
+
         settings_obj = SystemSettings.objects.filter(pk=1).first()
         if settings_obj and not settings_obj.banner_enabled:
             return {
@@ -58,8 +70,6 @@ def site_banner_context(request):
                 'site_banner_access_granted': False,
                 'banner_carousel_products': [],
             }
-        is_principal = request.user.is_authenticated and (request.user.is_superuser or request.user.role == 'super_admin')
-        is_admin = request.user.is_authenticated and request.user.is_staff
         if settings_obj and is_admin and not is_principal and not settings_obj.banner_visible_to_admins:
             return {
                 'site_banner': None,
@@ -199,4 +209,16 @@ def system_settings_context(request):
     This avoids crashes when the database has not been migrated yet or the
     singleton record is not present.
     """
-    return {'system_settings': None}
+    try:
+        from .models import SystemSettings
+
+        settings_obj = SystemSettings.objects.filter(pk=1).first()
+        return {
+            'system_settings': settings_obj,
+            'mobile_footer_support_enabled': settings_obj.mobile_footer_support_enabled if settings_obj else True,
+        }
+    except Exception:
+        return {
+            'system_settings': None,
+            'mobile_footer_support_enabled': True,
+        }

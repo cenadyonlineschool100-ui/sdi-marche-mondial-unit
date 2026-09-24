@@ -474,9 +474,9 @@
             .nav-item { padding:6px; font-size:0.78rem; max-width:72px; }
             .nav-item::before { margin-right:0; }
             .nav-label { display:none; }
-            .brand-copy { display:none; }
-            .header-search { display:none; }
-            .mobile-nav-toggle { display:block; }
+            .brand-copy { display:flex; }
+            .header-search { display:flex; }
+            .mobile-nav-toggle { display:inline-flex; }
             .main-nav { gap: 10px; }
             .nav-group { width: 100%; min-width: auto; }
             .header-actions, .header-special-buttons { justify-content: flex-start; }
@@ -570,9 +570,10 @@
                     0 0 22px rgba(59, 130, 246, 0.1);
             }
             .brand-copy {
-                display: none;
+                display: flex;
             }
             .header-search {
+                display: flex;
                 padding: 8px 10px;
             }
             .header-search input {
@@ -740,10 +741,12 @@
         .brand-logo img {
             width: 100%;
             height: 100%;
-            object-fit: cover;
+            object-fit: contain;
+            padding: 10%;
             border-radius: 50%;
             display: block;
             filter: contrast(1.2) saturate(1.2) brightness(1.05);
+            background: rgba(255,255,255,0.06);
         }
 
         .brand-text {
@@ -1271,11 +1274,12 @@
         @media (max-width: 767px) {
             .mobile-bottom-tabs {
                 --responsive-bottom-height: 68px;
+                --support-card-height: 136px;
                 display: none;
                 position: fixed;
                 left: 0;
                 right: 0;
-                bottom: 0;
+                bottom: var(--support-card-height);
                 width: 100vw;
                 max-width: 100vw;
                 margin: 0;
@@ -1355,6 +1359,64 @@
                 white-space: nowrap;
                 text-align: center;
             }
+        }
+        body.mobile-device .sdi-support-card {
+            position: fixed;
+            left: 0;
+            right: 0;
+            top: auto;
+            bottom: 0;
+            z-index: 44;
+            display: block;
+            width: 100%;
+            max-width: 100%;
+            margin: 0;
+            padding: 14px 16px;
+            border-radius: 14px 14px 0 0;
+            background: linear-gradient(135deg, #0f172a 0%, #1d4ed8 55%, #2563eb 100%);
+            box-shadow: 0 -6px 18px rgba(15, 23, 42, 0.12);
+            border: 1px solid rgba(148, 163, 184, 0.22);
+            border-bottom: 0;
+            box-sizing: border-box;
+        }
+        .sdi-support-card__content {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            width: 100%;
+        }
+        .sdi-support-card__title {
+            color: #ffffff;
+            font-size: 1.20rem;
+            font-weight: 800;
+            line-height: 1.35;
+        }
+        .sdi-support-card__subtitle {
+            color: rgba(255, 255, 255, 0.9);
+            font-size: 1.00rem;
+            font-weight: 600;
+            line-height: 1.4;
+        }
+        .sdi-support-card__button {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            width: fit-content;
+            max-width: 100%;
+            margin-top: 8px;
+            padding: 10px 14px;
+            border-radius: 999px;
+            background: #f8fafc;
+            color: #0f172a;
+            font-size: 0.90rem;
+            font-weight: 800;
+            text-decoration: none;
+            box-shadow: 0 8px 18px rgba(15, 23, 42, 0.12);
+        }
+        .sdi-support-card__button i {
+            font-size: 1.05rem;
+            color: #16a34a;
         }
         body.mobile-device .professional-footer {
             display: none !important;
@@ -4039,22 +4101,31 @@
             width: min(100% - 28px, 1440px);
             margin-inline: auto;
             display: grid;
-            grid-template-columns: minmax(220px, 1fr) minmax(240px, 1.15fr) auto;
+            grid-template-columns: auto minmax(0, 1fr) auto;
             grid-template-areas: "brand search nav";
             align-items: center;
-            gap: clamp(10px, 1.2vw, 18px);
+            gap: clamp(12px, 1.2vw, 18px);
+            min-height: 78px;
         }
         header .brand {
             grid-area: brand;
             min-width: 0;
             display: flex;
             align-items: center;
-            gap: clamp(10px, 1.2vw, 18px);
+            gap: clamp(10px, 1vw, 14px);
+            flex: 0 1 auto;
         }
         header .brand-logo {
-            flex: 0 0 clamp(44px, 4vw, 64px);
-            width: clamp(44px, 4vw, 64px);
-            height: clamp(44px, 4vw, 64px);
+            flex: 0 0 clamp(44px, 4vw, 62px);
+            width: clamp(44px, 4vw, 62px);
+            height: clamp(44px, 4vw, 62px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            box-shadow: 0 8px 18px rgba(15, 23, 42, 0.12);
+            background: rgba(255, 255, 255, 0.7);
+            overflow: hidden;
         }
         header .site-logo-img {
             max-width: 100%;
@@ -4067,33 +4138,46 @@
             flex: 1 1 auto;
             display: flex;
             flex-direction: column;
-            gap: 4px;
+            gap: 2px;
             overflow-wrap: anywhere;
             word-break: break-word;
         }
         header .brand-copy strong.sdi-sol-text {
-            font-size: clamp(0.72rem, 0.9vw, 1rem) !important;
-            line-height: 1.1;
-            letter-spacing: 0;
-            white-space: normal !important;
-            overflow-wrap: anywhere;
+            display: block;
+            font-size: clamp(0.82rem, 1vw, 1.12rem) !important;
+            line-height: 1.08;
+            letter-spacing: -0.02em;
+            white-space: nowrap !important;
+            overflow: hidden;
+            text-overflow: ellipsis;
             max-width: 100%;
+            color: #0f172a !important;
+            font-weight: 800 !important;
         }
         header .brand-copy span {
-            font-size: clamp(0.54rem, 0.62vw, 0.7rem);
-            line-height: 1.18;
-            white-space: normal;
+            display: block;
+            font-size: clamp(0.52rem, 0.68vw, 0.7rem);
+            line-height: 1.15;
+            color: rgba(15, 23, 42, 0.7);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
         header .header-search {
             grid-area: search;
             min-width: 0;
-            width: 100%;
-            max-width: none;
+            width: min(100%, 420px);
+            max-width: 420px;
             display: flex;
             align-items: center;
             gap: 8px;
             min-height: 42px;
             padding: 4px 6px 4px 10px;
+            margin-inline: auto;
+            border: 1px solid rgba(148, 163, 184, 0.18);
+            border-radius: 16px;
+            background: rgba(255, 255, 255, 0.76);
+            box-shadow: 0 8px 18px rgba(15, 23, 42, 0.04);
         }
         header .header-search input {
             min-width: 0;
@@ -4101,6 +4185,9 @@
             width: 100%;
             min-height: 32px;
             font-size: 0.8rem;
+            background: transparent;
+            border: none;
+            box-shadow: none;
         }
         header .header-search button {
             flex: 0 0 auto;
@@ -4117,50 +4204,108 @@
             align-items: center;
             justify-content: flex-end;
             flex-wrap: nowrap;
-            gap: clamp(8px, 1vw, 16px);
+            gap: 10px;
+        }
+        header .nav-group {
+            min-width: 0;
+            max-width: none;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        header .nav-group-title {
+            display: none;
+        }
+        header .header-actions,
+        header .nav-center,
+        header .header-special-buttons {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        header .icon-link,
+        header .account-button,
+        header .nav-item {
+            min-height: 38px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 12px;
+            border: 1px solid rgba(148, 163, 184, 0.18);
+            background: rgba(255, 255, 255, 0.74);
+            color: #0f172a;
+            box-shadow: 0 4px 10px rgba(15, 23, 42, 0.03);
+            transition: border-color .2s ease, box-shadow .2s ease, transform .2s ease;
+        }
+        header .icon-link,
+        header .account-button {
+            width: 42px;
+            padding: 0 10px;
+        }
+        header .nav-item {
+            padding: 0.5rem 0.7rem;
+            font-size: 0.76rem;
+        }
+        header .nav-item:hover,
+        header .icon-link:hover,
+        header .account-button:hover {
+            border-color: rgba(59, 130, 246, 0.38);
+            box-shadow: 0 6px 12px rgba(59, 130, 246, 0.08);
+        }
+        header .mobile-nav-toggle strong {
+            display: none;
         }
         @media (min-width: 1200px) and (max-width: 1399px) {
             header .main-nav {
-                gap: 4px;
+                gap: 8px;
             }
             header .nav-group {
-                gap: 2px;
+                gap: 6px;
             }
-            header .nav-group-title {
-                font-size: 0.56rem;
-                letter-spacing: 0.08em;
+            header .header-actions,
+            header .nav-center,
+            header .header-special-buttons {
+                gap: 6px;
             }
             header .nav-item,
             header .account-button {
-                padding: 4px 5px;
-                font-size: 0.68rem;
+                padding: 4px 6px;
+                font-size: 0.7rem;
             }
             header .header-actions > .icon-link {
                 min-width: 40px;
                 padding-inline: 5px !important;
             }
         }
-        header .nav-group {
-            min-width: 0;
-            max-width: none;
-        }
-        header .mobile-nav-toggle strong {
-            display: none;
-        }
         @media (max-width: 1199px) {
             header .nav-bar {
                 grid-template-columns: auto minmax(0, 1fr) auto;
                 grid-template-areas: "brand search menu";
                 row-gap: 12px;
+                column-gap: 12px;
             }
             header .brand {
                 grid-area: brand;
+                min-width: 0;
+                align-items: center;
+                justify-content: flex-start;
+            }
+            header .brand-copy {
+                min-width: 0;
+                flex: 1 1 auto;
+                display: flex;
+            }
+            header .brand-copy strong.sdi-sol-text {
+                white-space: normal !important;
+                overflow-wrap: anywhere;
+                word-break: break-word;
             }
             header .header-search {
                 grid-area: search;
                 display: flex !important;
                 width: 100%;
                 max-width: none;
+                min-width: 0;
             }
             header .main-nav {
                 display: none;
@@ -4191,7 +4336,9 @@
                 width: min(100% - 18px, 430px);
                 display: grid;
                 grid-template-columns: minmax(0, 1fr) auto;
-                grid-template-areas: "brand menu";
+                grid-template-areas:
+                    "brand menu"
+                    "search search";
                 gap: 8px;
                 align-items: center;
             }
@@ -4201,31 +4348,43 @@
                 min-width: 0;
                 align-items: center;
                 justify-content: flex-start;
+                overflow: hidden;
             }
             header .brand-logo {
                 flex-basis: 46px;
                 width: 46px;
                 height: 46px;
+                flex-shrink: 0;
             }
             header .brand-copy {
                 min-width: 0;
                 gap: 0;
                 flex: 1 1 auto;
+                display: flex;
+                overflow: hidden;
             }
             header .brand-copy strong.sdi-sol-text {
+                display: block;
                 font-size: 0.83rem !important;
                 line-height: 1.06 !important;
                 letter-spacing: -0.02em !important;
                 font-weight: 800 !important;
                 white-space: normal !important;
+                overflow-wrap: anywhere;
                 word-break: break-word;
-                color: #0f172a !important;
+                color: #ffffff !important;
             }
             header .brand-copy span {
-                display: none;
+                display: block;
+                color: rgba(255, 255, 255, 0.8);
             }
             header .header-search {
-                display: none !important;
+                grid-area: search;
+                display: flex !important;
+                width: 100%;
+                max-width: none;
+                min-width: 0;
+                padding: 4px 0;
             }
             header .mobile-nav-toggle {
                 grid-area: menu;
@@ -5353,6 +5512,13 @@
                 z-index: 46;
             }
 
+            body.mobile-menu-open .mobile-bottom-tabs,
+            body.mobile-menu-open .sdi-support-card {
+                display: none !important;
+                visibility: hidden !important;
+                pointer-events: none !important;
+            }
+
             body .responsive-scroll-shell {
                 padding-bottom: calc(var(--responsive-bottom-height, 68px) + 12px + env(safe-area-inset-bottom, 0px));
             }
@@ -5577,9 +5743,11 @@
                             {% if request.user.role == 'super_admin' or request.user.is_superuser %}
                                 <a href="{% url 'site_banner_dashboard' %}" class="mobile-nav-card" data-icon="🎯">🎯 Gestion de la bannière</a>
                                 <a href="{% url 'site_banner_activation' %}" class="mobile-nav-card" data-icon="🔘">Activation bannière</a>
+                                <a href="{% url 'system_view' %}" class="mobile-nav-card" data-icon="⭐">⭐ FC</a>
                                 <a href="{% url 'site_banner_expand_settings' %}" class="mobile-nav-card" data-icon="⭐">⭐ AGR</a>
                                 <a href="{% url 'site_gp_dashboard' %}" class="mobile-nav-card" data-icon="⭐">⭐ GP</a>
                                 <a href="{% url 'manage_admin_permissions' %}" class="mobile-nav-card" data-icon="🔑">Permissions</a>
+                                <a href="{% url 'manage_support_whatsapp_link' %}" class="mobile-nav-card" data-icon="⭐">⭐ Lien</a>
                             {% endif %}
                         </div>
                     </details>
@@ -5664,7 +5832,9 @@
                 <div class="message {% if message.tags %}{{ message.tags }}{% endif %}">{{ message }}</div>
             {% endfor %}
         {% endif %}
-        {% block content %}{% endblock %}
+        <div class="marketplace-content-scale-shell">
+            {% block content %}{% endblock %}
+        </div>
     </div>
     <footer class="compact-footer">
         <div style="display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px; padding:16px 0; color:#cbd5e1; font-size:0.95rem; position:relative;">
@@ -5685,6 +5855,7 @@
                             {% endif %}
                             {% if request.user.role == 'super_admin' or request.user.is_superuser %}
                                 <a href="{% url 'manage_admin_permissions' %}" class="footer-button" style="width:100%; text-align:left;">🔑 Permissions Admin</a>
+                                <a href="{% url 'system_view' %}" class="footer-button" style="width:100%; text-align:left;">⭐ FC</a>
                                 <a href="{% url 'site_banner_expand_settings' %}" class="footer-button" style="width:100%; text-align:left;">⭐ AGR</a>
                             {% endif %}
                             {% if request.user.is_superuser or request.user.role == 'super_admin' or perms.marketplace.manage_beauty_studio_requests %}
@@ -5702,6 +5873,7 @@
             {% endif %}
         </div>
     </footer>
+
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             var paramsButton = document.getElementById('footer-params-button');
@@ -5720,6 +5892,44 @@
                     event.stopPropagation();
                 });
             }
+
+            var sizeLevels = [0.6, 0.7, 0.8, 0.9, 1, 1.1, 1.2, 1.3, 1.4];
+            var storageKey = 'sdi_market_content_scale';
+            var root = document.documentElement;
+            var body = document.body;
+
+            function applyScale(levelIndex) {
+                var value = sizeLevels[Math.max(0, Math.min(sizeLevels.length - 1, levelIndex))];
+                root.style.setProperty('--marketplace-content-scale', value);
+                body.classList.add('screen-size-control-active');
+                localStorage.setItem(storageKey, String(value));
+            }
+
+            function getCurrentIndex() {
+                var saved = Number(localStorage.getItem(storageKey));
+                var matchIndex = sizeLevels.indexOf(saved);
+                if (matchIndex === -1) {
+                    return 4;
+                }
+                return matchIndex;
+            }
+
+            var currentIndex = getCurrentIndex();
+            applyScale(currentIndex);
+
+            document.querySelectorAll('[data-screen-scale-action]').forEach(function(button) {
+                button.addEventListener('click', function() {
+                    var action = button.getAttribute('data-screen-scale-action');
+                    if (action === 'increase') {
+                        currentIndex = Math.min(sizeLevels.length - 1, currentIndex + 1);
+                    } else if (action === 'decrease') {
+                        currentIndex = Math.max(0, currentIndex - 1);
+                    } else {
+                        currentIndex = 4;
+                    }
+                    applyScale(currentIndex);
+                });
+            });
         });
     </script>
 
@@ -6396,6 +6606,7 @@
     </footer>
     </div>
 
+    {% if system_settings is None or system_settings.mobile_footer_support_enabled %}
     <nav class="mobile-bottom-tabs" aria-label="Navigation mobile">
         <a href="{% url 'home' %}" class="mobile-bottom-tab{% if request.path == '/' or request.path == '/home/' %} active{% endif %}">
             <span class="tab-icon" aria-hidden="true">
@@ -6447,7 +6658,214 @@
         </a>
     </nav>
 
+    {% with support_card=site_configs.support_card %}
+        {% if support_card and support_card.is_active %}
+        <div class="sdi-support-card" role="region" aria-label="Support SDI">
+            <div class="sdi-support-card__content">
+                <div class="sdi-support-card__title">En cas de problème ?</div>
+                <div class="sdi-support-card__subtitle">Contactez directement SDI</div>
+                {% if support_card.whatsapp_link %}
+                    <a class="sdi-support-card__button" href="{{ support_card.whatsapp_link }}" target="_blank" rel="noopener noreferrer">
+                        <i class="fab fa-whatsapp" aria-hidden="true"></i>
+                        Contacter SDI sur WhatsApp
+                    </a>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+    {% endwith %}
+
+    {% if site_configs.support_card and site_configs.support_card.screen_size_control_enabled %}
+    <div class="sdi-screen-size-control" aria-label="Contrôle de taille d'écran" role="group">
+        <button type="button" class="sdi-screen-size-control__button" data-screen-scale-action="decrease" aria-label="Réduire la taille">−</button>
+        <button type="button" class="sdi-screen-size-control__button" data-screen-scale-action="reset" aria-label="Remettre à 100 %">↺</button>
+        <button type="button" class="sdi-screen-size-control__button" data-screen-scale-action="increase" aria-label="Augmenter la taille">+</button>
+    </div>
+    {% endif %}
+    {% endif %}
+
     <style>
+        :root {
+            --marketplace-content-scale: 1;
+        }
+
+        .marketplace-content-scale-shell {
+            display: block;
+            max-width: 100%;
+            overflow: visible;
+        }
+
+        body.screen-size-control-active .marketplace-content-scale-shell .products-results-section {
+            max-width: 1180px;
+            width: 100%;
+            padding: 0 clamp(12px, 2vw, 16px);
+            box-sizing: border-box;
+        }
+
+        body.screen-size-control-active .marketplace-content-scale-shell .products-results-section .product-results-grid {
+            gap: calc(16px * var(--marketplace-content-scale));
+            min-width: 0;
+        }
+
+        body.screen-size-control-active .marketplace-content-scale-shell .products-results-section .product-card {
+            width: 100%;
+            max-width: 100%;
+            min-width: 0;
+            box-sizing: border-box;
+            padding: calc(12px * var(--marketplace-content-scale));
+            border-radius: calc(12px * var(--marketplace-content-scale));
+        }
+
+        body.screen-size-control-active .marketplace-content-scale-shell .products-results-section .product-image,
+        body.screen-size-control-active .marketplace-content-scale-shell .products-results-section .product-image-fallback {
+            width: 100%;
+            max-width: 100%;
+            min-width: 0;
+            height: clamp(110px, 18vw, 220px);
+            min-height: 110px;
+            margin-bottom: calc(12px * var(--marketplace-content-scale));
+            border-radius: calc(8px * var(--marketplace-content-scale));
+        }
+
+        body.screen-size-control-active .marketplace-content-scale-shell .products-results-section .product-info,
+        body.screen-size-control-active .marketplace-content-scale-shell .products-results-section .product-actions {
+            min-width: 0;
+            gap: calc(8px * var(--marketplace-content-scale));
+        }
+
+        body.screen-size-control-active .marketplace-content-scale-shell .products-results-section .product-title,
+        body.screen-size-control-active .marketplace-content-scale-shell .products-results-section .product-secondary,
+        body.screen-size-control-active .marketplace-content-scale-shell .products-results-section .product-shop,
+        body.screen-size-control-active .marketplace-content-scale-shell .products-results-section .stock-status {
+            display: block;
+            max-width: 100%;
+            width: 100%;
+            font-size: calc(1rem * var(--marketplace-content-scale));
+            line-height: calc(1.35 * var(--marketplace-content-scale));
+            overflow-wrap: anywhere;
+            word-break: break-word;
+        }
+
+        body.screen-size-control-active .marketplace-content-scale-shell .products-results-section .product-price {
+            display: block;
+            max-width: 100%;
+            width: 100%;
+            font-size: calc(1.05rem * var(--marketplace-content-scale));
+            line-height: calc(1.3 * var(--marketplace-content-scale));
+            overflow-wrap: anywhere;
+            word-break: break-word;
+        }
+
+        body.screen-size-control-active .marketplace-content-scale-shell .products-results-section .product-actions {
+            gap: calc(8px * var(--marketplace-content-scale));
+            padding-top: calc(8px * var(--marketplace-content-scale));
+        }
+
+        body.screen-size-control-active .marketplace-content-scale-shell .products-results-section .product-actions .button {
+            width: 100%;
+            max-width: 100%;
+            min-width: 0;
+            min-height: calc(40px * var(--marketplace-content-scale));
+            padding: calc(8px * var(--marketplace-content-scale)) calc(10px * var(--marketplace-content-scale));
+            font-size: calc(0.85rem * var(--marketplace-content-scale));
+            box-sizing: border-box;
+        }
+
+        body.screen-size-control-active .marketplace-content-scale-shell .products-results-section .product-results-grid {
+            width: 100%;
+            max-width: 100%;
+            min-width: 0;
+        }
+
+        body.screen-size-control-active .marketplace-content-scale-shell .products-results-section .product-card,
+        body.screen-size-control-active .marketplace-content-scale-shell .product-card-compact,
+        body.screen-size-control-active .marketplace-content-scale-shell .product-catalog-grid .product-card {
+            width: 100%;
+            max-width: 100%;
+            min-width: 0;
+            box-sizing: border-box;
+        }
+
+        body.screen-size-control-active .marketplace-content-scale-shell .products-results-section .product-card > .product-image,
+        body.screen-size-control-active .marketplace-content-scale-shell .products-results-section .product-card > .product-image-fallback,
+        body.screen-size-control-active .marketplace-content-scale-shell .product-card-compact > .product-image,
+        body.screen-size-control-active .marketplace-content-scale-shell .product-card-compact > .product-image-fallback,
+        body.screen-size-control-active .marketplace-content-scale-shell .product-catalog-grid .product-card > .product-image,
+        body.screen-size-control-active .marketplace-content-scale-shell .product-catalog-grid .product-card > .product-image-fallback {
+            width: 100%;
+            max-width: 100%;
+            min-width: 0;
+        }
+
+        body.screen-size-control-active .marketplace-content-scale-shell .product-actions .button,
+        body.screen-size-control-active .marketplace-content-scale-shell .products-results-section .product-actions .button {
+            max-width: 100%;
+            width: 100%;
+        }
+
+        body.screen-size-control-active .marketplace-content-scale-shell .product-card:hover,
+        body.screen-size-control-active .marketplace-content-scale-shell .card:hover,
+        body.screen-size-control-active .marketplace-content-scale-shell .shop-card:hover,
+        body.screen-size-control-active .marketplace-content-scale-shell .listing-item:hover,
+        body.screen-size-control-active .marketplace-content-scale-shell .promo-card:hover {
+            box-shadow: 0 12px 24px rgba(15, 23, 42, 0.12);
+        }
+
+        .sdi-screen-size-control {
+            position: fixed;
+            right: 16px;
+            bottom: 84px;
+            z-index: 120;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 8px;
+            border-radius: 999px;
+            background: rgba(15, 23, 42, 0.76);
+            border: 1px solid rgba(148, 163, 184, 0.35);
+            box-shadow: 0 12px 28px rgba(15, 23, 42, 0.24);
+            backdrop-filter: blur(8px);
+        }
+
+        .sdi-screen-size-control__button {
+            appearance: none;
+            border: none;
+            background: rgba(255, 255, 255, 0.12);
+            color: #f8fafc;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            font-size: 1rem;
+            line-height: 1;
+            font-weight: 700;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: transform 0.2s ease, background 0.2s ease;
+            padding: 0;
+        }
+
+        .sdi-screen-size-control__button:hover,
+        .sdi-screen-size-control__button:focus-visible {
+            background: rgba(59, 130, 246, 0.85);
+            transform: translateY(-1px);
+        }
+
+        @media (max-width: 767px) {
+            .sdi-screen-size-control {
+                right: 12px;
+                bottom: 78px;
+                padding: 5px 7px;
+            }
+
+            .sdi-screen-size-control__button {
+                width: 26px;
+                height: 26px;
+                font-size: 0.9rem;
+            }
+        }
+    </style>
         /* Last-resort override to ensure activity dropdown menu is visible when open */
         .activity-dropdown.open .activity-dropdown-menu {
             visibility: visible !important;
@@ -6635,7 +7053,7 @@
             document.getElementById('mobile-nav-backdrop')?.setAttribute('aria-hidden', 'true');
         }
     }
-    
+
     function scrollToBottom() {
         window.scrollTo({
             top: document.documentElement.scrollHeight,

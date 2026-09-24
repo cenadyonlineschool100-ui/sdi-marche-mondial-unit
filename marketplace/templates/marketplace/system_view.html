@@ -13,6 +13,11 @@
             {{ form.principal_banner_visible }}
             <label class="form-check-label" for="{{ form.principal_banner_visible.id_for_label }}">{{ form.principal_banner_visible.label }}</label>
         </div>
+        <div class="form-check">
+            {{ form.mobile_footer_support_enabled }}
+            <label class="form-check-label" for="{{ form.mobile_footer_support_enabled.id_for_label }}">{{ form.mobile_footer_support_enabled.label }}</label>
+            <small class="form-text text-muted">Pied de page mobile/tablette + carte Support SDI</small>
+        </div>
         <hr />
         <div class="form-check">
             {{ form.enable_role_management }}
