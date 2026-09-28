@@ -738,15 +738,34 @@
             filter: drop-shadow(0 6px 16px rgba(30, 64, 175, 0.25));
         }
 
+        .brand-logo-fallback {
+            position: relative;
+            z-index: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            height: 100%;
+            font-size: 2rem;
+            font-weight: 900;
+            letter-spacing: -0.06em;
+            color: #ffffff;
+            text-shadow: 0 2px 6px rgba(15, 23, 42, 0.2);
+        }
+
         .brand-logo img {
             width: 100%;
             height: 100%;
-            object-fit: contain;
-            padding: 10%;
+            object-fit: cover;
+            padding: 0;
             border-radius: 50%;
             display: block;
             filter: contrast(1.2) saturate(1.2) brightness(1.05);
             background: rgba(255,255,255,0.06);
+        }
+        .brand-logo.has-image img {
+            object-fit: cover;
+            padding: 0;
         }
 
         .brand-text {
@@ -3987,24 +4006,28 @@
         }
 
         @media (max-width: 390px) {
-            .header-search {
-                gap: 5px;
-                padding: 4px;
+            header .header-search {
+                gap: 4px;
+                padding: 1px 4px;
             }
-            .header-search input {
-                min-height: 40px;
-                padding: 0.66rem 0.7rem;
-                font-size: 0.8rem;
+            header .header-search input {
+                min-height: 0;
+                height: 30px;
+                padding: 2px 6px;
+                font-size: 0.75rem;
             }
-            .header-search button {
-                min-width: 82px;
-                min-height: 40px;
-                padding: 0.66rem 0.65rem;
-                font-size: 0.7rem;
-            }
-            .mobile-nav-toggle {
+            header .header-search button {
                 min-width: 72px;
-                padding: 0 7px;
+                min-height: 0;
+                height: 32px;
+                padding: 2px 6px;
+                font-size: 0.62rem;
+            }
+            header .mobile-nav-toggle {
+                min-width: 46px;
+                min-height: 0;
+                height: 36px;
+                padding: 0 8px;
             }
             .brand-copy {
                 max-width: 100%;
@@ -4398,6 +4421,104 @@
         header .mobile-nav-toggle strong {
             display: none;
         }
+
+        header {
+            padding: 3px 0 5px;
+        }
+        header .nav-bar {
+            min-height: 0;
+            gap: 8px;
+        }
+        header .brand {
+            gap: 8px;
+        }
+        header .brand-logo {
+            width: 38px;
+            height: 38px;
+            flex-shrink: 0;
+        }
+        header .brand-logo:not(.has-image) {
+            border: 1px solid rgba(147, 197, 253, 0.72);
+            background:
+                radial-gradient(circle at 30% 24%, rgba(147, 197, 253, 0.62), transparent 34%),
+                radial-gradient(circle at 68% 74%, rgba(14, 116, 216, 0.9), transparent 52%),
+                linear-gradient(145deg, #0b2f75, #123e91 58%, #071b49);
+            box-shadow:
+                inset 0 1px 3px rgba(255, 255, 255, 0.24),
+                0 2px 6px rgba(15, 23, 42, 0.2);
+        }
+        header .brand-logo-fallback {
+            position: absolute;
+            inset: 0;
+            isolation: isolate;
+            display: flex;
+            width: auto;
+            height: auto;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            border-radius: 50%;
+        }
+        header .brand-logo-fallback[hidden] {
+            display: none !important;
+        }
+        header .brand-logo-fallback::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            z-index: -1;
+            border-radius: inherit;
+            background:
+                radial-gradient(ellipse at center, transparent 45%, rgba(191, 219, 254, 0.38) 47%, transparent 50%),
+                repeating-linear-gradient(0deg, transparent 0 7px, rgba(191, 219, 254, 0.16) 7px 8px),
+                repeating-linear-gradient(90deg, transparent 0 8px, rgba(191, 219, 254, 0.14) 8px 9px);
+            opacity: 0.72;
+            pointer-events: none;
+        }
+        header .brand-copy strong.sdi-sol-text {
+            font-size: clamp(0.68rem, 0.9vw, 0.88rem) !important;
+            line-height: 1.05 !important;
+            white-space: normal !important;
+        }
+        header .brand-copy span {
+            font-size: clamp(0.46rem, 0.58vw, 0.62rem);
+            line-height: 1.08;
+        }
+        header .header-search {
+            min-height: 30px;
+            padding: 2px 6px 2px 10px;
+            border-radius: 12px;
+            gap: 6px;
+        }
+        header .header-search input {
+            min-height: 22px;
+            font-size: 0.7rem;
+        }
+        header .header-search button {
+            min-width: 72px;
+            min-height: 24px;
+            padding: 0.2rem 0.5rem;
+            font-size: 0.62rem;
+        }
+        header .main-nav {
+            gap: 6px;
+        }
+        header .nav-item,
+        header .icon-link,
+        header .account-button {
+            min-height: 28px;
+            border-radius: 10px;
+        }
+        header .nav-item {
+            padding: 0.28rem 0.48rem;
+            font-size: 0.64rem;
+        }
+        header .icon-link,
+        header .account-button {
+            width: 32px;
+            min-width: 32px;
+            padding: 0 7px;
+        }
         @media (min-width: 1200px) and (max-width: 1399px) {
             header .main-nav {
                 gap: 8px;
@@ -4421,17 +4542,25 @@
             }
         }
         @media (max-width: 1199px) {
+            header {
+                padding: 3px 0 5px;
+            }
+            .nav-bar {
+                gap: 0.4rem;
+            }
             header .nav-bar {
                 grid-template-columns: auto minmax(0, 1fr) auto;
                 grid-template-areas: "brand search menu";
-                row-gap: 12px;
-                column-gap: 12px;
+                row-gap: 4px;
+                column-gap: 8px;
+                min-height: 0;
             }
             header .brand {
                 grid-area: brand;
                 min-width: 0;
                 align-items: center;
                 justify-content: flex-start;
+                gap: 8px;
             }
             header .brand-copy {
                 min-width: 0;
@@ -4449,6 +4578,17 @@
                 width: 100%;
                 max-width: none;
                 min-width: 0;
+                min-height: 28px;
+                padding: 2px 6px 2px 10px;
+            }
+            header .header-search input {
+                min-height: 20px;
+                font-size: 0.68rem;
+            }
+            header .header-search button {
+                min-height: 24px;
+                padding: 0.2rem 0.5rem;
+                font-size: 0.62rem;
             }
             header .main-nav {
                 display: none;
@@ -4458,6 +4598,8 @@
                 position: static;
                 display: inline-flex;
                 flex: 0 0 auto;
+                width: 32px;
+                height: 32px;
             }
             body:not(.mobile-device) header .mobile-nav-toggle {
                 display: inline-flex !important;
@@ -4466,13 +4608,13 @@
             }
             header .mobile-nav-toggle strong {
                 display: inline;
-                font-size: 0.82rem;
+                font-size: 0.76rem;
                 line-height: 1;
             }
         }
         @media (max-width: 430px) {
             header {
-                padding: 10px 0 8px;
+                padding: 5px 0 4px;
                 background: linear-gradient(135deg, #04102b 0%, #0a2972 35%, #1f4ed8 100%);
             }
             header .nav-bar {
@@ -4482,7 +4624,7 @@
                 grid-template-areas:
                     "brand menu"
                     "search search";
-                gap: 8px;
+                gap: 5px;
                 align-items: center;
             }
             header .brand {
@@ -4494,10 +4636,13 @@
                 overflow: hidden;
             }
             header .brand-logo {
-                flex-basis: 46px;
-                width: 46px;
-                height: 46px;
-                flex-shrink: 0;
+                flex: 0 0 34px;
+                width: 34px;
+                height: 34px;
+            }
+            header .brand-logo-fallback {
+                font-size: 0.86rem;
+                letter-spacing: -0.04em;
             }
             header .brand-copy {
                 min-width: 0;
@@ -4508,8 +4653,8 @@
             }
             header .brand-copy strong.sdi-sol-text {
                 display: block;
-                font-size: 0.83rem !important;
-                line-height: 1.06 !important;
+                font-size: 0.68rem !important;
+                line-height: 1.02 !important;
                 letter-spacing: -0.02em !important;
                 font-weight: 800 !important;
                 white-space: normal !important;
@@ -4527,15 +4672,34 @@
                 width: 100%;
                 max-width: none;
                 min-width: 0;
-                padding: 4px 0;
+                min-height: 36px;
+                height: 36px;
+                padding: 1px 4px;
+                gap: 4px;
+            }
+            header .header-search input {
+                min-height: 0;
+                height: 30px;
+                padding: 2px 6px;
+                font-size: 0.75rem;
+                line-height: 1.2;
+            }
+            header .header-search button {
+                min-width: 72px;
+                min-height: 0;
+                height: 32px;
+                padding: 2px 6px;
+                font-size: 0.62rem;
+                line-height: 1.1;
             }
             header .mobile-nav-toggle {
                 grid-area: menu;
                 width: auto;
                 min-width: 46px;
-                min-height: 40px;
-                padding: 0 10px;
-                gap: 6px;
+                min-height: 0;
+                height: 36px;
+                padding: 0 8px;
+                gap: 5px;
                 align-items: center;
                 justify-content: center;
                 border-radius: 12px;
@@ -4641,11 +4805,11 @@
 
         @media (max-width: 1199px) {
             header {
-                padding-top: 8px;
-                padding-bottom: 6px;
+                padding-top: 2px;
+                padding-bottom: 3px;
             }
             header .nav-bar {
-                row-gap: 5px;
+                row-gap: 4px;
             }
             header .header-search {
                 margin-top: 0;
@@ -4654,7 +4818,10 @@
         }
         @media (max-width: 599px) {
             header .header-search {
-                padding: 4px;
+                min-height: 36px;
+                height: 36px;
+                padding: 1px 4px;
+                gap: 4px;
             }
         }
         @media (min-width: 1200px) {
@@ -5499,40 +5666,55 @@
 
             @media (max-width: 599px) {
                 header {
-                    padding-top: 6px;
-                    padding-bottom: 5px;
+                    padding-top: 2px;
+                    padding-bottom: 3px;
                 }
 
                 header .nav-bar {
                     width: min(100% - 16px, 430px);
-                    row-gap: 6px;
+                    row-gap: 4px;
                 }
 
                 header .brand {
-                    gap: 7px;
+                    gap: 6px;
                 }
 
                 header .brand-logo {
-                    flex-basis: 44px;
-                    width: 44px;
-                    height: 44px;
+                    flex: 0 0 34px;
+                    width: 34px;
+                    height: 34px;
                 }
 
                 header .header-search {
-                    min-height: 48px;
-                    padding: 3px;
-                    gap: 5px;
+                    min-height: 36px;
+                    height: 36px;
+                    padding: 1px 4px;
+                    gap: 4px;
                 }
 
                 header .header-search input {
-                    min-height: 36px;
-                    padding: 0.55rem 0.65rem;
+                    min-height: 0;
+                    height: 30px;
+                    padding: 2px 6px;
+                    font-size: 0.75rem;
+                    line-height: 1.2;
                 }
 
                 header .header-search button {
-                    min-width: 88px;
-                    min-height: 38px;
-                    padding: 0.5rem 0.65rem;
+                    min-width: 72px;
+                    min-height: 0;
+                    height: 32px;
+                    padding: 2px 6px;
+                    font-size: 0.62rem;
+                    line-height: 1.1;
+                }
+
+                header .mobile-nav-toggle {
+                    min-width: 46px;
+                    min-height: 0;
+                    height: 36px;
+                    padding: 0 8px;
+                    gap: 5px;
                 }
 
                 .hero {
@@ -5713,11 +5895,12 @@
     <header>
         <div class="container nav-bar">
             <div class="brand">
-                <div class="brand-logo" id="site-logo" aria-label="Logo du site">
+                <div class="brand-logo{% if site_configs.main and site_configs.main.image %} has-image{% endif %}" id="site-logo" aria-label="Logo du site">
                     {% if site_configs.main and site_configs.main.image %}
                         <img class="site-logo-img" src="{{ site_configs.main.image.url }}" alt="{{ site_configs.main.alt_text|default:'SDI MICROTECH GLOBAL MARKET UNIT' }}">
+                        <span class="brand-logo-fallback" aria-label="SDI" hidden>SDI</span>
                     {% else %}
-                        <img class="site-logo-img" src="{% static 'img/logo.png' %}" alt="SDI MICROTECH GLOBAL MARKET UNIT">
+                        <span class="brand-logo-fallback" aria-label="SDI">SDI</span>
                     {% endif %}
                 </div>
                 <div class="brand-copy">
@@ -6324,6 +6507,22 @@
             const logoWrapper = document.getElementById('site-logo');
             if (!logoWrapper) {
                 return;
+            }
+
+            const logoImage = logoWrapper.querySelector('.site-logo-img');
+            const logoFallback = logoWrapper.querySelector('.brand-logo-fallback');
+            if (logoImage && logoFallback) {
+                const showLogoFallback = function () {
+                    logoImage.hidden = true;
+                    logoWrapper.classList.remove('has-image');
+                    logoFallback.hidden = false;
+                };
+
+                if (logoImage.complete && logoImage.naturalWidth === 0) {
+                    showLogoFallback();
+                } else {
+                    logoImage.addEventListener('error', showLogoFallback, {once: true});
+                }
             }
 
             logoWrapper.addEventListener('click', function (event) {
