@@ -1418,6 +1418,149 @@
             font-size: 1.05rem;
             color: #16a34a;
         }
+
+        @media (max-width: 1199px) {
+            body > .compact-footer {
+                position: fixed;
+                left: 0;
+                right: 0;
+                bottom: calc(var(--support-card-height, 52px) + env(safe-area-inset-bottom, 0px));
+                z-index: 45;
+                box-sizing: border-box;
+                padding-bottom: calc(4px + env(safe-area-inset-bottom, 0px));
+            }
+
+            .sdi-support-card,
+            body.mobile-device .sdi-support-card {
+                position: fixed;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                z-index: 44;
+                display: block;
+                width: 100%;
+                max-width: 100vw;
+                min-height: 48px;
+                margin: 0;
+                padding: 6px 10px;
+                border-radius: 14px 14px 0 0;
+                background: linear-gradient(135deg, #0f172a 0%, #1d4ed8 55%, #2563eb 100%);
+                box-shadow: 0 -6px 18px rgba(15, 23, 42, 0.12);
+                border: 1px solid rgba(148, 163, 184, 0.22);
+                border-bottom: 0;
+                box-sizing: border-box;
+                overflow: hidden;
+            }
+            .sdi-support-card__content {
+                display: flex;
+                flex-direction: column;
+                gap: 3px;
+                width: 100%;
+                max-width: 100vw;
+                box-sizing: border-box;
+                overflow: hidden;
+            }
+            .sdi-support-card__title {
+                font-size: 0.68rem;
+                line-height: 1.15;
+                font-weight: 800;
+                letter-spacing: 0;
+                white-space: normal;
+                overflow-wrap: anywhere;
+            }
+            .sdi-support-card__subtitle {
+                font-size: 0.62rem;
+                line-height: 1.2;
+                font-weight: 600;
+                white-space: normal;
+                overflow-wrap: anywhere;
+            }
+            .sdi-support-card__button {
+                gap: 5px;
+                margin-top: 4px;
+                padding: 6px 10px;
+                border-radius: 999px;
+                font-size: 0.62rem;
+                line-height: 1.15;
+                max-width: 100%;
+                box-sizing: border-box;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+            .sdi-support-card__button i {
+                font-size: 0.8rem;
+            }
+
+            .mobile-bottom-tabs {
+                --responsive-bottom-height: 40px;
+                --support-card-height: 52px;
+                display: flex;
+                position: fixed;
+                left: 0;
+                right: 0;
+                bottom: var(--support-card-height);
+                width: 100vw;
+                max-width: 100vw;
+                height: var(--responsive-bottom-height);
+                margin: 0;
+                padding: 2px 0 calc(5px + env(safe-area-inset-bottom, 0px));
+                box-sizing: border-box;
+                background: #ffffff;
+                border-top-left-radius: 16px;
+                border-top-right-radius: 16px;
+                border: 0;
+                box-shadow: 0 -4px 12px rgba(15, 23, 42, 0.08);
+                justify-content: space-between;
+                align-items: stretch;
+                gap: 0;
+                overflow: hidden;
+                z-index: 45;
+            }
+            .mobile-bottom-tab {
+                display: inline-flex;
+                flex: 1 1 0;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                min-height: 0;
+                padding: 2px 4px 1px;
+                margin: 0;
+                border-radius: 0;
+                color: #4b5563;
+                text-decoration: none;
+                background: transparent;
+                box-shadow: none;
+                font-size: 0.46rem;
+                font-weight: 700;
+                line-height: 1.05;
+                letter-spacing: 0;
+                transition: none;
+                text-align: center;
+                box-sizing: border-box;
+                overflow: hidden;
+            }
+            .mobile-bottom-tab .tab-icon {
+                width: 16px;
+                height: 16px;
+                margin-bottom: 1px;
+                flex-shrink: 0;
+            }
+            .mobile-bottom-tab .tab-icon svg {
+                width: 13px;
+                height: 13px;
+                stroke-width: 1.8;
+            }
+            .mobile-bottom-tab .tab-label {
+                display: block;
+                width: 100%;
+                font-size: 0.42rem;
+                line-height: 1.02;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+        }
         body.mobile-device .professional-footer {
             display: none !important;
         }

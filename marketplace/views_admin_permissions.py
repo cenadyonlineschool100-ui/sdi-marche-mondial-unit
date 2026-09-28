@@ -6,7 +6,7 @@ from django.views.decorators.http import require_http_methods
 from django.contrib.auth.models import Permission, Group
 from django.contrib.contenttypes.models import ContentType
 
-from .models import User, CommissionConfig
+from .models import User, CommissionConfig, SiteConfiguration
 
 
 def is_super_admin(user):
@@ -258,3 +258,31 @@ def toggle_principal_power(request, user_id):
         messages.error(request, f"Erreur: {str(e)}")
 
     return redirect('manage_admin_permissions')
+
+
+@login_required
+@require_http_methods(["GET", "POST"])
+def manage_support_whatsapp_link(request):
+    """Gère le lien WhatsApp affiché dans la carte de support du site."""
+    if not is_super_admin(request.user):
+        messages.error(request, "Vous n'avez pas la permission d'accéder à cette page.")
+        return redirect('dashboard')
+
+    support_card = SiteConfiguration.objects.filter(config_type='support_card').first()
+    if not support_card:
+        support_card = SiteConfiguration.objects.create(
+            config_type='support_card',
+            is_active=True,
+            whatsapp_link='',
+            screen_size_control_enabled=False,
+        )
+
+    if request.method == 'POST':
+        whatsapp_link = (request.POST.get('whatsapp_link') or '').strip()
+        support_card.whatsapp_link = whatsapp_link
+        support_card.is_active = True
+        support_card.save()
+        messages.success(request, "Le lien WhatsApp a été enregistré.")
+        return redirect('manage_support_whatsapp_link')
+
+    return render(request, 'marketplace/manage_support_whatsapp_link.html', {'support_card': support_card})
