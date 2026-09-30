@@ -42,8 +42,29 @@ def activity_menu_context(request):
 
 
 def private_chat_context(request):
-    """Add private chat information to context"""
-    return {'unread_message_count': 0}
+    """Add the unread private-message and persistent-notification counts."""
+    user = getattr(request, 'user', None)
+    if not user or not user.is_authenticated:
+        return {
+            'unread_message_count': 0,
+            'private_unread_message_count': 0,
+            'notification_count': 0,
+        }
+
+    from .models import PersistentNotification, PrivateMessage
+
+    unread_message_count = PrivateMessage.objects.filter(
+        receiver=user,
+        is_read=False,
+    ).count()
+    return {
+        'unread_message_count': unread_message_count,
+        'private_unread_message_count': unread_message_count,
+        'notification_count': PersistentNotification.objects.filter(
+            recipient=user,
+            is_read=False,
+        ).count(),
+    }
 
 
 def announcement_context(request):

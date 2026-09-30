@@ -63,6 +63,7 @@ from .business_logic import (
     DeliveryAssignmentManager, DeliveryStatusManager,
     NotificationManager, PaymentManager, ReturnManager,
     OrderStatusManager, StatisticsManager, CommissionManager,
+    create_persistent_notification, notify_order_sellers,
     get_system_admin_wallet, normalize_currency, fetch_exchange_rates_from_api,
     convert_currency
 )
@@ -462,6 +463,14 @@ def transfer_funds(request):
             recipient,
             'Transfert reçu',
             f"Vous avez reçu {amount} {currency} de {request.user.username}."
+        )
+        create_persistent_notification(
+            recipient=recipient,
+            title=f'💰 Argent reçu : {amount} {currency}',
+            message=f'Vous avez reçu un transfert de {request.user.username}. Référence : {transfer.transaction_id}.',
+            notification_type='money_received',
+            deduplication_key=f'transfer-received:{transfer.pk}:user:{recipient.pk}',
+            target_url=reverse('profile'),
         )
         if admin_user:
             send_transfer_notification(
@@ -1560,12 +1569,32 @@ def private_chat(request, user_id):
             private_message.save()
             conversation.updated_at = timezone.now()
             conversation.save(update_fields=['updated_at'])
+            create_persistent_notification(
+                recipient=other_user,
+                title=f'Nouveau message de {request.user.get_full_name() or request.user.username}',
+                message=private_message.content[:240] or 'Vous avez reçu un nouveau message.',
+                notification_type='private_message',
+                deduplication_key=f'private-message:{private_message.pk}',
+                target_url=reverse('private_chat', args=[request.user.pk]),
+            )
             return redirect('private_chat', user_id=user_id)
     else:
         form = PrivateMessageForm()
 
     chat_messages = conversation.messages.select_related('sender', 'receiver', 'product').all()
-    conversation.messages.filter(receiver=request.user, is_read=False).update(is_read=True)
+    unread_message_ids = list(
+        conversation.messages.filter(receiver=request.user, is_read=False)
+        .values_list('id', flat=True)
+    )
+    if unread_message_ids:
+        conversation.messages.filter(id__in=unread_message_ids).update(is_read=True)
+        PersistentNotification.objects.filter(
+            recipient=request.user,
+            deduplication_key__in=[
+                f'private-message:{message_id}' for message_id in unread_message_ids
+            ],
+            is_read=False,
+        ).update(is_read=True, read_at=timezone.now())
 
     contacts = User.objects.filter(is_active=True).exclude(id=request.user.id).order_by('username')
     conversations = PrivateConversation.objects.filter(
@@ -1983,13 +2012,24 @@ def checkout(request):
             messages.warning(request, f'Commande #{order.id} créée. Assignation livreur en cours.')
 
         # Créer une notification persistante pour l'acheteur
-        PersistentNotification.objects.create(
+        create_persistent_notification(
             recipient=request.user,
             title=f"✅ Commande #{order.id} enregistrée",
             message=f"Votre commande #{order.id} a été enregistrée avec succès et est en cours de traitement. Montant total : {total_with_delivery} USD.",
             notification_type='order_created',
-            sound_interval_minutes=1
+            deduplication_key=f'order-created:{order.pk}:buyer:{request.user.pk}',
+            target_url=reverse('order_confirm', args=[order.pk]),
         )
+        if use_wallet:
+            create_persistent_notification(
+                recipient=request.user,
+                title=f'✅ Paiement confirmé — commande #{order.id}',
+                message=f'Votre paiement de {total_with_delivery} USD a été débité et confirmé.',
+                notification_type='payment_confirmed',
+                deduplication_key=f'order-payment-confirmed:{order.pk}:buyer:{request.user.pk}',
+                target_url=reverse('order_confirm', args=[order.pk]),
+            )
+        notify_order_sellers(order)
 
         # Créer un message privé du système/admin vers l'acheteur
         admin_user = User.objects.filter(is_superuser=True).first()
@@ -5069,6 +5109,15 @@ def order_product(request, product_id):
                     product_name=product.name,
                 )
                 OrderItem.objects.create(order=order, product=product, quantity=quantity, price_ht=price_per_item)
+                create_persistent_notification(
+                    recipient=request.user,
+                    title=f'✅ Commande #{order.id} enregistrée',
+                    message=f'Votre commande de {product.name} a été enregistrée. Montant : {total_amount} USD.',
+                    notification_type='order_created',
+                    deduplication_key=f'order-created:{order.pk}:buyer:{request.user.pk}',
+                    target_url=reverse('order_confirm', args=[order.pk]),
+                )
+                notify_order_sellers(order)
 
                 # Transactions de séquestre et frais
                 Transaction.objects.create(sender=request.user, receiver=None, amount=total_amount, type='escrow_hold', status='pending')
@@ -5131,13 +5180,28 @@ def hide_order_timer(request, order_id):
 
 def liberer_paiement(order):
     seller_revenue_total = Decimal('0')
+    seller_credits = {}
     for item in order.items.all():
         seller_revenue = (item.price_ht - Decimal('0.6')) * item.quantity
         seller_revenue_total += seller_revenue
-        seller_wallet = Wallet.objects.get(user=item.product.shop.owner)
+        seller = item.product.shop.owner
+        seller_wallet = Wallet.objects.get(user=seller)
         seller_wallet.balance += seller_revenue
         seller_wallet.save()
-        Transaction.objects.create(sender=None, receiver=item.product.shop.owner, amount=seller_revenue, type='sale', status='approved')
+        Transaction.objects.create(sender=None, receiver=seller, amount=seller_revenue, type='sale', status='approved')
+        seller_credits[seller.pk] = seller_credits.get(seller.pk, Decimal('0')) + seller_revenue
+
+    for seller_id, amount in seller_credits.items():
+        if amount > 0:
+            seller = User.objects.get(pk=seller_id)
+            create_persistent_notification(
+                recipient=seller,
+                title=f'💰 Argent reçu : {amount} USD',
+                message=f'Le paiement de la commande #{order.id} a été crédité sur votre portefeuille.',
+                notification_type='money_received',
+                deduplication_key=f'order-payment:{order.pk}:seller:{seller_id}',
+                target_url=reverse('my_shop'),
+            )
 
     escrow_transaction = Transaction.objects.filter(sender=order.buyer, type='escrow_hold', amount=order.total_amount, status='pending').first()
     if escrow_transaction:
@@ -6985,14 +7049,16 @@ def get_persistent_notifications_api(request):
             is_read=False
         ).order_by('-created_at')
 
+        unread_count = notifications.count()
         notifications_data = []
-        for notification in notifications:
+        for notification in notifications[:10]:
             notifications_data.append({
                 'id': notification.id,
                 'title': notification.title,
                 'message': notification.message,
                 'notification_type': notification.notification_type,
                 'created_at': notification.created_at.isoformat(),
+                'target_url': notification.target_url,
                 'should_sound': notification.should_sound(),
                 'sound_interval_minutes': notification.sound_interval_minutes,
                 'related_assignment_id': notification.related_assignment.id if notification.related_assignment else None,
@@ -7000,7 +7066,7 @@ def get_persistent_notifications_api(request):
 
         return JsonResponse({
             'notifications': notifications_data,
-            'count': len(notifications_data)
+            'count': unread_count,
         })
 
     return JsonResponse({'error': 'Méthode GET requise'}, status=405)
@@ -7019,7 +7085,11 @@ def mark_persistent_notification_read_api(request, notification_id):
 
             return JsonResponse({
                 'success': True,
-                'message': 'Notification marquée comme lue'
+                'message': 'Notification marquée comme lue',
+                'count': PersistentNotification.objects.filter(
+                    recipient=request.user,
+                    is_read=False,
+                ).count(),
             })
 
         except PersistentNotification.DoesNotExist:
@@ -7034,20 +7104,44 @@ def check_notifications_sound_api(request):
     if request.method == 'GET':
         notifications = PersistentNotification.objects.filter(
             recipient=request.user,
-            is_read=False
+            is_read=False,
+            last_sound_at__isnull=True,
+            notification_type__in=[
+                'new_order',
+                'money_received',
+                'private_message',
+                'refund',
+                'delivery_assigned',
+                'admin_delivery_assigned',
+                'delivery_confirmed',
+                'delivery_completed',
+                'delivery_ready',
+                'delivery_in_progress',
+                'delivery_picked_up',
+                'delivery_in_transit',
+                'delivery_arrived',
+                'delivery_failed',
+            ],
         )
 
         sound_data = []
         for notification in notifications:
             if notification.should_sound():
+                claimed = PersistentNotification.objects.filter(
+                    pk=notification.pk,
+                    recipient=request.user,
+                    is_read=False,
+                    last_sound_at__isnull=True,
+                ).update(last_sound_at=timezone.now())
+                if not claimed:
+                    continue
                 sound_data.append({
                     'id': notification.id,
                     'title': notification.title,
                     'message': notification.message[:100] + '...' if len(notification.message) > 100 else notification.message,
                     'notification_type': notification.notification_type,
+                    'target_url': notification.target_url,
                 })
-                # Mettre à jour le timestamp du dernier son
-                notification.update_sound_timestamp()
 
         return JsonResponse({
             'notifications_to_sound': sound_data,
@@ -7063,12 +7157,6 @@ def persistent_notifications_page(request):
     notifications = PersistentNotification.objects.filter(
         recipient=request.user
     ).order_by('-created_at')
-
-    # Quand l'utilisateur ouvre la page, considérer que les notifications visibles ont été consultées.
-    unread_notifications = notifications.filter(is_read=False)
-    if unread_notifications.exists():
-        unread_notifications.update(is_read=True, read_at=timezone.now())
-        notifications = notifications.order_by('-created_at')
 
     unread_count = notifications.filter(is_read=False).count()
 

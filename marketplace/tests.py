@@ -11,10 +11,81 @@ from .forms import normalize_phone_number
 from .models import (
     User, Profile, Wallet, Agent, DepositCommissionConfig, Deposit, Transaction, CommissionRule,
     DepositReceipt, Shop, Product, ProductAccessRequest, ResellerProduct, MarketplaceSettings, Order, OrderItem,
-    Transfer, SDISolSettings, SDISolMember, SDISolPayment, RealEstateMembershipRequest, SystemSettings, PriorityGroup, SiteBanner, SiteBannerAccess, SiteBannerPayment, SiteBannerEvent, SiteBannerPermission
+    Transfer, SDISolSettings, SDISolMember, SDISolPayment, RealEstateMembershipRequest, SystemSettings, PriorityGroup, SiteBanner, SiteBannerAccess, SiteBannerPayment, SiteBannerEvent, SiteBannerPermission,
+    PersistentNotification,
 )
-from .business_logic import PaymentManager
+from .business_logic import PaymentManager, create_persistent_notification
 from .views_commission import get_commission_eligible_users
+
+
+class PersistentNotificationsTest(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username='notify-user', password='testpass123')
+        self.other_user = User.objects.create_user(username='other-user', password='testpass123')
+        self.client.force_login(self.user)
+
+    def create_notification(self, recipient, key, notification_type='important'):
+        return create_persistent_notification(
+            recipient=recipient,
+            title='Notification test',
+            message='Persisted event',
+            notification_type=notification_type,
+            deduplication_key=key,
+        )
+
+    def test_event_key_prevents_duplicate_persistent_notifications(self):
+        first = self.create_notification(self.user, 'test:event:1')
+        second = self.create_notification(self.user, 'test:event:1')
+
+        self.assertEqual(first.pk, second.pk)
+        self.assertEqual(PersistentNotification.objects.filter(recipient=self.user).count(), 1)
+
+    def test_notifications_api_and_read_endpoint_are_recipient_scoped(self):
+        own_notification = self.create_notification(self.user, 'test:own:1')
+        other_notification = self.create_notification(self.other_user, 'test:other:1')
+
+        response = self.client.get(reverse('get_persistent_notifications_api'))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            [item['id'] for item in response.json()['notifications']],
+            [own_notification.pk],
+        )
+
+        response = self.client.post(
+            reverse('mark_persistent_notification_read_api', args=[other_notification.pk])
+        )
+        self.assertEqual(response.status_code, 404)
+        other_notification.refresh_from_db()
+        self.assertFalse(other_notification.is_read)
+
+    def test_opening_notifications_page_does_not_mark_them_read(self):
+        notification = self.create_notification(self.user, 'test:page:1')
+
+        response = self.client.get(reverse('persistent_notifications_page'))
+
+        self.assertEqual(response.status_code, 200)
+        notification.refresh_from_db()
+        self.assertFalse(notification.is_read)
+
+    def test_sound_is_claimed_once_without_marking_notification_read(self):
+        notification = self.create_notification(
+            self.user,
+            'test:sound:1',
+            notification_type='private_message',
+        )
+
+        first_response = self.client.get(reverse('check_notifications_sound_api'))
+        second_response = self.client.get(reverse('check_notifications_sound_api'))
+
+        self.assertEqual(first_response.status_code, 200)
+        self.assertEqual(
+            [item['id'] for item in first_response.json()['notifications_to_sound']],
+            [notification.pk],
+        )
+        self.assertEqual(second_response.json()['notifications_to_sound'], [])
+        notification.refresh_from_db()
+        self.assertIsNotNone(notification.last_sound_at)
+        self.assertFalse(notification.is_read)
 
 
 class ContextProcessorRegressionTest(TestCase):

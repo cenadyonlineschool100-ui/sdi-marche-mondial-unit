@@ -2470,6 +2470,8 @@ class PersistentNotification(models.Model):
     title = models.CharField(max_length=200)
     message = models.TextField()
     notification_type = models.CharField(max_length=50)  # 'delivery_assigned', 'admin_alert', etc.
+    deduplication_key = models.CharField(max_length=180, unique=True, null=True, blank=True)
+    target_url = models.CharField(max_length=500, blank=True)
     related_assignment = models.ForeignKey(DeliveryAssignment, on_delete=models.CASCADE, null=True, blank=True)
     is_read = models.BooleanField(default=False)
     read_at = models.DateTimeField(null=True, blank=True)

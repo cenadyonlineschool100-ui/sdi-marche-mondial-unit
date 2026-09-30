@@ -673,6 +673,59 @@ class CommissionManager:
 # 🚚 A. ASSIGNATION AUTOMATIQUE DU LIVREUR
 # ═══════════════════════════════════════════════════════════════
 
+def create_persistent_notification(
+    recipient,
+    title,
+    message,
+    notification_type,
+    deduplication_key,
+    target_url='',
+    sound_interval_minutes=1,
+    related_assignment=None,
+):
+    """Create one persistent notification for a specific server-side event."""
+    notification, _ = PersistentNotification.objects.get_or_create(
+        deduplication_key=deduplication_key,
+        defaults={
+            'recipient': recipient,
+            'title': title,
+            'message': message,
+            'notification_type': notification_type,
+            'target_url': target_url,
+            'sound_interval_minutes': sound_interval_minutes,
+            'related_assignment': related_assignment,
+        },
+    )
+    return notification
+
+
+def notify_order_sellers(order):
+    """Notify each seller once after the order and its items have been saved."""
+    seller_orders = {}
+    items = order.items.select_related('product__shop__owner')
+    for item in items:
+        seller = item.product.shop.owner
+        seller_order = seller_orders.setdefault(
+            seller.pk,
+            {'seller': seller, 'products': [], 'amount': Decimal('0')},
+        )
+        seller_order['products'].append(f'{item.product.name} × {item.quantity}')
+        seller_order['amount'] += item.price_ht * item.quantity
+
+    for seller_id, seller_order in seller_orders.items():
+        create_persistent_notification(
+            recipient=seller_order['seller'],
+            title=f'🛒 Nouvelle commande #{order.id}',
+            message=(
+                f"Nouvelle commande de {order.buyer.get_full_name() or order.buyer.username} : "
+                f"{', '.join(seller_order['products'])}. "
+                f"Total des articles : {seller_order['amount']} USD."
+            ),
+            notification_type='new_order',
+            deduplication_key=f'order:{order.pk}:seller:{seller_id}',
+            target_url='/my-shop/',
+        )
+
 
 class DeliveryAssignmentManager:
     """Gère l'assignation automatique des livreurs"""
@@ -1161,6 +1214,15 @@ class NotificationManager:
             message,
             assignment=assignment
         )
+        create_persistent_notification(
+            recipient=order.buyer,
+            title=f"Commande #{order.id} : {status.replace('_', ' ').title()}",
+            message=message,
+            notification_type=f'delivery_{status}',
+            deduplication_key=f'delivery:{assignment.pk}:{status}',
+            target_url=f'/order/{order.pk}/',
+            related_assignment=assignment,
+        )
     
     @staticmethod
     def notify_delivery_failed(assignment, reason):
@@ -1278,6 +1340,7 @@ class PaymentManager:
         total_reseller = Decimal('0')
         total_owner = Decimal('0')
         total_admin = Decimal('0')
+        seller_credits = {}
 
         # Distribution par item (gère les copies/resellers)
         for item in order.items.all():
@@ -1307,12 +1370,18 @@ class PaymentManager:
                 reseller_wallet = Wallet.objects.get(user=rp.seller)
                 reseller_wallet.balance += reseller_amount
                 reseller_wallet.save()
+                seller_credits[rp.seller_id] = (
+                    seller_credits.get(rp.seller_id, Decimal('0')) + reseller_amount
+                )
 
                 # Crediter propriétaire original
                 owner = rp.original_product.shop.owner
                 owner_wallet = Wallet.objects.get(user=owner)
                 owner_wallet.balance += owner_amount
                 owner_wallet.save()
+                seller_credits[owner.pk] = (
+                    seller_credits.get(owner.pk, Decimal('0')) + owner_amount
+                )
 
                 # Crediter plateforme
                 if admin_wallet and platform_amount > 0:
@@ -1342,6 +1411,9 @@ class PaymentManager:
                 seller_wallet = Wallet.objects.get(user=seller)
                 seller_wallet.balance += seller_amount
                 seller_wallet.save()
+                seller_credits[seller.pk] = (
+                    seller_credits.get(seller.pk, Decimal('0')) + seller_amount
+                )
 
                 if admin_wallet and admin_amount > 0:
                     admin_amount, distribution_amount = MarketplaceSettings.get_solo().get_commission_split(admin_amount)
@@ -1363,6 +1435,18 @@ class PaymentManager:
             delivery_wallet.balance += delivery_amount
             delivery_wallet.save()
             Transaction.objects.create(sender=order.buyer, receiver=delivery_employee.user, amount=delivery_amount, type='delivery_payment', status='approved')
+
+        for seller_id, amount in seller_credits.items():
+            if amount > 0:
+                seller = User.objects.get(pk=seller_id)
+                create_persistent_notification(
+                    recipient=seller,
+                    title=f'💰 Argent reçu : {amount} USD',
+                    message=f'Le paiement de la commande #{order.id} a été crédité sur votre portefeuille.',
+                    notification_type='money_received',
+                    deduplication_key=f'order-payment:{order.pk}:seller:{seller_id}',
+                    target_url='/my-shop/',
+                )
 
         print("Paiement confirmé pour commande #{}:".format(order.id))
         print("   Produit total: {}".format(total_product))
@@ -1393,6 +1477,14 @@ class PaymentManager:
             amount=order.total_amount,
             type='refund',
             status='approved'
+        )
+        create_persistent_notification(
+            recipient=order.buyer,
+            title=f'💸 Remboursement effectué : {order.total_amount} USD',
+            message=f'Le remboursement de la commande #{order.id} a été crédité sur votre portefeuille.',
+            notification_type='refund',
+            deduplication_key=f'order-refund:{order.pk}:buyer:{order.buyer_id}',
+            target_url='/profile/',
         )
         
         print(f"💵 Remboursement pour #{order.id}: {order.total_amount}€ → {order.buyer.username}")

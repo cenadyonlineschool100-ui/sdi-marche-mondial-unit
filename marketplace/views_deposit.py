@@ -19,6 +19,7 @@ from .models import (
     DepositReceipt, TransactionLog, SecurityLog,
     AgentCommission, CommissionRule, TiKaneDailyPayment
 )
+from .business_logic import create_persistent_notification
 
 
 def is_principal_admin(user):
@@ -299,6 +300,14 @@ def agent_deposit_view(request):
                     transaction_ref=deposit.reference,
                     actor=request.user,
                     details=f"Dépôt agent {request.user.username} vers client {client.username} : {amount} {currency}, commission {commission} {currency} payée par {admin_user.username}"
+                )
+                create_persistent_notification(
+                    recipient=client,
+                    title=f'💰 Argent reçu : {amount} {currency}',
+                    message=f'Votre dépôt confirmé par {request.user.username}. Référence : {deposit.reference}.',
+                    notification_type='money_received',
+                    deduplication_key=f'deposit-received:{deposit.pk}:user:{client.pk}',
+                    target_url='/profile/',
                 )
 
                 if commission > 0:
