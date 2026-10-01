@@ -7082,6 +7082,8 @@ def mark_persistent_notification_read_api(request, notification_id):
                 recipient=request.user
             )
             notification.mark_as_read()
+            from .web_push import send_notification_dismissal
+            transaction.on_commit(lambda: send_notification_dismissal(request.user.pk, notification.pk))
 
             return JsonResponse({
                 'success': True,
@@ -7170,13 +7172,18 @@ def persistent_notifications_page(request):
 def mark_all_persistent_notifications_read_api(request):
     """API pour marquer toutes les notifications persistantes comme lues"""
     if request.method == 'POST':
-        PersistentNotification.objects.filter(
+        unread_notifications = PersistentNotification.objects.filter(
             recipient=request.user,
             is_read=False
-        ).update(
+        )
+        notification_ids = list(unread_notifications.values_list('pk', flat=True))
+        unread_notifications.update(
             is_read=True,
             read_at=timezone.now()
         )
+        if notification_ids:
+            from .web_push import send_notification_dismissal
+            transaction.on_commit(lambda: send_notification_dismissal(request.user.pk))
 
         return JsonResponse({
             'success': True,

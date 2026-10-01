@@ -6,3 +6,4 @@ channels==4.3.2
 whitenoise==6.12.0
 Pillow==12.2.0
 requests==2.31.0
+pywebpush>=2.0.3,<3.0

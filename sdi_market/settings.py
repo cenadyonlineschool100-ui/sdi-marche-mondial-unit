@@ -185,6 +185,10 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 
 STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 
+WEB_PUSH_VAPID_PUBLIC_KEY = os.getenv('WEB_PUSH_VAPID_PUBLIC_KEY', '')
+WEB_PUSH_VAPID_PRIVATE_KEY = os.getenv('WEB_PUSH_VAPID_PRIVATE_KEY', '')
+WEB_PUSH_VAPID_CLAIMS_EMAIL = os.getenv('WEB_PUSH_VAPID_CLAIMS_EMAIL', 'mailto:admin@example.com')
+
 MARKETPLACE_INACTIVITY_TIMEOUT_SECONDS = 600
 
 # Clé API Unsplash pour génération automatique d'images

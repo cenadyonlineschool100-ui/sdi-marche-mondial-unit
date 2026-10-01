@@ -1,8 +1,12 @@
+import base64
+import json
 from decimal import Decimal
+from types import SimpleNamespace
+from unittest.mock import patch
 
 from django.contrib import admin
 from django.contrib.auth.models import Permission
-from django.test import Client, RequestFactory, TestCase
+from django.test import Client, RequestFactory, TestCase, override_settings
 from django.urls import reverse
 
 from .admin import MarketplaceSettingsAdmin
@@ -12,7 +16,7 @@ from .models import (
     User, Profile, Wallet, Agent, DepositCommissionConfig, Deposit, Transaction, CommissionRule,
     DepositReceipt, Shop, Product, ProductAccessRequest, ResellerProduct, MarketplaceSettings, Order, OrderItem,
     Transfer, SDISolSettings, SDISolMember, SDISolPayment, RealEstateMembershipRequest, SystemSettings, PriorityGroup, SiteBanner, SiteBannerAccess, SiteBannerPayment, SiteBannerEvent, SiteBannerPermission,
-    PersistentNotification,
+    PersistentNotification, PushSubscription,
 )
 from .business_logic import PaymentManager, create_persistent_notification
 from .views_commission import get_commission_eligible_users
@@ -86,6 +90,133 @@ class PersistentNotificationsTest(TestCase):
         notification.refresh_from_db()
         self.assertIsNotNone(notification.last_sound_at)
         self.assertFalse(notification.is_read)
+
+    def test_read_endpoint_schedules_browser_notification_dismissal(self):
+        notification = self.create_notification(self.user, 'test:dismiss:1')
+        with patch('marketplace.web_push.send_notification_dismissal') as send_dismissal:
+            with self.captureOnCommitCallbacks(execute=True):
+                response = self.client.post(
+                    reverse('mark_persistent_notification_read_api', args=[notification.pk])
+                )
+
+        self.assertEqual(response.status_code, 200)
+        send_dismissal.assert_called_once_with(self.user.pk, notification.pk)
+
+    def test_persistent_notification_creation_dispatches_push_once_after_commit(self):
+        with patch('marketplace.web_push.send_notification_push') as send_push:
+            with self.captureOnCommitCallbacks(execute=True):
+                notification = self.create_notification(self.user, 'test:push:1')
+                self.create_notification(self.user, 'test:push:1')
+
+        send_push.assert_called_once_with(notification.pk)
+
+
+class WebPushSubscriptionTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username='push-user', password='testpass123')
+        self.client.force_login(self.user)
+        self.subscription_url = reverse('web_push_subscriptions')
+        self.valid_keys = {
+            'p256dh': base64.urlsafe_b64encode(b'P' * 65).decode().rstrip('='),
+            'auth': base64.urlsafe_b64encode(b'A' * 16).decode().rstrip('='),
+        }
+
+    def post_subscription(self, endpoint):
+        return self.client.post(
+            self.subscription_url,
+            data=json.dumps({'endpoint': endpoint, 'keys': self.valid_keys}),
+            content_type='application/json',
+        )
+
+    def test_user_can_register_multiple_devices_and_remove_one(self):
+        first_endpoint = 'https://fcm.googleapis.com/fcm/send/device-one'
+        second_endpoint = 'https://updates.push.services.mozilla.com/wpush/v2/device-two'
+
+        self.assertEqual(self.post_subscription(first_endpoint).status_code, 201)
+        self.assertEqual(self.post_subscription(second_endpoint).status_code, 201)
+        self.assertEqual(PushSubscription.objects.filter(user=self.user, is_active=True).count(), 2)
+
+        repeated_response = self.post_subscription(first_endpoint)
+        self.assertEqual(repeated_response.status_code, 200)
+        self.assertEqual(PushSubscription.objects.filter(user=self.user).count(), 2)
+
+        delete_response = self.client.delete(
+            self.subscription_url,
+            data=json.dumps({'endpoint': first_endpoint}),
+            content_type='application/json',
+        )
+        self.assertEqual(delete_response.status_code, 200)
+        self.assertFalse(PushSubscription.objects.filter(user=self.user, endpoint=first_endpoint).exists())
+
+    def test_subscription_requires_login_and_rejects_untrusted_endpoints(self):
+        self.client.logout()
+        response = self.post_subscription('https://fcm.googleapis.com/fcm/send/device')
+        self.assertEqual(response.status_code, 302)
+
+        self.client.force_login(self.user)
+        response = self.post_subscription('https://127.0.0.1/private')
+        self.assertEqual(response.status_code, 400)
+
+    def test_subscription_rejects_invalid_browser_keys(self):
+        response = self.client.post(
+            self.subscription_url,
+            data=json.dumps({
+                'endpoint': 'https://fcm.googleapis.com/fcm/send/device',
+                'keys': {'p256dh': 'invalid', 'auth': 'invalid'},
+            }),
+            content_type='application/json',
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_subscription_cannot_be_reassigned_from_another_user(self):
+        endpoint = 'https://fcm.googleapis.com/fcm/send/shared-device'
+        self.assertEqual(self.post_subscription(endpoint).status_code, 201)
+        other_user = User.objects.create_user(username='other-push-user', password='testpass123')
+        self.client.force_login(other_user)
+
+        response = self.post_subscription(endpoint)
+
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(PushSubscription.objects.get(endpoint=endpoint).user_id, self.user.pk)
+
+    @override_settings(
+        WEB_PUSH_VAPID_PUBLIC_KEY='public-test-key',
+        WEB_PUSH_VAPID_PRIVATE_KEY='private-test-key',
+        WEB_PUSH_VAPID_CLAIMS_EMAIL='mailto:test@example.com',
+    )
+    def test_expired_push_subscription_is_deactivated_without_raising(self):
+        from pywebpush import WebPushException
+        from .web_push import send_notification_push
+
+        notification = PersistentNotification.objects.create(
+            recipient=self.user,
+            title='Notification test',
+            message='Persisted event',
+            notification_type='important',
+        )
+        subscriptions = [
+            PushSubscription.objects.create(
+                user=self.user,
+                endpoint=f'https://fcm.googleapis.com/fcm/send/expired-{status_code}',
+                p256dh=self.valid_keys['p256dh'],
+                auth=self.valid_keys['auth'],
+            )
+            for status_code in (404, 410)
+        ]
+
+        with patch(
+            'pywebpush.webpush',
+            side_effect=[
+                WebPushException('expired', response=SimpleNamespace(status_code=status_code))
+                for status_code in (404, 410)
+            ],
+        ) as mock_webpush:
+            send_notification_push(notification.pk)
+
+        for subscription in subscriptions:
+            subscription.refresh_from_db()
+            self.assertFalse(subscription.is_active)
+        self.assertEqual(mock_webpush.call_count, 2)
 
 
 class ContextProcessorRegressionTest(TestCase):

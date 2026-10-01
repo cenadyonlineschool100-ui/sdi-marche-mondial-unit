@@ -75,6 +75,9 @@ from .api_views import (
 from .modules_manager import (
     get_module_list, load_module_data, get_module_stats, invalidate_module_cache
 )
+from .views_web_push import (
+    web_push_vapid_key, web_push_subscriptions, web_push_csrf_token, service_worker,
+)
 
 router = DefaultRouter()
 router.register('products', ProductViewSet)
@@ -252,6 +255,10 @@ urlpatterns = [
     path('api/notifications/sound/', check_notifications_sound_api, name='check_notifications_sound_api'),
     path('api/notifications/mark-all-read/', mark_all_persistent_notifications_read_api, name='mark_all_persistent_notifications_read_api'),
     path('notifications/', persistent_notifications_page, name='persistent_notifications_page'),
+    path('service-worker.js', service_worker, name='service_worker'),
+    path('api/web-push/vapid-public-key/', web_push_vapid_key, name='web_push_vapid_key'),
+    path('api/web-push/subscriptions/', web_push_subscriptions, name='web_push_subscriptions'),
+    path('api/web-push/csrf-token/', web_push_csrf_token, name='web_push_csrf_token'),
     # Confirmations de livraison
     path('order/<int:order_id>/confirm-delivery-buyer/', confirm_delivery_buyer, name='confirm_delivery_buyer'),
     path('delivery/<int:assignment_id>/confirm-delivery-driver/', confirm_delivery_driver, name='confirm_delivery_driver'),
