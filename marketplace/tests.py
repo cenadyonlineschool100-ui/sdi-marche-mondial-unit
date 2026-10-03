@@ -13,10 +13,10 @@ from .admin import MarketplaceSettingsAdmin
 from .context_processors import _build_banner_rotation_schedule, site_banner_context, system_settings_context
 from .forms import normalize_phone_number
 from .models import (
-    User, Profile, Wallet, Agent, DepositCommissionConfig, Deposit, Transaction, CommissionRule,
+    User, Profile, Wallet, Agent, DepositCommissionConfig, Deposit, AgentCommission, Transaction, CommissionRule,
     DepositReceipt, Shop, Product, ProductAccessRequest, ResellerProduct, MarketplaceSettings, Order, OrderItem,
     Transfer, SDISolSettings, SDISolMember, SDISolPayment, RealEstateMembershipRequest, SystemSettings, PriorityGroup, SiteBanner, SiteBannerAccess, SiteBannerPayment, SiteBannerEvent, SiteBannerPermission,
-    PersistentNotification, PushSubscription,
+    PersistentNotification, PushSubscription, ReturnRequest,
 )
 from .business_logic import PaymentManager, create_persistent_notification
 from .views_commission import get_commission_eligible_users
@@ -193,6 +193,7 @@ class WebPushSubscriptionTests(TestCase):
             title='Notification test',
             message='Persisted event',
             notification_type='important',
+            deduplication_key='test:expired-push:1',
         )
         subscriptions = [
             PushSubscription.objects.create(
@@ -307,6 +308,15 @@ class MicrosDiCashAgentDepositTest(TestCase):
 
         self.assertTrue(Transaction.objects.filter(type='deposit', receiver=self.client_user, amount=Decimal('2000.00'), currency='HTG').exists())
         self.assertTrue(Transaction.objects.filter(type='commission', sender=self.admin_user, receiver=self.agent_user, amount=Decimal('5.00'), currency='HTG').exists())
+        commission_notification = PersistentNotification.objects.get(
+            recipient=self.agent_user,
+            notification_type='commission_received',
+        )
+        self.assertEqual(
+            commission_notification.deduplication_key,
+            f'deposit-commission:{AgentCommission.objects.get(deposit=deposit).pk}:user:{self.agent_user.pk}',
+        )
+        self.assertEqual(commission_notification.target_url, '/profile/')
 
     def test_deposit_repay_real_estate_loan_before_credit(self):
         self.client_wallet.balance_htg = Decimal('0.00')
@@ -896,6 +906,7 @@ class TransferFundsTest(TestCase):
         self.sender = User.objects.create_user(username='sender', password='senderpass123', email='sender@example.com')
         self.receiver = User.objects.create_user(username='receiver', password='receiverpass123', email='receiver@example.com')
         self.sender_wallet, _ = Wallet.objects.get_or_create(user=self.sender)
+        self.sender_wallet.can_transfer = True
         self.receiver_wallet, _ = Wallet.objects.get_or_create(user=self.receiver)
         self.sender_wallet.balance = Decimal('100.00')
         self.sender_wallet.save()
@@ -923,6 +934,41 @@ class TransferFundsTest(TestCase):
         self.assertEqual(self.receiver_wallet.balance, Decimal('10.00'))
         self.assertTrue(Transfer.objects.filter(sender=self.sender, receiver=self.receiver, amount=Decimal('10.00'), currency='USD').exists())
         self.assertTrue(Transaction.objects.filter(sender=self.sender, receiver=self.receiver, amount=Decimal('10.00'), currency='USD', type='transfer').exists())
+        transfer = Transfer.objects.get(sender=self.sender, receiver=self.receiver)
+        notification = PersistentNotification.objects.get(
+            recipient=self.receiver,
+            notification_type='money_received',
+        )
+        self.assertEqual(
+            notification.deduplication_key,
+            f'transfer-received:{transfer.pk}:user:{self.receiver.pk}',
+        )
+
+    def test_profile_transfer_creates_persistent_notification_for_receiver(self):
+        response = self.client.post(reverse('profile'), {
+            'transfer_submit': '1',
+            'recipient_account_code': self.receiver.account_code,
+            'source_account': 'principal',
+            'currency': 'USD',
+            'amount': '10.00',
+        })
+
+        self.assertEqual(response.status_code, 302)
+        transfer = Transfer.objects.get(sender=self.sender, receiver=self.receiver)
+        notification = PersistentNotification.objects.get(
+            recipient=self.receiver,
+            notification_type='money_received',
+        )
+        self.assertEqual(
+            notification.deduplication_key,
+            f'transfer-received:{transfer.pk}:user:{self.receiver.pk}',
+        )
+        self.assertFalse(
+            PersistentNotification.objects.filter(
+                recipient=self.sender,
+                deduplication_key=f'transfer-received:{transfer.pk}:user:{self.receiver.pk}',
+            ).exists()
+        )
 
     def test_sender_can_transfer_htg_from_micro_device_and_credit_system_commission(self):
         self.sender_wallet.commission_balance_htg = Decimal('100.00')
@@ -979,6 +1025,59 @@ class TransferFundsTest(TestCase):
         self.assertEqual(self.admin_wallet.commission_balance_htg, Decimal('4.00'))
         self.assertTrue(Transfer.objects.filter(sender=self.sender, receiver=self.receiver, amount=Decimal('50.00'), currency='HTG').exists())
         self.assertTrue(Transaction.objects.filter(sender=self.sender, receiver=self.receiver, amount=Decimal('50.00'), currency='HTG', type='transfer').exists())
+
+
+class ReturnRefundNotificationTest(TestCase):
+    def setUp(self):
+        self.customer = User.objects.create_user(username='refund-customer', password='testpass123')
+        self.admin = User.objects.create_superuser(
+            username='refund-admin',
+            email='refund-admin@example.com',
+            password='testpass123',
+        )
+        self.wallet = Wallet.objects.get(user=self.customer)
+        self.order = Order.objects.create(
+            buyer=self.customer,
+            total_amount=Decimal('40.00'),
+            delivery_address='Adresse test',
+            status='delivered',
+        )
+        self.return_request = ReturnRequest.objects.create(
+            order=self.order,
+            customer=self.customer,
+            reason='damaged',
+            description='Produit endommagé',
+        )
+        self.client.force_login(self.admin)
+
+    def test_process_refund_notifies_without_changing_wallet_balance(self):
+        with patch('marketplace.web_push.send_notification_push') as send_push:
+            with self.captureOnCommitCallbacks(execute=True):
+                response = self.client.post(
+                    reverse('returnrequest-process-refund', args=[self.return_request.pk]),
+                    data={'amount': '20.00'},
+                )
+
+        self.assertEqual(response.status_code, 200)
+        self.wallet.refresh_from_db()
+        self.assertEqual(self.wallet.balance, Decimal('0.00'))
+        self.assertTrue(Transaction.objects.filter(
+            receiver=self.customer,
+            amount=Decimal('20.00'),
+            currency='HTG',
+            type='refund',
+            status='approved',
+        ).exists())
+        notification = PersistentNotification.objects.get(
+            recipient=self.customer,
+            notification_type='refund',
+        )
+        self.assertEqual(
+            notification.deduplication_key,
+            f'return-refund-request:{self.return_request.pk}:customer:{self.customer.pk}',
+        )
+        self.assertIn('ne crédite pas le portefeuille', notification.message)
+        send_push.assert_called_once_with(notification.pk)
 
 
 class AdminAddAgentViewTest(TestCase):

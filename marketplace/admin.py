@@ -28,7 +28,7 @@ from .models import (
     # Real estate membership requests
     
 )
-from .business_logic import fetch_exchange_rates_from_api
+from .business_logic import create_persistent_notification, fetch_exchange_rates_from_api
 from .models import ProductAccessRequest, ResellerProduct, MarketplaceSettings, MarketplaceSellerCommission
 from .real_estate_models import RealEstateMembershipRequest
 
@@ -796,6 +796,14 @@ class OrderAdmin(admin.ModelAdmin):
                     amount=order.total_amount,
                     type='refund',
                     status='approved'
+                )
+                create_persistent_notification(
+                    recipient=order.buyer,
+                    title=f'💸 Remboursement effectué : {order.total_amount} USD',
+                    message=f'Le remboursement de la commande #{order.id} a été crédité sur votre portefeuille.',
+                    notification_type='refund',
+                    deduplication_key=f'admin-order-refund:{order.pk}:buyer:{order.buyer_id}',
+                    target_url='/profile/',
                 )
                 AuditLog.objects.create(
                     user=order.buyer,

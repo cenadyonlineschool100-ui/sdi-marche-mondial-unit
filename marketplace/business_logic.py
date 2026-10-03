@@ -1160,6 +1160,7 @@ class NotificationManager:
             title="🚨 Nouvelle livraison assignée",
             message=driver_message,
             notification_type='delivery_assigned',
+            deduplication_key=f'delivery-assigned:{assignment.pk}:{agent.pk}',
             related_assignment=assignment,
             sound_interval_minutes=1  # Sonne toutes les minutes
         )
@@ -1188,6 +1189,7 @@ class NotificationManager:
                 title="🔔 Commande en cours",
                 message=admin_message,
                 notification_type='admin_delivery_assigned',
+                deduplication_key=f'delivery-assigned:{assignment.pk}:{admin.pk}',
                 related_assignment=assignment,
                 sound_interval_minutes=1  # Sonne toutes les minutes
             )

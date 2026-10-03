@@ -472,6 +472,15 @@ def transfer_funds(request):
             deduplication_key=f'transfer-received:{transfer.pk}:user:{recipient.pk}',
             target_url=reverse('profile'),
         )
+        if agent_fee > 0 and request.user.is_agent:
+            create_persistent_notification(
+                recipient=request.user,
+                title=f'💰 Commission reçue : {agent_fee} {currency}',
+                message=f'Votre commission sur le transfert {transfer.transaction_id} a été créditée.',
+                notification_type='commission_received',
+                deduplication_key=f'transfer-agent-commission:{transfer.pk}:user:{request.user.pk}',
+                target_url=reverse('profile'),
+            )
         if admin_user:
             send_transfer_notification(
                 transfer,
@@ -646,6 +655,7 @@ def sdi_sol_make_payment(request):
             title='Paiement Sol SDI reçu ✅',
             message=f'Votre paiement de {amount} {currency} pour le Sol SDI a été enregistré. Reçu: {payment.receipt_number}',
             notification_type='sdi_sol_payment',
+            deduplication_key=f'sdi-sol-payment:{payment.pk}:user:{request.user.pk}',
         )
     
     return JsonResponse({
@@ -2884,6 +2894,16 @@ def profile(request):
                     withdrawal.confirmed_at = timezone.now()
                     withdrawal.confirmed_by = request.user
                     withdrawal.save(update_fields=['status', 'rejection_reason', 'confirmed_at', 'confirmed_by'])
+                    create_persistent_notification(
+                        recipient=withdrawal.user,
+                        title=f'💰 Retrait refusé : {withdrawal.amount} {withdrawal.currency}',
+                        message='Le montant du retrait a été recrédité sur votre portefeuille.',
+                        notification_type='refund',
+                        deduplication_key=(
+                            f'withdrawal-rejection-refund:{withdrawal.pk}:user:{withdrawal.user_id}'
+                        ),
+                        target_url=reverse('profile'),
+                    )
                     
                     messages.error(request, f'Retrait de {withdrawal.amount} {withdrawal.currency} rejeté et remboursé.')
                     logger.info(f"Retrait rejeté: {withdrawal.id} par {request.user.username}")
@@ -3290,6 +3310,23 @@ def profile(request):
                             'Transfert reçu',
                             f"Vous avez reçu {amount} {currency} de {request.user.username}."
                         )
+                        create_persistent_notification(
+                            recipient=recipient,
+                            title=f'💰 Argent reçu : {amount} {currency}',
+                            message=f'Vous avez reçu un transfert de {request.user.username}. Référence : {transfer.transaction_id}.',
+                            notification_type='money_received',
+                            deduplication_key=f'transfer-received:{transfer.pk}:user:{recipient.pk}',
+                            target_url=reverse('profile'),
+                        )
+                        if agent_fee > 0 and request.user.is_agent:
+                            create_persistent_notification(
+                                recipient=request.user,
+                                title=f'💰 Commission reçue : {agent_fee} {currency}',
+                                message=f'Votre commission sur le transfert {transfer.transaction_id} a été créditée.',
+                                notification_type='commission_received',
+                                deduplication_key=f'transfer-agent-commission:{transfer.pk}:user:{request.user.pk}',
+                                target_url=reverse('profile'),
+                            )
                         if system_wallet and system_wallet.user != request.user:
                             send_transfer_notification(
                                 transfer,
@@ -6389,6 +6426,20 @@ class ReturnRequestViewSet(viewsets.ModelViewSet):
             return_request.process_refund(amount)
         else:
             return_request.process_refund()
+        create_persistent_notification(
+            recipient=return_request.customer,
+            title='Opération de remboursement enregistrée',
+            message=(
+                f'Une transaction de remboursement de {return_request.refund_amount} '
+                f'a été enregistrée pour la demande #{return_request.pk}. '
+                'Ce chemin ne crédite pas le portefeuille automatiquement.'
+            ),
+            notification_type='refund',
+            deduplication_key=(
+                f'return-refund-request:{return_request.pk}:customer:{return_request.customer_id}'
+            ),
+            target_url=reverse('profile'),
+        )
 
         return Response({'status': 'Refund processed'})
 
@@ -6962,6 +7013,7 @@ def confirm_delivery_buyer(request, order_id):
                 title="✅ Confirmation de livraison",
                 message=f"Commande #{order.id} de {order.buyer.username} a été confirmée livrée. Montant: {order.total_amount} HTG",
                 notification_type='delivery_confirmed',
+                deduplication_key=f'delivery-confirmed:{order.pk}:{admin_user.pk}',
                 sound_interval_minutes=1  # Sonner chaque minute
             )
         
@@ -7012,6 +7064,7 @@ def confirm_delivery_driver(request, assignment_id):
                 title="🚚 Livraison effectuée",
                 message=f"Livreur {request.user.username} confirme la livraison de commande #{order.id} à {order.buyer.username}. Montant: {order.total_amount} HTG",
                 notification_type='delivery_completed',
+                deduplication_key=f'delivery-completed:{assignment.pk}:{admin_user.pk}',
                 sound_interval_minutes=1  # Sonner chaque minute
             )
         
@@ -7021,6 +7074,7 @@ def confirm_delivery_driver(request, assignment_id):
             title="📦 Commande livrée",
             message=f"Votre commande #{order.id} a été livrée. Veuillez confirmer sa réception.",
             notification_type='delivery_ready',
+            deduplication_key=f'delivery-ready:{assignment.pk}:{order.buyer_id}',
             sound_interval_minutes=1
         )
         

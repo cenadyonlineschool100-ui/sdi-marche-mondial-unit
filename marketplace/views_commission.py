@@ -17,7 +17,11 @@ from .models import (
     WithdrawalCommissionTier, AdminCommissionLog, MarketplaceSettings,
     CommissionCategory, UserCommissionCategory, CommissionDistributionLog
 )
-from .business_logic import CommissionManager, get_system_admin_wallet
+from .business_logic import (
+    CommissionManager,
+    create_persistent_notification,
+    get_system_admin_wallet,
+)
 
 
 def has_commission_permission(user):
@@ -213,13 +217,23 @@ def distribute_commission_pool(request):
             current_balance = getattr(wallet, peuple_field, Decimal('0')) or Decimal('0')
             setattr(wallet, peuple_field, current_balance + share)
             wallet.save(update_fields=[peuple_field])
-            CommissionDistributionLog.objects.create(
+            distribution_log = CommissionDistributionLog.objects.create(
                 admin=request.user,
                 user=user,
                 action='distribution',
                 amount=share,
                 currency=currency,
                 description=f'Distribution Commission Peuple de {share} {currency} depuis le pool de réserve.'
+            )
+            create_persistent_notification(
+                recipient=user,
+                title=f'💰 Commission reçue : {share} {currency}',
+                message='Une commission Peuple a été créditée sur votre portefeuille.',
+                notification_type='commission_received',
+                deduplication_key=(
+                    f'commission-distribution:{distribution_log.pk}:user:{user.pk}'
+                ),
+                target_url='/profile/',
             )
             distributed_records += 1
 

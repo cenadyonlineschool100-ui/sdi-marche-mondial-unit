@@ -311,12 +311,22 @@ def agent_deposit_view(request):
                 )
 
                 if commission > 0:
-                    AgentCommission.objects.create(
+                    agent_commission = AgentCommission.objects.create(
                         agent=request.user,
                         deposit=deposit,
                         commission_amount=commission,
                         source_account='admin_wallet',
                         credited=True
+                    )
+                    create_persistent_notification(
+                        recipient=request.user,
+                        title=f'💰 Commission reçue : {commission} {currency}',
+                        message=f'Votre commission sur le dépôt {deposit.reference} a été créditée.',
+                        notification_type='commission_received',
+                        deduplication_key=(
+                            f'deposit-commission:{agent_commission.pk}:user:{request.user.pk}'
+                        ),
+                        target_url='/profile/',
                     )
 
                 if tikane_deposit and tikane_account:
