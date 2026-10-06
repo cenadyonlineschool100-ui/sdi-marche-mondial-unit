@@ -95,7 +95,7 @@ def agent_process_withdrawal(request):
         messages.error(request, 'Utilisateur ou montant invalide.')
         return redirect('agent_process_withdrawal')
     
-    if amount < Decimal('5.00'):
+    if not amount.is_finite() or amount < Decimal('5.00') or amount != amount.quantize(Decimal('0.01')):
         messages.error(request, 'Le montant minimum de retrait est de 5 USD.')
         return redirect('agent_process_withdrawal')
     

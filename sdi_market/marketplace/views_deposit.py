@@ -101,8 +101,8 @@ def agent_deposit_view(request):
 
         try:
             amount = Decimal(amount_str)
-            if amount <= 0:
-                errors.append("Le montant doit être supérieur à 0")
+            if not amount.is_finite() or amount <= 0 or amount != amount.quantize(Decimal('0.01')):
+                errors.append("Le montant doit être positif et limité à deux décimales")
         except Exception:
             errors.append("Montant invalide")
 

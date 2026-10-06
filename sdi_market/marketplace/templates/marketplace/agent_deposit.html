@@ -10,7 +10,7 @@
             <h3 style="margin-bottom: 12px;">Solde agent</h3>
             <p style="margin: 6px 0; font-weight: 600;">USD : {{ agent_wallet.balance_usd|default:0|floatformat:2 }}</p>
             <p style="margin: 6px 0; font-weight: 600;">HTG : {{ agent_wallet.balance_htg|default:0|floatformat:2 }}</p>
-            <p style="margin: 6px 0; font-weight: 600;">DOP : {{ agent_wallet.balance_dop|default:0|floatformat:2 }}</p>
+            <p style="margin: 6px 0; font-weight: 600;">DOP : {{ agent_wallet.balance_peso|default:0|floatformat:2 }}</p>
             <p style="margin: 6px 0; font-weight: 600;">EUR : {{ agent_wallet.balance_eur|default:0|floatformat:2 }}</p>
         </div>
         <div class="fintech-panel" style="padding: 18px;">

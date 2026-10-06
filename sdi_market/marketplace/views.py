@@ -31,6 +31,7 @@ import gc
 import traceback
 from rest_framework import filters, permissions, status, viewsets
 from rest_framework.decorators import action
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
 
 from .forms import ProductForm, ProductReviewForm, SignUpForm, SystemSettingsForm, ChatMessageForm, PrivateMessageForm, BeautyBookingForm, BeautyStudioServiceForm, BeautyStudioRequestForm, ShopCoverPhotoForm, ProfileForm, OrderForm, DeliveryLocationForm, TransferForm, TiKaneAccessRequestForm, TiKanePlanForm, AssignmentSubmissionForm, TechnicianProfileForm, SiteBannerForm, SiteBannerImageForm
@@ -69,6 +70,20 @@ from .business_logic import (
 
 User = get_user_model()
 logger = logging.getLogger(__name__)
+
+def is_financial_admin_user(user):
+    return bool(
+        user.is_authenticated and (
+            user.is_superuser
+            or user.is_staff
+            or user.has_perm('marketplace.principal_admin_power')
+        )
+    )
+
+
+class FinancialAdminPermission(permissions.BasePermission):
+    def has_permission(self, request, view):
+        return is_financial_admin_user(request.user)
 
 # ------------------------------
 # Utility functions
@@ -2418,7 +2433,7 @@ def profile(request):
     wallet, created = Wallet.objects.get_or_create(
         user=request.user,
         defaults={
-            'balance': Decimal('100.00'),
+            'balance': Decimal('0.00'),
             'can_transfer': True,
             'is_blocked': False
         }
@@ -3872,7 +3887,7 @@ def withdraw_funds(request):
     
     try:
         amount = Decimal(amount_str)
-        if amount < Decimal('5.00'):  # Minimum 5 USD
+        if not amount.is_finite() or amount < Decimal('5.00') or amount != amount.quantize(Decimal('0.01')):
             return JsonResponse({'success': False, 'message': 'Le montant minimum de retrait est de 5 USD.'})
     except (InvalidOperation, ValueError):
         return JsonResponse({'success': False, 'message': 'Montant invalide.'})
@@ -5882,6 +5897,31 @@ class AgentViewSet(viewsets.ModelViewSet):
     serializer_class = AgentSerializer
     permission_classes = [permissions.IsAuthenticated]
 
+    def get_permissions(self):
+        if self.action in {'create', 'update', 'partial_update', 'destroy'}:
+            return [FinancialAdminPermission()]
+        return super().get_permissions()
+
+    def get_queryset(self):
+        if is_financial_admin_user(self.request.user):
+            return Agent.objects.select_related('user')
+        return Agent.objects.filter(user=self.request.user).select_related('user')
+
+    def perform_create(self, serializer):
+        if not is_financial_admin_user(self.request.user):
+            raise PermissionDenied('Seul un administrateur autorisé peut créer un agent.')
+        serializer.save()
+
+    def perform_update(self, serializer):
+        if not is_financial_admin_user(self.request.user):
+            raise PermissionDenied('Seul un administrateur autorisé peut modifier un agent.')
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        if not is_financial_admin_user(self.request.user):
+            raise PermissionDenied('Seul un administrateur autorisé peut supprimer un agent.')
+        instance.delete()
+
     @action(detail=False, methods=['post'])
     def recharge(self, request):
         if not hasattr(request.user, 'agent') or not request.user.agent.is_active:
@@ -5932,11 +5972,23 @@ class WalletViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = WalletSerializer
     permission_classes = [permissions.IsAuthenticated]
 
+    def get_queryset(self):
+        if is_financial_admin_user(self.request.user):
+            return Wallet.objects.select_related('user')
+        return Wallet.objects.filter(user=self.request.user).select_related('user')
+
 
 class TransactionViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Transaction.objects.all()
     serializer_class = TransactionSerializer
     permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        if is_financial_admin_user(self.request.user):
+            return Transaction.objects.select_related('sender', 'receiver')
+        return Transaction.objects.filter(
+            Q(sender=self.request.user) | Q(receiver=self.request.user)
+        ).select_related('sender', 'receiver')
 
 
 class DeliveryEmployeeViewSet(viewsets.ModelViewSet):
