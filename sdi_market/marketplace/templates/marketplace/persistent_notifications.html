@@ -5,6 +5,11 @@
     <h2>🔔 Mes Notifications</h2>
     <p><small>Notifications importantes qui sonnent jusqu'à ce qu'elles soient lues</small></p>
 
+    <div style="margin: 1rem 0;">
+        <button id="web-push-toggle" class="button" type="button">Activer les notifications</button>
+        <span id="web-push-status" role="status" aria-live="polite" style="margin-left: 0.75rem;"></span>
+    </div>
+
     <div style="margin: 2rem 0;">
         <button id="mark-all-read-btn" class="button" style="background-color: #28a745; color: white;">
             Marquer tout comme lu
@@ -69,6 +74,8 @@
 <script>
 // Marquer une notification individuelle comme lue
 document.addEventListener('DOMContentLoaded', function() {
+    initializeWebPushControl();
+
     document.querySelectorAll('.mark-read-btn').forEach(button => {
         button.addEventListener('click', function() {
             const notificationId = this.getAttribute('data-notification-id');
@@ -82,6 +89,192 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 
+async function initializeWebPushControl() {
+    const button = document.getElementById('web-push-toggle');
+    const status = document.getElementById('web-push-status');
+    if (!button || !status) return;
+
+    const supported = 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+    if (!supported) {
+        status.textContent = 'Navigateur non compatible avec les notifications Push.';
+        button.disabled = true;
+        return;
+    }
+
+    if (Notification.permission === 'denied') {
+        status.textContent = 'Autorisation refusée. Réactivez-la dans les réglages du navigateur.';
+        button.disabled = true;
+        return;
+    }
+
+    let registration = null;
+    let subscription = null;
+
+    try {
+        registration = await navigator.serviceWorker.getRegistration('/');
+        subscription = registration && await registration.pushManager.getSubscription();
+
+        if (subscription) {
+            const keyResponse = await fetch('/api/web-push/vapid-public-key/');
+            if (!keyResponse.ok) throw new Error('Clé Push indisponible');
+            const keyData = await keyResponse.json();
+            if (!keyData.public_key) throw new Error('Clé Push invalide');
+
+            const existingKey = subscription.options && subscription.options.applicationServerKey;
+            const currentKeyBytes = urlBase64ToUint8Array(keyData.public_key);
+            let keysMatch = false;
+            if (existingKey) {
+                const existingKeyBytes = new Uint8Array(existingKey);
+                keysMatch = existingKeyBytes.length === currentKeyBytes.length
+                    && existingKeyBytes.every((value, index) => value === currentKeyBytes[index]);
+            } else {
+                keysMatch = getRememberedSubscriptionVapidKey(subscription.endpoint)
+                    === keyData.public_key;
+            }
+
+            if (!keysMatch) {
+                button.disabled = true;
+                status.textContent = 'Renouvellement des notifications en cours…';
+                await removeWebPushSubscription(subscription);
+                await subscription.unsubscribe();
+                forgetSubscriptionVapidKey(subscription.endpoint);
+                subscription = null;
+                subscription = await createWebPushSubscription(registration, keyData.public_key);
+            } else {
+                rememberSubscriptionVapidKey(subscription.endpoint, keyData.public_key);
+            }
+        }
+
+        status.textContent = subscription
+            ? 'Notifications activées sur cet appareil.'
+            : 'Notifications désactivées sur cet appareil.';
+        button.textContent = subscription ? 'Désactiver les notifications' : 'Activer les notifications';
+        button.disabled = false;
+        button.onclick = () => toggleWebPush(subscription);
+    } catch (error) {
+        status.textContent = 'Erreur lors de la vérification ou du renouvellement des notifications.';
+        button.disabled = false;
+        button.textContent = subscription ? 'Désactiver les notifications' : 'Activer les notifications';
+        button.onclick = () => toggleWebPush(subscription);
+    }
+
+    async function removeWebPushSubscription(currentSubscription) {
+        const response = await fetch('/api/web-push/subscriptions/', {
+            method: 'DELETE',
+            headers: {'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken()},
+            body: JSON.stringify({endpoint: currentSubscription.endpoint})
+        });
+        if (!response.ok) throw new Error('Suppression de l’ancienne souscription impossible');
+    }
+
+    async function createWebPushSubscription(serviceWorkerRegistration, publicKey) {
+        const readyRegistration = await navigator.serviceWorker.ready;
+        const newSubscription = await (readyRegistration || serviceWorkerRegistration).pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: urlBase64ToUint8Array(publicKey)
+        });
+        const saveResponse = await fetch('/api/web-push/subscriptions/', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken()},
+            body: JSON.stringify(newSubscription.toJSON())
+        });
+        if (!saveResponse.ok) {
+            await newSubscription.unsubscribe();
+            throw new Error('Enregistrement de l’abonnement impossible');
+        }
+        rememberSubscriptionVapidKey(newSubscription.endpoint, publicKey);
+        return newSubscription;
+    }
+
+    function subscriptionVapidMarkerKey(endpoint) {
+        return `sdi-web-push-vapid:${endpoint}`;
+    }
+
+    function getRememberedSubscriptionVapidKey(endpoint) {
+        const markerKey = subscriptionVapidMarkerKey(endpoint);
+        try {
+            const persistentKey = localStorage.getItem(markerKey);
+            if (persistentKey) return persistentKey;
+        } catch (error) {
+            try {
+                return sessionStorage.getItem(markerKey);
+            } catch (sessionError) {
+                console.warn('Impossible de lire la clé VAPID mémorisée.', sessionError);
+            }
+        }
+        return null;
+    }
+
+    function rememberSubscriptionVapidKey(endpoint, publicKey) {
+        try {
+            localStorage.setItem(subscriptionVapidMarkerKey(endpoint), publicKey);
+        } catch (error) {
+            try {
+                sessionStorage.setItem(subscriptionVapidMarkerKey(endpoint), publicKey);
+            } catch (sessionError) {
+                console.warn('Impossible de mémoriser la clé VAPID de cet abonnement.', sessionError);
+            }
+        }
+    }
+
+    function forgetSubscriptionVapidKey(endpoint) {
+        try {
+            localStorage.removeItem(subscriptionVapidMarkerKey(endpoint));
+        } catch (error) {
+            try {
+                sessionStorage.removeItem(subscriptionVapidMarkerKey(endpoint));
+            } catch (sessionError) {
+                console.warn('Impossible d’effacer la clé VAPID mémorisée.', sessionError);
+            }
+        }
+        try {
+            sessionStorage.removeItem(subscriptionVapidMarkerKey(endpoint));
+        } catch (error) {
+            console.warn('Impossible d’effacer la clé VAPID de session.', error);
+        }
+    }
+
+    async function toggleWebPush(currentSubscription) {
+        button.disabled = true;
+        status.textContent = 'Mise à jour en cours…';
+        try {
+            if (currentSubscription) {
+                await removeWebPushSubscription(currentSubscription);
+                await currentSubscription.unsubscribe();
+                forgetSubscriptionVapidKey(currentSubscription.endpoint);
+            } else {
+                if (Notification.permission !== 'granted') {
+                    const permission = await Notification.requestPermission();
+                    if (permission !== 'granted') {
+                        status.textContent = permission === 'denied'
+                            ? 'Autorisation refusée. Réactivez-la dans les réglages du navigateur.'
+                            : 'Notifications désactivées sur cet appareil.';
+                        await initializeWebPushControl();
+                        return;
+                    }
+                }
+
+                const keyResponse = await fetch('/api/web-push/vapid-public-key/');
+                if (!keyResponse.ok) throw new Error('Clé Push indisponible');
+                const keyData = await keyResponse.json();
+                const registration = await navigator.serviceWorker.register('/service-worker.js', {scope: '/'});
+                await createWebPushSubscription(registration, keyData.public_key);
+            }
+            await initializeWebPushControl();
+        } catch (error) {
+            status.textContent = 'Erreur d’activation. Réessayez depuis cette page.';
+            button.disabled = false;
+        }
+    }
+}
+
+function urlBase64ToUint8Array(value) {
+    const padding = '='.repeat((4 - value.length % 4) % 4);
+    const base64 = (value + padding).replace(/-/g, '+').replace(/_/g, '/');
+    const raw = atob(base64);
+    return Uint8Array.from(raw, character => character.charCodeAt(0));
+}
+
 function markNotificationAsRead(notificationId) {
     fetch(`/api/notifications/persistent/${notificationId}/read/`, {
         method: 'POST',
@@ -93,6 +286,7 @@ function markNotificationAsRead(notificationId) {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
+            closeBrowserNotification(notificationId);
             // Recharger la page pour mettre à jour l'affichage
             location.reload();
         } else {
@@ -116,6 +310,7 @@ function markAllNotificationsAsRead() {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
+            closeBrowserNotifications();
             // Recharger la page pour mettre à jour l'affichage
             location.reload();
         } else {
@@ -126,6 +321,18 @@ function markAllNotificationsAsRead() {
         console.error('Erreur:', error);
         alert('Erreur lors de la mise à jour des notifications');
     });
+}
+
+function closeBrowserNotification(notificationId) {
+    navigator.serviceWorker.getRegistration('/').then(registration => {
+        if (registration) registration.active.postMessage({type: 'close-notification', id: notificationId});
+    }).catch(() => {});
+}
+
+function closeBrowserNotifications() {
+    navigator.serviceWorker.getRegistration('/').then(registration => {
+        if (registration) registration.active.postMessage({type: 'close-all-notifications'});
+    }).catch(() => {});
 }
 
 function getCsrfToken() {
