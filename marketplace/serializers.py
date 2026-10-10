@@ -25,12 +25,20 @@ class OrderSerializer(serializers.ModelSerializer):
 class WalletSerializer(serializers.ModelSerializer):
     class Meta:
         model = Wallet
-        fields = "__all__"
+        fields = (
+            'id', 'user', 'balance', 'balance_usd', 'balance_htg',
+            'real_estate_loan_balance_htg', 'balance_peso', 'balance_eur',
+            'commission_balance_usd', 'commission_balance_htg',
+            'commission_balance_peso', 'commission_balance_eur',
+            'can_transfer', 'is_blocked',
+        )
+        read_only_fields = fields
 
 class TransactionSerializer(serializers.ModelSerializer):
     class Meta:
         model = Transaction
-        fields = "__all__"
+        fields = ('id', 'sender', 'receiver', 'amount', 'currency', 'type', 'status', 'created_at')
+        read_only_fields = fields
 
 class DeliveryEmployeeSerializer(serializers.ModelSerializer):
     class Meta:
@@ -45,7 +53,14 @@ class DeliveryAssignmentSerializer(serializers.ModelSerializer):
 class AgentSerializer(serializers.ModelSerializer):
     class Meta:
         model = Agent
-        fields = "__all__"
+        fields = ('id', 'user', 'is_active')
+        read_only_fields = ('id',)
+
+    def validate(self, attrs):
+        user = attrs.get('user', getattr(self.instance, 'user', None))
+        if user and not (user.is_agent or user.role == 'agent'):
+            raise serializers.ValidationError({'user': 'Le compte doit avoir le rôle agent.'})
+        return attrs
 
 
 class DeliveryTrackingSerializer(serializers.ModelSerializer):

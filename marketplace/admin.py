@@ -5,6 +5,8 @@ from django.shortcuts import redirect
 from django.contrib import messages
 from django import forms
 from django.utils import timezone
+from django.db import transaction
+from django.db.models import F
 from decimal import Decimal
 from .models import (
     User, Shop, Product, Wallet, Order, OrderItem, Transaction, AdminAddTransaction,
@@ -28,7 +30,10 @@ from .models import (
     # Real estate membership requests
     
 )
-from .business_logic import create_persistent_notification, fetch_exchange_rates_from_api
+from .business_logic import (
+    create_persistent_notification, fetch_exchange_rates_from_api,
+    begin_financial_operation, complete_financial_operation,
+)
 from .models import ProductAccessRequest, ResellerProduct, MarketplaceSettings, MarketplaceSellerCommission
 from .real_estate_models import RealEstateMembershipRequest
 
@@ -776,27 +781,42 @@ class OrderAdmin(admin.ModelAdmin):
 
     def refund_order(self, request, queryset):
         for order in queryset:
-            if order.status in ['paid', 'awaiting_delivery', 'delivered']:
-                # Refund buyer
-                buyer_wallet = Wallet.objects.get(user=order.buyer)
-                buyer_wallet.balance += order.total_amount
-                buyer_wallet.save()
-                # If already paid to seller, deduct back? But in escrow, if not delivered, deduct.
+            with transaction.atomic():
+                order = Order.objects.select_for_update().get(pk=order.pk)
+                if order.status not in ['paid', 'awaiting_delivery', 'delivered']:
+                    continue
+                operation, created = begin_financial_operation(
+                    order.buyer,
+                    'order_refund',
+                    f'order-{order.pk}',
+                    {'order_id': order.pk, 'amount': str(order.total_amount), 'currency': 'USD'},
+                )
+                if not created:
+                    continue
+
+                buyer_wallet, _ = Wallet.objects.get_or_create(user=order.buyer)
+                buyer_wallet = Wallet.objects.select_for_update().get(pk=buyer_wallet.pk)
+                Wallet.objects.filter(pk=buyer_wallet.pk).update(
+                    balance=F('balance') + order.total_amount
+                )
                 if order.status == 'delivered':
-                    for item in order.items.all():
-                        seller_wallet = Wallet.objects.get(user=item.product.shop.owner)
+                    for item in order.items.select_related('product__shop__owner'):
+                        seller_wallet = Wallet.objects.select_for_update().get(user=item.product.shop.owner)
                         seller_revenue = (item.price_ht - Decimal('0.6')) * item.quantity
-                        seller_wallet.balance -= seller_revenue
-                        seller_wallet.save()
+                        Wallet.objects.filter(pk=seller_wallet.pk).update(
+                            balance=F('balance') - seller_revenue
+                        )
                 order.status = 'refunded'
-                order.save()
-                Transaction.objects.create(
+                order.save(update_fields=['status'])
+                refund_transaction = Transaction.objects.create(
                     sender=None,
                     receiver=order.buyer,
                     amount=order.total_amount,
+                    currency='USD',
                     type='refund',
                     status='approved'
                 )
+                complete_financial_operation(operation, refund_transaction)
                 create_persistent_notification(
                     recipient=order.buyer,
                     title=f'💸 Remboursement effectué : {order.total_amount} USD',
@@ -1329,4 +1349,3 @@ class AdminAnnouncementPermissionAdmin(admin.ModelAdmin):
             'classes': ('collapse',)
         }),
     )
-

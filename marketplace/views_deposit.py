@@ -8,10 +8,9 @@ from django.db import transaction as db_transaction
 from django.utils import timezone
 from datetime import datetime
 from decimal import Decimal
-import uuid
 import secrets
 import json
-from django.db.models import Sum, Q, Case, When, Value, IntegerField
+from django.db.models import Sum, Q, Case, When, Value, IntegerField, F
 
 from .models import (
     User, Wallet, Deposit, DepositCommissionConfig,
@@ -19,7 +18,11 @@ from .models import (
     DepositReceipt, TransactionLog, SecurityLog,
     AgentCommission, CommissionRule, TiKaneDailyPayment
 )
-from .business_logic import create_persistent_notification
+from .business_logic import (
+    create_persistent_notification, begin_financial_operation,
+    complete_financial_operation, get_financial_operation_result,
+    get_session_idempotency_key, rotate_session_idempotency_key,
+)
 
 
 def is_principal_admin(user):
@@ -69,6 +72,7 @@ def agent_deposit_view(request):
         
         context = {
             'currencies': currencies,
+            'deposit_idempotency_key': get_session_idempotency_key(request, 'agent_deposit'),
             'agent_wallet': agent_wallet,
             'commissions': {c.currency: {'type': c.commission_type, 'value': c.commission_value} for c in commissions},
             'commissions_json': json.dumps({c.currency: {'type': c.commission_type, 'value': str(c.commission_value)} for c in commissions}),
@@ -102,8 +106,8 @@ def agent_deposit_view(request):
 
         try:
             amount = Decimal(amount_str)
-            if amount <= 0:
-                errors.append("Le montant doit être supérieur à 0")
+            if not amount.is_finite() or amount <= 0 or amount != amount.quantize(Decimal('0.01')):
+                errors.append("Le montant doit être positif et limité à deux décimales")
         except Exception:
             errors.append("Montant invalide")
 
@@ -208,7 +212,12 @@ def agent_deposit_view(request):
         required_amount = amount
 
         agent_wallet, _ = Wallet.objects.get_or_create(user=request.user)
-        wallet_field = f"balance_{currency.lower()}"
+        wallet_field = {
+            'USD': 'balance_usd',
+            'HTG': 'balance_htg',
+            'DOP': 'balance_peso',
+            'EUR': 'balance_eur',
+        }[currency]
         agent_balance = getattr(agent_wallet, wallet_field, Decimal('0'))
 
         if agent_balance < required_amount:
@@ -216,7 +225,12 @@ def agent_deposit_view(request):
             return redirect('agent_deposit')
 
         client_wallet, _ = Wallet.objects.get_or_create(user=client)
-        commission_field = f"commission_balance_{currency.lower()}"
+        commission_field = {
+            'USD': 'commission_balance_usd',
+            'HTG': 'commission_balance_htg',
+            'DOP': 'commission_balance_peso',
+            'EUR': 'commission_balance_eur',
+        }[currency]
 
         admin_user = get_system_admin_user()
         if not admin_user:
@@ -232,36 +246,84 @@ def agent_deposit_view(request):
 
         try:
             with db_transaction.atomic():
-                setattr(agent_wallet, wallet_field, agent_balance - required_amount)
-                agent_wallet.save()
+                operation, operation_created = begin_financial_operation(
+                    request.user,
+                    'agent_deposit',
+                    request.POST.get('idempotency_key'),
+                    {
+                        'client_id': client.pk,
+                        'amount': str(amount),
+                        'currency': currency,
+                        'tikane_deposit': tikane_deposit,
+                    },
+                )
+                if not operation_created:
+                    existing_deposit = get_financial_operation_result(operation, Deposit)
+                    return redirect('deposit_confirmation', deposit_id=existing_deposit.pk)
+
+                locked_wallets = {
+                    item.pk: item
+                    for item in Wallet.objects.select_for_update().filter(
+                        pk__in=[agent_wallet.pk, client_wallet.pk, admin_wallet.pk]
+                    ).order_by('pk')
+                }
+                agent_wallet = locked_wallets[agent_wallet.pk]
+                client_wallet = locked_wallets[client_wallet.pk]
+                admin_wallet = locked_wallets[admin_wallet.pk]
+
+                agent_debit = Wallet.objects.filter(
+                    pk=agent_wallet.pk,
+                    **{f'{wallet_field}__gte': required_amount},
+                ).update(**{wallet_field: F(wallet_field) - required_amount})
+                if not agent_debit:
+                    db_transaction.set_rollback(True)
+                    messages.error(request, "Solde agent insuffisant pour effectuer le dépôt.")
+                    return redirect('agent_deposit')
 
                 if tikane_deposit:
-                    tikane_account = client.tikane_account
-                    tikane_account.balance += amount
-                    tikane_account.total_deposits += amount
+                    tikane_account = client.tikane_account.__class__.objects.select_for_update().get(
+                        pk=client.tikane_account.pk
+                    )
+                    tikane_account.balance = F('balance') + amount
+                    tikane_account.total_deposits = F('total_deposits') + amount
                     tikane_account.save(update_fields=['balance', 'total_deposits'])
+                    tikane_account.refresh_from_db(fields=['balance', 'total_deposits'])
                 else:
                     loan_repayment = Decimal('0')
                     if currency == 'HTG' and client_wallet.real_estate_loan_balance_htg > 0:
                         loan_balance = client_wallet.real_estate_loan_balance_htg
                         loan_repayment = min(amount, loan_balance)
-                        client_wallet.real_estate_loan_balance_htg = loan_balance - loan_repayment
+                        loan_updated = Wallet.objects.filter(
+                            pk=client_wallet.pk,
+                            real_estate_loan_balance_htg__gte=loan_repayment,
+                        ).update(
+                            real_estate_loan_balance_htg=F('real_estate_loan_balance_htg') - loan_repayment
+                        )
+                        if not loan_updated:
+                            db_transaction.set_rollback(True)
+                            messages.error(request, "Le solde du prêt a changé pendant l'opération. Veuillez réessayer.")
+                            return redirect('agent_deposit')
 
                     amount_to_credit = amount - loan_repayment
                     if amount_to_credit > 0:
-                        client_balance = getattr(client_wallet, wallet_field, Decimal('0'))
-                        setattr(client_wallet, wallet_field, client_balance + amount_to_credit)
+                        Wallet.objects.filter(pk=client_wallet.pk).update(
+                            **{wallet_field: F(wallet_field) + amount_to_credit}
+                        )
 
-                    client_wallet.save()
                     tikane_account = None
 
                 if commission > 0:
-                    setattr(admin_wallet, wallet_field, admin_balance - commission)
-                    admin_wallet.save()
-
-                    agent_commission_balance = getattr(agent_wallet, commission_field, Decimal('0'))
-                    setattr(agent_wallet, commission_field, agent_commission_balance + commission)
-                    agent_wallet.save()
+                    admin_debit = Wallet.objects.filter(
+                        pk=admin_wallet.pk,
+                        **{f'{wallet_field}__gte': commission},
+                    ).update(**{wallet_field: F(wallet_field) - commission})
+                    if not admin_debit:
+                        db_transaction.set_rollback(True)
+                        messages.error(request, f"Solde administrateur insuffisant pour payer la commission de {commission} {currency}.")
+                        return redirect('agent_deposit')
+                    Wallet.objects.filter(pk=agent_wallet.pk).update(
+                        **{commission_field: F(commission_field) + commission}
+                    )
 
                 deposit = Deposit.objects.create(
                     agent=request.user,
@@ -355,6 +417,10 @@ def agent_deposit_view(request):
                 )
                 receipt.generate_content()
                 receipt.save(update_fields=['content'])
+                complete_financial_operation(operation, deposit)
+                db_transaction.on_commit(
+                    lambda: rotate_session_idempotency_key(request, 'agent_deposit', request.POST.get('idempotency_key'))
+                )
 
                 messages.success(request, f"Dépôt de {amount} {currency} confirmé pour {client.username}. Référence: {deposit.reference}")
 
@@ -510,21 +576,24 @@ def agent_deposit_history(request):
             Q(reference__icontains=search)
         )
 
-    deposits = deposits[:100]
+    deposits = list(deposits[:100])
 
     # Statistiques
-    total_deposited = deposits.values('currency').distinct()
+    currencies = dict.fromkeys(deposit.currency for deposit in deposits)
     stats = {}
-    for item in total_deposited:
-        currency = item['currency']
-        total = deposits.filter(
-            currency=currency,
-            status='confirmed'
-        ).aggregate(total=Sum('amount'))['total'] or Decimal('0')
-        commission_total = deposits.filter(
-            currency=currency,
-            status='confirmed'
-        ).aggregate(total=Sum('commission'))['total'] or Decimal('0')
+    for currency in currencies:
+        confirmed_deposits = [
+            deposit for deposit in deposits
+            if deposit.currency == currency and deposit.status == 'confirmed'
+        ]
+        total = sum(
+            (deposit.amount for deposit in confirmed_deposits),
+            Decimal('0'),
+        )
+        commission_total = sum(
+            (deposit.commission for deposit in confirmed_deposits),
+            Decimal('0'),
+        )
         stats[currency] = {
             'total_amount': total,
             'total_commission': commission_total

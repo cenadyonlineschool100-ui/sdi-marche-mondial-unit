@@ -1938,6 +1938,29 @@ class Transaction(models.Model):
     def type_display(self):
         return self.type.replace('_', ' ').title()
 
+
+class FinancialOperation(models.Model):
+    actor = models.ForeignKey(User, on_delete=models.PROTECT, related_name='financial_operations')
+    operation = models.CharField(max_length=40)
+    idempotency_key = models.CharField(max_length=128)
+    request_hash = models.CharField(max_length=64)
+    result_model = models.CharField(max_length=100, blank=True)
+    result_pk = models.CharField(max_length=64, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['actor', 'operation', 'idempotency_key'],
+                name='uniq_financial_operation_key',
+            ),
+        ]
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.operation}:{self.idempotency_key}"
+
+
 class TransferCommissionTier(models.Model):
     currency = models.CharField(max_length=10, default='HTG')
     min_amount = models.DecimalField(max_digits=15, decimal_places=2)
@@ -2576,21 +2599,43 @@ class ReturnRequest(models.Model):
 
     def process_refund(self, amount=None):
         """Traiter le remboursement"""
+        from django.db import transaction as db_transaction
+        from .business_logic import (
+            begin_financial_operation, complete_financial_operation,
+            get_financial_operation_result,
+        )
+
         if amount is None:
             amount = self.order.total_amount
-        self.refund_amount = amount
-        self.status = 'refunded'
-        self.processed_at = timezone.now()
-        self.save()
+        amount = Decimal(str(amount))
+        if not amount.is_finite() or amount <= 0 or amount != amount.quantize(Decimal('0.01')):
+            raise ValueError('Le montant du remboursement doit être positif et limité à deux décimales.')
 
-        # Créer une transaction de remboursement
-        Transaction.objects.create(
-            sender=None,  # Système
-            receiver=self.customer,
-            amount=amount,
-            type='refund',
-            status='approved'
-        )
+        with db_transaction.atomic():
+            return_request = self.__class__.objects.select_for_update().get(pk=self.pk)
+            operation, created = begin_financial_operation(
+                return_request.customer,
+                'return_request_refund',
+                f'return-{return_request.pk}',
+                {'return_request_id': return_request.pk, 'amount': str(amount), 'currency': 'HTG'},
+            )
+            if not created:
+                get_financial_operation_result(operation, Transaction)
+                return False
+
+            return_request.refund_amount = amount
+            return_request.status = 'refunded'
+            return_request.processed_at = timezone.now()
+            return_request.save(update_fields=['refund_amount', 'status', 'processed_at'])
+            refund_transaction = Transaction.objects.create(
+                sender=None,
+                receiver=return_request.customer,
+                amount=amount,
+                type='refund',
+                status='approved'
+            )
+            complete_financial_operation(operation, refund_transaction)
+        return True
 
 # -------------------------------
 # Paramètres système

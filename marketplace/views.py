@@ -10,8 +10,8 @@ from django.contrib.auth import authenticate, get_user_model, login, logout
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib.auth.models import Group
 from django.views.decorators.http import require_POST
-from django.db.models import Sum, Avg, Count, Q, Prefetch, Max
-from django.db import transaction, connection
+from django.db.models import Sum, Avg, Count, Q, Prefetch, Max, F
+from django.db import transaction, connection, OperationalError
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
@@ -26,11 +26,13 @@ from datetime import datetime, timedelta
 from decimal import Decimal, InvalidOperation
 import secrets
 import json
+from functools import wraps
 from random import sample
 import gc
 import traceback
 from rest_framework import filters, permissions, status, viewsets
 from rest_framework.decorators import action
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
 
 from .forms import ProductForm, ProductReviewForm, SignUpForm, SystemSettingsForm, BannerExpandSettingsForm, ChatMessageForm, PrivateMessageForm, BeautyBookingForm, BeautyStudioServiceForm, BeautyStudioRequestForm, ShopCoverPhotoForm, ProfileForm, OrderForm, DeliveryLocationForm, TransferForm, TiKaneAccessRequestForm, TiKanePlanForm, AssignmentSubmissionForm, TechnicianProfileForm, SiteBannerForm, SiteBannerImageForm, PriorityGroupForm, BannerProductPriorityForm
@@ -65,11 +67,45 @@ from .business_logic import (
     OrderStatusManager, StatisticsManager, CommissionManager,
     create_persistent_notification, notify_order_sellers,
     get_system_admin_wallet, normalize_currency, fetch_exchange_rates_from_api,
-    convert_currency
+    convert_currency, begin_financial_operation, complete_financial_operation,
+    get_financial_operation_result, IdempotencyConflict,
+    get_session_idempotency_key, rotate_session_idempotency_key,
 )
 
 User = get_user_model()
 logger = logging.getLogger(__name__)
+
+
+def is_financial_admin_user(user):
+    return bool(
+        user.is_authenticated and (
+            user.is_superuser
+            or user.is_staff
+            or user.has_perm('marketplace.principal_admin_power')
+        )
+    )
+
+
+class FinancialAdminPermission(permissions.BasePermission):
+    def has_permission(self, request, view):
+        return is_financial_admin_user(request.user)
+
+
+def handle_financial_lock_conflict(view_func):
+    @wraps(view_func)
+    def wrapped(request, *args, **kwargs):
+        try:
+            return view_func(request, *args, **kwargs)
+        except OperationalError as exc:
+            if 'locked' not in str(exc).lower():
+                raise
+            logger.warning('Financial operation rolled back after a database lock conflict.')
+            return JsonResponse({
+                'success': False,
+                'error': 'Opération concurrente détectée. Réessayez avec la même clé d’idempotence.',
+            }, status=409)
+    return wrapped
+
 
 # ------------------------------
 # Utility functions
@@ -304,6 +340,8 @@ def get_recipient_account_info(request):
 
 @login_required
 @require_POST
+@handle_financial_lock_conflict
+@transaction.atomic
 def transfer_funds(request):
     form = TransferForm(request.POST)
     if not form.is_valid():
@@ -319,11 +357,59 @@ def transfer_funds(request):
     if recipient == request.user:
         return JsonResponse({'error': 'Vous ne pouvez pas transférer vers votre propre compte.'}, status=400)
 
-    wallet = Wallet.objects.get_or_create(user=request.user)[0]
-    recipient_wallet = Wallet.objects.get_or_create(user=recipient)[0]
+    idempotency_key = request.headers.get('Idempotency-Key') or request.POST.get('idempotency_key')
+    try:
+        operation, operation_created = begin_financial_operation(
+            request.user,
+            'transfer',
+            idempotency_key,
+            {
+                'recipient_id': recipient.pk,
+                'source_account': source_account,
+                'currency': currency,
+                'amount': str(amount),
+            },
+        )
+    except IdempotencyConflict as exc:
+        return JsonResponse({'error': str(exc)}, status=409)
+    except ValueError as exc:
+        return JsonResponse({'error': str(exc)}, status=400)
+    except OperationalError as exc:
+        if 'locked' not in str(exc).lower():
+            raise
+        transaction.set_rollback(True)
+        logger.warning('Transfer was rejected after a database lock conflict.')
+        return JsonResponse({
+            'success': False,
+            'error': 'Opération concurrente détectée. Réessayez avec la même clé d’idempotence.',
+        }, status=409)
+    if not operation_created:
+        previous_transfer = get_financial_operation_result(operation, Transfer)
+        return JsonResponse({
+            'success': True,
+            'transaction_id': previous_transfer.transaction_id,
+            'message': f'Transfert de {previous_transfer.amount} {previous_transfer.currency} déjà traité.',
+            'fee': str(previous_transfer.fee),
+            'system_fee': str(previous_transfer.system_fee),
+            'agent_fee': str(previous_transfer.agent_fee),
+            'duplicate': True,
+        })
+
+    wallet, _ = Wallet.objects.get_or_create(user=request.user)
+    recipient_wallet, _ = Wallet.objects.get_or_create(user=recipient)
+    locked_wallets = {
+        item.pk: item
+        for item in Wallet.objects.select_for_update().filter(
+            pk__in=[wallet.pk, recipient_wallet.pk]
+        ).order_by('pk')
+    }
+    wallet = locked_wallets[wallet.pk]
+    recipient_wallet = locked_wallets[recipient_wallet.pk]
     if wallet.is_blocked:
+        transaction.set_rollback(True)
         return JsonResponse({'error': 'Votre compte est bloqué. Transfert impossible.'}, status=403)
     if not wallet.can_transfer and not is_principal_admin(request.user):
+        transaction.set_rollback(True)
         return JsonResponse({'error': 'Transferts désactivés pour votre compte.'}, status=403)
 
     commission_breakdown = CommissionManager.get_transfer_commission_breakdown(amount, currency)
@@ -342,15 +428,18 @@ def transfer_funds(request):
     if source_account == 'principal':
         if currency == 'USD':
             if available_amount < amount + fee_total:
+                transaction.set_rollback(True)
                 return JsonResponse({'error': 'Solde principal insuffisant.'}, status=400)
         else:
             if available_amount < total_deduction_usd:
+                transaction.set_rollback(True)
                 return JsonResponse({'error': 'Solde principal insuffisant pour ce montant et les frais.'}, status=400)
     else:
         if available_amount < amount + fee_total:
+            transaction.set_rollback(True)
             return JsonResponse({'error': 'Solde Multi-appareils insuffisant.'}, status=400)
 
-    with transaction.atomic():
+    with transaction.atomic(savepoint=False):
         transfer = Transfer.objects.create(
             sender=request.user,
             receiver=recipient,
@@ -374,42 +463,47 @@ def transfer_funds(request):
 
         if source_account == 'principal':
             if currency == 'USD':
-                wallet.balance -= (amount + fee_total)
-                wallet.save(update_fields=['balance'])
-                recipient_wallet.balance += amount
-                recipient_wallet.save(update_fields=['balance'])
+                debit_field = 'balance'
+                debit_amount = amount + fee_total
+                credit_field = 'balance'
             else:
-                wallet.balance -= total_deduction_usd
-                wallet.save(update_fields=['balance'])
                 recipient_field = get_wallet_balance_field(currency)
-                current_value = getattr(recipient_wallet, recipient_field, Decimal('0'))
-                setattr(recipient_wallet, recipient_field, current_value + amount)
-                recipient_wallet.save(update_fields=[recipient_field])
+                debit_field = 'balance'
+                debit_amount = total_deduction_usd
+                credit_field = recipient_field
         else:
-            sender_balance = getattr(wallet, sender_field, Decimal('0'))
-            setattr(wallet, sender_field, sender_balance - (amount + fee_total))
-            wallet.save(update_fields=[sender_field])
-            recipient_field = get_wallet_balance_field(currency)
-            receiver_value = getattr(recipient_wallet, recipient_field, Decimal('0'))
-            setattr(recipient_wallet, recipient_field, receiver_value + amount)
-            recipient_wallet.save(update_fields=[recipient_field])
+            debit_field = sender_field
+            debit_amount = amount + fee_total
+            credit_field = get_wallet_balance_field(currency)
+
+        debited = Wallet.objects.filter(
+            pk=wallet.pk,
+            **{f'{debit_field}__gte': debit_amount},
+        ).update(**{debit_field: F(debit_field) - debit_amount})
+        if not debited:
+            transaction.set_rollback(True)
+            return JsonResponse({'error': 'Solde insuffisant.'}, status=400)
+        Wallet.objects.filter(pk=recipient_wallet.pk).update(
+            **{credit_field: F(credit_field) + amount}
+        )
 
         system_wallet = get_system_admin_wallet()
         commission_field = get_commission_balance_field(currency)
         if system_wallet and system_fee > 0:
-            current_system_commission = getattr(system_wallet, commission_field, Decimal('0'))
-            setattr(system_wallet, commission_field, current_system_commission + system_fee)
-            system_wallet.save(update_fields=[commission_field])
+            system_wallet = Wallet.objects.select_for_update().get(pk=system_wallet.pk)
+            Wallet.objects.filter(pk=system_wallet.pk).update(
+                **{commission_field: F(commission_field) + system_fee}
+            )
 
         if agent_fee > 0:
             if request.user.is_agent:
-                current_agent_commission = getattr(wallet, get_commission_balance_field(currency), Decimal('0'))
-                setattr(wallet, get_commission_balance_field(currency), current_agent_commission + agent_fee)
-                wallet.save(update_fields=[get_commission_balance_field(currency)])
+                Wallet.objects.filter(pk=wallet.pk).update(
+                    **{get_commission_balance_field(currency): F(get_commission_balance_field(currency)) + agent_fee}
+                )
             elif system_wallet:
-                current_system_commission = getattr(system_wallet, commission_field, Decimal('0'))
-                setattr(system_wallet, commission_field, current_system_commission + agent_fee)
-                system_wallet.save(update_fields=[commission_field])
+                Wallet.objects.filter(pk=system_wallet.pk).update(
+                    **{commission_field: F(commission_field) + agent_fee}
+                )
 
         TransferLog.objects.create(
             transfer=transfer,
@@ -495,6 +589,10 @@ def transfer_funds(request):
                 'Transfert agent',
                 f"Vous êtes l'agent concerné pour le transfert {transfer.transaction_id}. Commission agent: {agent_fee} {currency}."
             )
+        complete_financial_operation(operation, transfer)
+        transaction.on_commit(
+            lambda: rotate_session_idempotency_key(request, 'transfer', idempotency_key)
+        )
 
     return JsonResponse({
         'success': True,
@@ -2464,11 +2562,23 @@ def profile(request):
     wallet, created = Wallet.objects.get_or_create(
         user=request.user,
         defaults={
-            'balance': Decimal('100.00'),
+            'balance': Decimal('0.00'),
             'can_transfer': True,
             'is_blocked': False
         }
     )
+
+    if request.method == 'POST' and 'transfer_submit' in request.POST:
+        transfer_response = transfer_funds(request)
+        transfer_result = json.loads(transfer_response.content.decode('utf-8'))
+        if transfer_response.status_code < 400 and transfer_result.get('success'):
+            messages.success(request, transfer_result.get('message', 'Transfert effectué.'))
+        else:
+            error_message = transfer_result.get('error')
+            if not error_message and transfer_result.get('errors'):
+                error_message = 'Vérifiez les informations du transfert.'
+            messages.error(request, error_message or 'Le transfert n’a pas pu être effectué.')
+        return redirect('profile')
     
     # Pour les administrateurs et vendeurs, créer une boutique automatiquement si elle n'existe pas
     if request.user.is_staff or request.user.is_seller:
@@ -3519,6 +3629,8 @@ def profile(request):
         'can_use_agent_financial_tools': can_use_agent_financial_tools,
         'can_use_full_admin_actions': can_use_full_admin_actions,
         'agent_fund_managers': agent_fund_managers,
+        'transfer_idempotency_key': get_session_idempotency_key(request, 'transfer'),
+        'withdrawal_idempotency_key': get_session_idempotency_key(request, 'user_withdrawal'),
     })
 
 
@@ -3919,6 +4031,8 @@ def process_receipt(request, receipt_id):
 
 @login_required
 @require_POST
+@handle_financial_lock_conflict
+@transaction.atomic
 def withdraw_funds(request):
     """Endpoint pour retirer des fonds du portefeuille"""
     from django.core.mail import send_mail
@@ -3932,6 +4046,7 @@ def withdraw_funds(request):
     currency = data.get('currency')
     pin = data.get('pin')
     secure_code = data.get('secure_code')
+    idempotency_key = data.get('idempotency_key') or request.headers.get('Idempotency-Key')
     
     # Validation des données
     if not all([account_type, amount_str, currency, pin, secure_code]):
@@ -3945,7 +4060,7 @@ def withdraw_funds(request):
     
     try:
         amount = Decimal(amount_str)
-        if amount < Decimal('5.00'):  # Minimum 5 USD
+        if not amount.is_finite() or amount < Decimal('5.00') or amount != amount.quantize(Decimal('0.01')):
             return JsonResponse({'success': False, 'message': 'Le montant minimum de retrait est de 5 USD.'})
     except (InvalidOperation, ValueError):
         return JsonResponse({'success': False, 'message': 'Montant invalide.'})
@@ -3969,21 +4084,44 @@ def withdraw_funds(request):
         user.increment_failed_attempts()
         logger.warning(f"Tentative de retrait échouée pour {user.username}: Code final incorrect")
         return JsonResponse({'success': False, 'message': 'Code final incorrect.'})
+
+    try:
+        operation, operation_created = begin_financial_operation(
+            user,
+            'user_withdrawal',
+            idempotency_key,
+            {'account_type': account_type, 'currency': currency, 'amount': str(amount)},
+        )
+    except ValueError as exc:
+        return JsonResponse({'success': False, 'message': str(exc)}, status=400)
+    if not operation_created:
+        previous_withdrawal = get_financial_operation_result(operation, WithdrawalRequest)
+        return JsonResponse({
+            'success': True,
+            'message': f"Retrait déjà enregistré (demande {previous_withdrawal.pk}).",
+            'withdrawal_id': previous_withdrawal.pk,
+            'duplicate': True,
+        })
     
     # Récupérer le portefeuille
-    wallet, created = Wallet.objects.get_or_create(user=user)
+    wallet, _ = Wallet.objects.get_or_create(user=user)
+    wallet = Wallet.objects.select_for_update().get(pk=wallet.pk)
     breakdown = CommissionManager.get_withdrawal_commission_breakdown(amount, currency)
     fee_total = breakdown['total_fee']
     fee_system = breakdown['system_fee']
     fee_agent = breakdown['agent_fee']
+    wallet_field = None
+    withdrawal_account = None
     
     # Vérifier le solde selon le type de compte
     if account_type == 'principal':
         if currency != 'USD':
+            transaction.set_rollback(True)
             return JsonResponse({'success': False, 'message': 'Le compte principal ne supporte que USD.'})
         if wallet.balance < amount + fee_total:
+            transaction.set_rollback(True)
             return JsonResponse({'success': False, 'message': 'Solde insuffisant.'})
-        wallet.balance -= amount + fee_total
+        wallet_field = 'balance'
     elif account_type == 'multidevice':
         field_map = {
             'USD': 'commission_balance_usd',
@@ -3993,17 +4131,24 @@ def withdraw_funds(request):
         }
         field_name = field_map.get(currency.upper())
         if not field_name:
+            transaction.set_rollback(True)
             return JsonResponse({'success': False, 'message': 'Devise non supportée pour multi-device.'})
+        wallet_field = field_name
         
         current_balance = getattr(wallet, field_name)
         if current_balance < amount + fee_total:
+            transaction.set_rollback(True)
             return JsonResponse({'success': False, 'message': 'Solde insuffisant pour couvrir le montant du retrait et les frais.'})
-        setattr(wallet, field_name, current_balance - amount - fee_total)
+        wallet_field = field_name
     elif account_type == 'tikane':
         tikane_account = getattr(user, 'tikane_account', None)
         if not tikane_account or tikane_account.status != 'active':
+            transaction.set_rollback(True)
             return JsonResponse({'success': False, 'message': 'Vous devez avoir un compte Ti Kanè actif pour ce type de retrait.'})
+        tikane_account = tikane_account.__class__.objects.select_for_update().get(pk=tikane_account.pk)
+        withdrawal_account = tikane_account
         if not tikane_account.can_withdraw:
+            transaction.set_rollback(True)
             return JsonResponse({'success': False, 'message': 'Retrait Ti Kanè indisponible avant la date d\'échéance du plan.'})
 
         plan_fee = tikane_account.get_plan_withdrawal_commission(amount)
@@ -4019,29 +4164,47 @@ def withdraw_funds(request):
 
         if currency == 'USD':
             if wallet.balance < amount + fee_total:
+                transaction.set_rollback(True)
                 return JsonResponse({'success': False, 'message': 'Solde insuffisant.'})
-            wallet.balance -= amount + fee_total
+            wallet_field = 'balance'
         else:
             field_map = {
                 'HTG': 'balance_htg',
-                'DOP': 'balance_dop',
+                'DOP': 'balance_peso',
                 'EUR': 'balance_eur',
             }
             field_name = field_map.get(currency.upper())
             if not field_name:
+                transaction.set_rollback(True)
                 return JsonResponse({'success': False, 'message': 'Devise non supportée pour Ti Kanè.'})
+            wallet_field = field_name
             current_balance = getattr(wallet, field_name)
             if current_balance < amount + fee_total:
+                transaction.set_rollback(True)
                 return JsonResponse({'success': False, 'message': 'Solde insuffisant pour couvrir le montant du retrait et les frais.'})
-            setattr(wallet, field_name, current_balance - amount - fee_total)
         if tikane_account.balance < amount:
+            transaction.set_rollback(True)
             return JsonResponse({'success': False, 'message': 'Solde Ti Kanè insuffisant pour ce retrait.'})
-        tikane_account.balance -= amount
-        tikane_account.total_withdrawals += amount
-        tikane_account.save(update_fields=['balance', 'total_withdrawals'])
     
-    # Débiter l'argent IMMÉDIATEMENT
-    wallet.save()
+    debit_amount = amount + fee_total
+    debited = Wallet.objects.filter(
+        pk=wallet.pk,
+        **{f'{wallet_field}__gte': debit_amount},
+    ).update(**{wallet_field: F(wallet_field) - debit_amount})
+    if not debited:
+        transaction.set_rollback(True)
+        return JsonResponse({'success': False, 'message': 'Solde insuffisant.'})
+    if withdrawal_account:
+        account_debit = withdrawal_account.__class__.objects.filter(
+            pk=withdrawal_account.pk,
+            balance__gte=amount,
+        ).update(
+            balance=F('balance') - amount,
+            total_withdrawals=F('total_withdrawals') + amount,
+        )
+        if not account_debit:
+            transaction.set_rollback(True)
+            return JsonResponse({'success': False, 'message': 'Solde Ti Kanè insuffisant pour ce retrait.'})
     
     # Créer une WithdrawalRequest en pending
     withdrawal = WithdrawalRequest.objects.create(
@@ -4067,21 +4230,17 @@ def withdraw_funds(request):
             }
             admin_field_name = admin_field_map.get(currency.upper())
             if admin_field_name:
-                current_admin_balance = getattr(admin_wallet, admin_field_name)
-                setattr(admin_wallet, admin_field_name, current_admin_balance + fee_system)
-                admin_wallet.save(update_fields=[admin_field_name])
-            try:
-                from .models import Transaction
-                Transaction.objects.create(
-                    sender=user,
-                    receiver=admin_wallet.user,
-                    amount=fee_system,
-                    currency=currency,
-                    type='withdrawal_system_commission',
-                    status='approved'
+                Wallet.objects.filter(pk=admin_wallet.pk).update(
+                    **{admin_field_name: F(admin_field_name) + fee_system}
                 )
-            except Exception as exc:
-                logger.warning(f"Impossible d'enregistrer la commission de retrait: {exc}")
+            Transaction.objects.create(
+                sender=user,
+                receiver=admin_wallet.user,
+                amount=fee_system,
+                currency=currency,
+                type='withdrawal_system_commission',
+                status='approved'
+            )
 
     WithdrawalTransaction.objects.create(
         withdrawal_request=withdrawal,
@@ -4093,6 +4252,10 @@ def withdraw_funds(request):
         fee_system=fee_system,
         fee_agent=fee_agent,
         status='pending'
+    )
+    complete_financial_operation(operation, withdrawal)
+    transaction.on_commit(
+        lambda: rotate_session_idempotency_key(request, 'user_withdrawal', idempotency_key)
     )
     
     # Remettre à zéro les tentatives échouées
@@ -5342,20 +5505,108 @@ def admin_add_money(request):
         user_id = request.POST.get('user_id')
         amount = request.POST.get('amount')
         currency = request.POST.get('currency', 'HTG')
+        account_type = request.POST.get('account_type', 'principal')
 
         try:
             amount_decimal = Decimal(amount)
             if amount_decimal <= 0:
                 raise ValueError('Montant doit être supérieur à zéro.')
-        except (ValueError, InvalidOperation):
+        except (ValueError, InvalidOperation, TypeError):
             messages.error(request, 'Montant invalide. Veuillez entrer un nombre positif.')
+            return redirect('admin_add_money')
+
+        if account_type == 'agent' and action == 'add':
+            if not is_principal_admin:
+                messages.error(request, 'Seul l’Admin principal peut ajouter de l’argent au portefeuille d’un agent.')
+                return redirect('admin_add_money')
+            if target != 'single':
+                messages.error(request, 'Sélectionnez un seul agent pour ajouter de l’argent.')
+                return redirect('admin_add_money')
+
+            agent_balance_fields = {
+                'USD': 'balance_usd',
+                'HTG': 'balance_htg',
+                'EUR': 'balance_eur',
+                'PESO': 'balance_peso',
+                'DOP': 'balance_peso',
+            }
+            balance_field = agent_balance_fields.get(currency.upper())
+            try:
+                if (
+                    not balance_field
+                    or not amount_decimal.is_finite()
+                    or amount_decimal != amount_decimal.quantize(Decimal('0.01'))
+                ):
+                    raise ValueError
+                agent_user = User.objects.get(pk=user_id)
+            except (User.DoesNotExist, TypeError, ValueError, InvalidOperation):
+                messages.error(request, 'Agent, devise ou montant invalide.')
+                return redirect('admin_add_money')
+
+            if agent_user == request.user:
+                messages.error(request, 'L’Admin principal ne peut pas se créditer via cette fonction.')
+                return redirect('admin_add_money')
+            if not agent_user.is_agent or not Agent.objects.filter(
+                user=agent_user,
+                is_active=True,
+            ).exists():
+                messages.error(request, 'Sélectionnez un agent actif.')
+                return redirect('admin_add_money')
+
+            idempotency_key = request.POST.get('idempotency_key')
+            try:
+                with transaction.atomic():
+                    operation, created = begin_financial_operation(
+                        request.user,
+                        'admin_agent_funding',
+                        idempotency_key,
+                        {
+                            'agent_id': agent_user.pk,
+                            'amount': str(amount_decimal),
+                            'currency': currency.upper(),
+                        },
+                    )
+                    if created:
+                        agent_wallet, _ = Wallet.objects.get_or_create(user=agent_user)
+                        agent_wallet = Wallet.objects.select_for_update().get(pk=agent_wallet.pk)
+                        Wallet.objects.filter(pk=agent_wallet.pk).update(
+                            **{balance_field: F(balance_field) + amount_decimal}
+                        )
+                        funding_transaction = Transaction.objects.create(
+                            sender=request.user,
+                            receiver=agent_user,
+                            amount=amount_decimal,
+                            currency=currency.upper(),
+                            type='admin_add_agent',
+                            status='approved',
+                        )
+                        complete_financial_operation(operation, funding_transaction)
+                        transaction.on_commit(
+                            lambda: rotate_session_idempotency_key(
+                                request,
+                                'admin_agent_funding',
+                                idempotency_key,
+                            )
+                        )
+                    else:
+                        get_financial_operation_result(operation, Transaction)
+            except IdempotencyConflict as exc:
+                messages.error(request, str(exc))
+                return redirect('admin_add_money')
+            except ValueError as exc:
+                messages.error(request, str(exc))
+                return redirect('admin_add_money')
+
+            messages.success(
+                request,
+                f'Ajout de {amount_decimal} {currency.upper()} au portefeuille de l’agent {agent_user.username}.',
+            )
             return redirect('admin_add_money')
 
         if currency != 'USD':
             from .business_logic import convert_currency
             amount_decimal = convert_currency(amount_decimal, currency, 'USD')
 
-        account_type = request.POST.get('account_type', 'principal')
         commission_field = get_commission_balance_field(currency)
 
         if target == 'all':
@@ -5500,6 +5751,8 @@ def admin_add_money(request):
     default_target = request.GET.get('target', 'single')
     default_action = request.GET.get('action', 'add')
     default_account_type = request.GET.get('account_type', 'principal')
+    if default_account_type == 'agent' and not is_principal_admin:
+        default_account_type = 'principal'
 
     return render(request, 'marketplace/admin_add_money.html', {
         'users': users,
@@ -5508,6 +5761,11 @@ def admin_add_money(request):
         'default_target': default_target,
         'default_action': default_action,
         'default_account_type': default_account_type,
+        'can_fund_agent': is_principal_admin,
+        'agent_funding_idempotency_key': (
+            get_session_idempotency_key(request, 'admin_agent_funding')
+            if is_principal_admin else ''
+        ),
     })
 
 
@@ -6116,33 +6374,114 @@ class AgentViewSet(viewsets.ModelViewSet):
     serializer_class = AgentSerializer
     permission_classes = [permissions.IsAuthenticated]
 
+    def get_permissions(self):
+        if self.action in {'create', 'update', 'partial_update', 'destroy'}:
+            return [FinancialAdminPermission()]
+        return super().get_permissions()
+
+    def get_queryset(self):
+        if is_financial_admin_user(self.request.user):
+            return Agent.objects.select_related('user')
+        return Agent.objects.filter(user=self.request.user).select_related('user')
+
+    def perform_create(self, serializer):
+        if not is_financial_admin_user(self.request.user):
+            raise PermissionDenied('Seul un administrateur autorisé peut créer un agent.')
+        serializer.save()
+
+    def perform_update(self, serializer):
+        if not is_financial_admin_user(self.request.user):
+            raise PermissionDenied('Seul un administrateur autorisé peut modifier un agent.')
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        if not is_financial_admin_user(self.request.user):
+            raise PermissionDenied('Seul un administrateur autorisé peut supprimer un agent.')
+        instance.delete()
+
     @action(detail=False, methods=['post'])
     def recharge(self, request):
-        if not hasattr(request.user, 'agent') or not request.user.agent.is_active:
+        agent_record = getattr(request.user, 'agent', None)
+        if (
+            not agent_record
+            or not agent_record.is_active
+            or not (request.user.is_agent or request.user.role == 'agent')
+        ):
             return Response({'error': 'Not an active agent'}, status=status.HTTP_403_FORBIDDEN)
-        amount = request.data.get('amount')
         user_id = request.data.get('user_id')
-        if not amount or not user_id:
+        amount_value = request.data.get('amount')
+        if amount_value in (None, '') or not user_id:
             return Response({'error': 'Amount and user_id required'}, status=status.HTTP_400_BAD_REQUEST)
         try:
+            amount = Decimal(str(amount_value))
+            if not amount.is_finite() or amount <= 0 or amount != amount.quantize(Decimal('0.01')):
+                raise InvalidOperation
             user = User.objects.get(id=user_id)
+        except (InvalidOperation, ValueError, TypeError):
+            return Response({'error': 'Amount must be a positive amount with at most two decimal places'}, status=status.HTTP_400_BAD_REQUEST)
         except User.DoesNotExist:
             return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
-        agent_wallet = Wallet.objects.get(user=request.user)
-        if agent_wallet.balance < float(amount):
-            return Response({'error': 'Insufficient balance in agent wallet'}, status=status.HTTP_400_BAD_REQUEST)
-        user_wallet = Wallet.objects.get(user=user)
-        agent_wallet.balance -= float(amount)
-        user_wallet.balance += float(amount)
-        agent_wallet.save()
-        user_wallet.save()
-        Transaction.objects.create(
-            sender=request.user,
-            receiver=user,
-            amount=amount,
-            type='recharge',
-            status='approved'
-        )
+        except (TypeError, ValueError):
+            return Response({'error': 'Invalid user_id'}, status=status.HTTP_400_BAD_REQUEST)
+        if user == request.user:
+            return Response({'error': 'Self-recharge is not allowed'}, status=status.HTTP_400_BAD_REQUEST)
+
+        key = request.headers.get('Idempotency-Key') or request.data.get('idempotency_key')
+        try:
+            with transaction.atomic():
+                operation, created = begin_financial_operation(
+                    request.user,
+                    'agent_recharge',
+                    key,
+                    {'recipient_id': user.pk, 'amount': str(amount), 'currency': 'USD'},
+                )
+                if not created:
+                    existing = get_financial_operation_result(operation, Transaction)
+                    return Response({
+                        'message': 'Recharge successful',
+                        'transaction_id': existing.pk,
+                        'duplicate': True,
+                    }, status=status.HTTP_200_OK)
+
+                agent_wallet, _ = Wallet.objects.get_or_create(user=request.user)
+                user_wallet, _ = Wallet.objects.get_or_create(user=user)
+                locked_wallets = {
+                    wallet.pk: wallet
+                    for wallet in Wallet.objects.select_for_update().filter(
+                        pk__in=[agent_wallet.pk, user_wallet.pk]
+                    ).order_by('pk')
+                }
+                agent_wallet = locked_wallets[agent_wallet.pk]
+                user_wallet = locked_wallets[user_wallet.pk]
+                debited = Wallet.objects.filter(
+                    pk=agent_wallet.pk,
+                    balance__gte=amount,
+                ).update(balance=F('balance') - amount)
+                if not debited:
+                    transaction.set_rollback(True)
+                    return Response({'error': 'Insufficient balance in agent wallet'}, status=status.HTTP_400_BAD_REQUEST)
+                Wallet.objects.filter(pk=user_wallet.pk).update(balance=F('balance') + amount)
+                created_transaction = Transaction.objects.create(
+                    sender=request.user,
+                    receiver=user,
+                    amount=amount,
+                    currency='USD',
+                    type='recharge',
+                    status='approved'
+                )
+                complete_financial_operation(operation, created_transaction)
+        except IdempotencyConflict as exc:
+            return Response({'error': str(exc)}, status=status.HTTP_409_CONFLICT)
+        except ValueError as exc:
+            return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        except OperationalError as exc:
+            if 'locked' not in str(exc).lower():
+                raise
+            logger.warning('Agent recharge rolled back after a database lock conflict.')
+            return Response(
+                {'error': 'Conflit concurrent; réessayez avec la même clé d’idempotence.'},
+                status=status.HTTP_409_CONFLICT,
+            )
         return Response({'message': 'Recharge successful'}, status=status.HTTP_200_OK)
 
 
@@ -6166,11 +6505,23 @@ class WalletViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = WalletSerializer
     permission_classes = [permissions.IsAuthenticated]
 
+    def get_queryset(self):
+        if is_financial_admin_user(self.request.user):
+            return Wallet.objects.select_related('user')
+        return Wallet.objects.filter(user=self.request.user).select_related('user')
+
 
 class TransactionViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Transaction.objects.all()
     serializer_class = TransactionSerializer
     permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        if is_financial_admin_user(self.request.user):
+            return Transaction.objects.select_related('sender', 'receiver')
+        return Transaction.objects.filter(
+            Q(sender=self.request.user) | Q(receiver=self.request.user)
+        ).select_related('sender', 'receiver')
 
 
 class DeliveryEmployeeViewSet(viewsets.ModelViewSet):
@@ -6422,10 +6773,13 @@ class ReturnRequestViewSet(viewsets.ModelViewSet):
         return_request = self.get_object()
         amount = request.data.get('amount')
 
-        if amount:
-            return_request.process_refund(amount)
-        else:
-            return_request.process_refund()
+        try:
+            if amount:
+                return_request.process_refund(amount)
+            else:
+                return_request.process_refund()
+        except (ValueError, IdempotencyConflict) as exc:
+            return Response({'error': str(exc)}, status=status.HTTP_409_CONFLICT)
         create_persistent_notification(
             recipient=return_request.customer,
             title='Opération de remboursement enregistrée',
