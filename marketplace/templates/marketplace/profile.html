@@ -738,12 +738,144 @@
         justify-content: flex-end;
         margin-top: 14px;
     }
+    .profile-system-dashboard {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr));
+        gap: 12px;
+        margin: 22px 0;
+    }
+    .profile-system-card {
+        display: flex;
+        min-width: 0;
+        min-height: 76px;
+        align-items: center;
+        gap: 12px;
+        padding: 16px;
+        border: 1px solid #dbe3ef;
+        border-radius: 14px;
+        background: #fff;
+        color: #0f172a;
+        text-align: left;
+        text-decoration: none;
+        font: inherit;
+        font-weight: 750;
+        line-height: 1.35;
+        cursor: pointer;
+        box-shadow: 0 5px 16px rgba(15, 23, 42, .05);
+        transition: border-color .2s ease, box-shadow .2s ease, transform .2s ease;
+        scroll-margin-bottom: 96px;
+    }
+    .profile-system-card:hover,
+    .profile-system-card:focus-visible {
+        border-color: #93c5fd;
+        box-shadow: 0 10px 24px rgba(37, 99, 235, .12);
+        transform: translateY(-1px);
+    }
+    .profile-system-card:focus-visible {
+        outline: 3px solid rgba(37, 99, 235, .28);
+        outline-offset: 2px;
+    }
+    .profile-system-card.is-active {
+        border-color: #2563eb;
+        background: #eff6ff;
+        color: #1d4ed8;
+    }
+    .profile-system-panel[hidden],
+    .profile-operation-panel[hidden] {
+        display: none !important;
+    }
+    .profile-page:not(.profile-systems-ready) [data-profile-system-panel]:not([data-profile-system-panel="account"]) {
+        display: none !important;
+    }
+    .profile-system-panel {
+        min-width: 0;
+    }
+    .profile-system-heading {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 12px;
+        flex-wrap: wrap;
+        margin: 0 0 14px;
+        color: #0f172a;
+    }
+    .profile-operation-nav {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr));
+        gap: 10px;
+        margin: 12px 0 18px;
+    }
+    .withdraw-step[hidden] {
+        display: none !important;
+    }
+    .withdraw-step {
+        min-width: 0;
+    }
+    .withdraw-step-title {
+        margin: 0 0 16px;
+        color: #0f172a;
+        font-size: 1.05rem;
+    }
+    .withdraw-step-actions {
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
+        flex-wrap: wrap;
+        margin-top: 18px;
+    }
+    .withdraw-progress {
+        display: flex;
+        gap: 6px;
+        margin: 0 0 20px;
+    }
+    .withdraw-progress span {
+        height: 5px;
+        flex: 1;
+        border-radius: 99px;
+        background: #e2e8f0;
+    }
+    .withdraw-progress span.is-current,
+    .withdraw-progress span.is-complete {
+        background: #2563eb;
+    }
+    .withdraw-modal-content {
+        max-height: calc(100vh - 32px);
+        overflow-y: auto;
+        overscroll-behavior: contain;
+    }
+    .withdraw-modal-content input,
+    .withdraw-modal-content select {
+        min-height: 48px;
+        font: inherit;
+    }
     @media (max-width: 600px) {
+        .profile-system-dashboard[aria-label="Systèmes de mon profil"] {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 8px;
+            padding-bottom: 88px;
+        }
         .agent-fees-table-wrap {
             display: none;
         }
         .agent-fees-mobile {
             display: block;
+        }
+        .profile-system-card {
+            min-height: 68px;
+            padding: 10px;
+            font-size: 0.92rem;
+        }
+        .withdraw-modal-content {
+            width: calc(100vw - 24px) !important;
+            max-width: 440px !important;
+            padding: 20px !important;
+        }
+        .withdraw-step-actions {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+        }
+        .withdraw-step-actions .fintech-btn {
+            min-height: 48px;
         }
     }
     @media (min-width: 601px) {
@@ -790,7 +922,28 @@
         </button>
         {% endif %}
     </div>
-    <div class="profile-overview">
+    <nav class="profile-system-dashboard" aria-label="Systèmes de mon profil">
+        <button class="profile-system-card is-active" type="button" data-profile-system-toggle="account" aria-expanded="true">👤 Mon compte</button>
+        <button class="profile-system-card" type="button" data-profile-system-toggle="wallet" aria-expanded="false">💰 Portefeuille</button>
+        <button class="profile-system-card" type="button" data-profile-system-toggle="withdrawal" aria-expanded="false">🏦 Système Retrait</button>
+        <button class="profile-system-card" type="button" data-profile-system-toggle="transfer" aria-expanded="false">🔁 Transfert</button>
+        <button class="profile-system-card" type="button" data-profile-system-toggle="recharge" aria-expanded="false">💵 Rechargement</button>
+        <button class="profile-system-card" type="button" data-profile-system-toggle="history" aria-expanded="false">📜 Historique & transactions</button>
+        <button class="profile-system-card" type="button" data-profile-system-toggle="commerce" aria-expanded="false">🛍️ Achats & ventes</button>
+        {% if request.user.is_delivery_agent or request.user.can_request_delivery or request.user.is_staff %}
+            <button class="profile-system-card" type="button" data-profile-system-toggle="delivery" aria-expanded="false">🚚 Livraisons</button>
+        {% endif %}
+        <button class="profile-system-card" type="button" data-profile-system-toggle="settings" aria-expanded="false">⚙️ Paramètres</button>
+        {% if request.user.is_staff %}
+            <button class="profile-system-card" type="button" data-profile-system-toggle="security" aria-expanded="false">🛡️ Sécurité</button>
+            <button class="profile-system-card" type="button" data-profile-system-toggle="administration" aria-expanded="false">🧰 Administration</button>
+        {% elif can_use_agent_financial_tools or can_use_full_admin_actions %}
+            <button class="profile-system-card" type="button" data-profile-system-toggle="administration" aria-expanded="false">🧰 Outils Agent</button>
+        {% endif %}
+        <a class="profile-system-card" href="{% url 'persistent_notifications_page' %}">🔔 Notifications</a>
+    </nav>
+
+    <div id="profile-overview" class="profile-overview profile-system-panel" data-profile-system-panel="account">
         <div class="profile-avatar-wrap">
             {% if profile.photo %}
                 <img src="{{ profile.photo.url }}" alt="Photo de profil" class="profile-avatar" />
@@ -862,9 +1015,113 @@
         </div>
     </div>
 
+    <section id="profile-withdrawal-options" class="fintech-section profile-system-panel" data-profile-system-panel="withdrawal" aria-label="Opérations du système retrait" hidden style="margin:0 0 22px;">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap;">
+            <div>
+                <h3 style="margin:0 0 6px; color:#0f172a;">🏦 Système Retrait</h3>
+                <p style="margin:0; color:#475569;">Choisissez une opération disponible. Les validations et traitements restent ceux des pages existantes.</p>
+            </div>
+        </div>
+        <div class="profile-system-dashboard" style="margin-bottom:0;">
+            <button class="profile-system-card" type="button" data-profile-open-personal-withdraw>💸 Retrait personnel</button>
+            {% if can_use_agent_financial_tools %}
+                <a class="profile-system-card" href="{% url 'agent_withdrawal_dashboard' %}">🏧 Retrait Agent — demandes et historique</a>
+                <a class="profile-system-card" href="{% url 'agent_deposit' %}">💵 Dépôt Agent</a>
+            {% endif %}
+        </div>
+        {% if can_use_agent_financial_tools %}
+            <p style="margin:12px 0 0; color:#64748b; line-height:1.5;">Retrait Agent : ouvrez « Nouveau Retrait » pour afficher les demandes déjà débitées, puis confirmez une demande. Aucun code agent n’est demandé par ce parcours.</p>
+        {% endif %}
+    </section>
+    <section id="profile-transfer-panel" class="fintech-section profile-system-panel" data-profile-system-panel="transfer" hidden style="margin:0 0 22px;">
+        <h3 class="profile-system-heading">🔁 Transfert</h3>
+        <p style="margin:0 0 14px; color:#475569;">Saisissez les informations demandées par le formulaire de transfert existant, puis confirmez l’envoi.</p>
+        <div id="profile-transfer-content"></div>
+    </section>
+    {% if can_use_agent_financial_tools or can_use_full_admin_actions %}
+    <section id="profile-administration-panel" class="fintech-section profile-system-panel" data-profile-system-panel="administration" hidden style="margin:0 0 22px;">
+        <h3 class="profile-system-heading">🧰 Administration et outils Agent</h3>
+        <div class="profile-operation-nav" aria-label="Choisir une opération d’administration">
+            {% if can_use_agent_financial_tools %}
+                <button class="profile-system-card" type="button" data-profile-operation-select="administration:agent-tools">Outils Agent</button>
+            {% endif %}
+            {% if request.user.is_staff %}
+                <button class="profile-system-card" type="button" data-profile-operation-select="administration:management">Gestion administrative</button>
+            {% endif %}
+        </div>
+        <div id="profile-admin-actions-content"></div>
+        <div id="profile-admin-fund-access-content"></div>
+    </section>
+    {% endif %}
+    <section class="fintech-section profile-system-panel" data-profile-system-panel="history" hidden style="margin:0 0 22px;">
+        <h3 class="profile-system-heading">📜 Historique & transactions</h3>
+        <div class="profile-operation-nav" aria-label="Choisir un historique">
+            <button class="profile-system-card" type="button" data-profile-operation-select="history:withdrawals">Historique des retraits</button>
+            <button class="profile-system-card" type="button" data-profile-operation-select="history:transactions">Transactions</button>
+        </div>
+    </section>
+    <section class="fintech-section profile-system-panel" data-profile-system-panel="commerce" hidden style="margin:0 0 22px;">
+        <h3 class="profile-system-heading">🛍️ Achats & ventes</h3>
+        <div class="profile-operation-nav" aria-label="Choisir une opération commerce">
+            {% if pending_orders %}
+                <button class="profile-system-card" type="button" data-profile-operation-select="commerce:orders">Commandes à confirmer</button>
+            {% endif %}
+            <button class="profile-system-card" type="button" data-profile-operation-select="commerce:purchases">Produits achetés</button>
+            {% if request.user.is_seller or request.user.is_staff %}
+                <button class="profile-system-card" type="button" data-profile-operation-select="commerce:sales">Produits vendus</button>
+            {% endif %}
+        </div>
+    </section>
+    <section class="fintech-section profile-system-panel" data-profile-system-panel="settings" hidden style="margin:0 0 22px;">
+        <h3 class="profile-system-heading">⚙️ Paramètres</h3>
+        <div class="profile-operation-nav" aria-label="Choisir un paramètre">
+            <button class="profile-system-card" type="button" data-profile-operation-select="settings:site-theme">Couleur du site</button>
+            <button class="profile-system-card" type="button" data-profile-operation-select="settings:button-theme">Couleur du bouton</button>
+        </div>
+    </section>
+    <section class="fintech-section profile-system-panel" data-profile-system-panel="delivery" hidden style="margin:0 0 22px;">
+        <h3 class="profile-system-heading">🚚 Livraisons</h3>
+        <div class="profile-operation-nav" aria-label="Choisir une opération de livraison">
+            {% if not profile.delivery_access_granted and request.user.can_request_delivery %}
+                <button class="profile-system-card" type="button" data-profile-operation-select="delivery:access">Demander l’accès livreur</button>
+            {% endif %}
+            {% if wallet %}
+                <button class="profile-system-card" type="button" data-profile-operation-select="delivery:balances">Soldes multi-devises</button>
+            {% endif %}
+        </div>
+    </section>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            var transferContent = document.getElementById('profile-transfer-content');
+            var transferSection = document.getElementById('agent-transfer-section');
+            if (transferContent && transferSection) {
+                transferContent.appendChild(transferSection);
+                transferSection.classList.add('profile-system-panel');
+                transferSection.setAttribute('data-profile-system-panel', 'transfer');
+            }
+
+            var adminActionsContent = document.getElementById('profile-admin-actions-content');
+            var adminActions = document.querySelector('.admin-action-panel');
+            if (adminActionsContent && adminActions) {
+                adminActionsContent.appendChild(adminActions);
+                adminActions.classList.add('profile-operation-panel');
+                adminActions.setAttribute('data-profile-system-panel', 'administration');
+                adminActions.setAttribute('data-profile-operation-panel', 'agent-tools');
+            }
+
+            var adminFundContent = document.getElementById('profile-admin-fund-access-content');
+            var adminFundAccess = document.getElementById('agent-fund-access-section');
+            if (adminFundContent && adminFundAccess) {
+                adminFundContent.appendChild(adminFundAccess);
+                adminFundAccess.classList.add('profile-operation-panel');
+                adminFundAccess.setAttribute('data-profile-system-panel', 'administration');
+                adminFundAccess.setAttribute('data-profile-operation-panel', 'agent-tools');
+            }
+        });
+    </script>
     <!-- D Ui maison plus bas -->
     {% if request.user.is_staff %}
-    <div style="margin-top:16px;">
+    <div class="profile-system-panel profile-operation-panel" data-profile-system-panel="administration" data-profile-operation-panel="management" style="margin-top:16px;">
         <button id="d-ui-maison-toggle" class="fintech-btn btn-primary" style="padding:10px 14px; font-size:0.95rem;">🏠 D Ui maison</button>
         <div id="d-ui-maison-section" style="display:none; margin-top:14px; padding:16px; background:linear-gradient(135deg, #fef08a, #fcd34d); border:2px solid #f59e0b; border-radius:12px;">
             <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
@@ -883,7 +1140,7 @@
         </div>
     </div>
 
-    <div id="performance-management-section" class="fintech-panel" style="margin-top:16px; background: linear-gradient(135deg, rgba(236, 72, 153, 0.08), rgba(168, 85, 247, 0.1)); border: 1px solid rgba(192, 132, 252, 0.18);">
+    <div id="performance-management-section" class="fintech-panel profile-system-panel profile-operation-panel" data-profile-system-panel="administration" data-profile-operation-panel="management" style="margin-top:16px; background: linear-gradient(135deg, rgba(236, 72, 153, 0.08), rgba(168, 85, 247, 0.1)); border: 1px solid rgba(192, 132, 252, 0.18);">
         <div class="fintech-title">
             <span class="wallet-icon">⚡</span>
             <span>Gestion performance</span>
@@ -905,7 +1162,7 @@
     {% endif %}
 
     <!-- Theme Customizer -->
-    <div class="fintech-panel" style="margin-top:16px;">
+    <div id="site-theme-settings" class="fintech-panel profile-system-panel profile-operation-panel" data-profile-system-panel="settings" data-profile-operation-panel="site-theme" style="margin-top:16px;">
         <div class="fintech-title">
             <span class="wallet-icon">🎨</span>
             <span>Personnaliser la couleur du site</span>
@@ -924,7 +1181,7 @@
     </div>
 
             <!-- Button Color Personalizer -->
-            <div class="fintech-panel" style="margin-top:16px;">
+            <div id="button-theme-settings" class="fintech-panel profile-system-panel profile-operation-panel" data-profile-system-panel="settings" data-profile-operation-panel="button-theme" style="margin-top:16px;">
                 <div class="fintech-title">
                     <span class="wallet-icon">🎯</span>
                     <span>Personnaliser couleur du bouton</span>
@@ -947,7 +1204,7 @@
                 </div>
             </div>
 
-    <div class="fintech-panel" style="margin-top:1rem;">
+    <div class="fintech-panel profile-system-panel" data-profile-system-panel="recharge" style="margin-top:1rem;">
         <div class="fintech-title">
             <span class="wallet-icon">💳</span>
             <span>Recharge MicroSDICash</span>
@@ -982,7 +1239,7 @@
     </div>
 
     <!-- Wallet Section -->
-    <div class="fintech-panel">
+    <div id="wallet-section" class="fintech-panel profile-system-panel" data-profile-system-panel="wallet">
         <div class="fintech-title">
             <span class="wallet-icon">💼</span>
             <span>MicroSDICash</span>
@@ -1100,6 +1357,7 @@
                 <form method="POST" action="" id="agent-transfer-form">
                     {% csrf_token %}
                     <input type="hidden" name="transfer_submit" value="1">
+                    <input type="hidden" name="idempotency_key" value="{{ transfer_idempotency_key }}">
                     <div class="agent-transfer-fields">
                         <div class="agent-transfer-field">
                             <label for="{{ transfer_form.recipient_account_code.id_for_label }}">Code destinataire</label>
@@ -1365,44 +1623,75 @@
     </div>
 
     <!-- Withdraw Modal -->
-    <div id="withdraw-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background-color:rgba(0,0,0,0.5); z-index:1000; justify-content:center; align-items:center;">
-        <div style="background:white; padding:30px; border-radius:12px; box-shadow:0 4px 6px rgba(0,0,0,0.1); max-width:400px; width:90%;">
-            <h3 style="margin-top:0; color:#007bff;">💸 Retirer des fonds</h3>
+    <div id="withdraw-modal" role="dialog" aria-modal="true" aria-labelledby="withdraw-modal-title" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background-color:rgba(0,0,0,0.5); z-index:1000; justify-content:center; align-items:center; padding:12px;">
+        <div class="withdraw-modal-content" style="background:white; padding:30px; border-radius:12px; box-shadow:0 4px 6px rgba(0,0,0,0.1); max-width:440px; width:90%;">
+            <h3 id="withdraw-modal-title" style="margin-top:0; color:#007bff;">💸 Retirer des fonds</h3>
             <form id="withdraw-form">
-                <div style="margin-bottom:15px;">
-                    <label for="account-type" style="display:block; font-weight:600; margin-bottom:5px;">Type de compte</label>
-                    <select id="account-type" name="account_type" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:8px;">
-                        <option value="principal">Principal</option>
-                        <option value="multidevice">Multi-appareils</option>
-                    </select>
+                <input type="hidden" name="idempotency_key" value="{{ withdrawal_idempotency_key }}">
+                <div class="withdraw-progress" aria-label="Étape 1 sur 4">
+                    <span class="is-current"></span><span></span><span></span><span></span>
                 </div>
-                <div style="margin-bottom:15px;">
-                    <label for="currency" style="display:block; font-weight:600; margin-bottom:5px;">Devise</label>
-                    <select id="currency" name="currency" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:8px;">
-                        <option value="USD">USD</option>
-                        <option value="HTG">HTG</option>
-                        <option value="DOP">DOP</option>
-                        <option value="EUR">EUR</option>
-                    </select>
-                </div>
-                <div style="margin-bottom:15px;">
-                    <label for="amount" style="display:block; font-weight:600; margin-bottom:5px;">Montant</label>
-                    <input type="number" id="amount" name="amount" step="0.01" min="0" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:8px;" required>
-                </div>
-                <div style="margin-bottom:15px;">
-                    <p id="withdraw-fee-text" style="margin:0; color:#475569; font-size:0.95rem; display:none;"></p>
-                </div>
-                <div style="margin-bottom:15px;">
-                    <label for="pin-code" style="display:block; font-weight:600; margin-bottom:5px;">Code PIN (8 chiffres)</label>
-                    <input type="password" id="pin-code" name="pin_code" maxlength="8" pattern="\d{8}" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:8px;" required>
-                </div>
-                <div style="margin-bottom:20px;">
-                    <label for="final-code" style="display:block; font-weight:600; margin-bottom:5px;">Code final (4 chiffres)</label>
-                    <input type="password" id="final-code" name="final_code" maxlength="4" pattern="\d{4}" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:8px;" required>
-                </div>
-                <div style="display:flex; gap:10px; justify-content:flex-end; flex-wrap:wrap;">
+                <section class="withdraw-step" data-withdraw-step="0" aria-labelledby="withdraw-step-account-title">
+                    <h4 class="withdraw-step-title" id="withdraw-step-account-title">Étape 1 — Type de compte et devise</h4>
+                    <div style="margin-bottom:15px;">
+                        <label for="account-type" style="display:block; font-weight:600; margin-bottom:5px;">Type de compte</label>
+                        <select id="account-type" name="account_type" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:8px;">
+                            <option value="principal">Principal</option>
+                            <option value="multidevice">Multi-appareils</option>
+                        </select>
+                    </div>
+                    <div style="margin-bottom:15px;">
+                        <label for="currency" style="display:block; font-weight:600; margin-bottom:5px;">Devise</label>
+                        <select id="currency" name="currency" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:8px;">
+                            <option value="USD">USD</option>
+                            <option value="HTG">HTG</option>
+                            <option value="DOP">DOP</option>
+                            <option value="EUR">EUR</option>
+                        </select>
+                    </div>
+                    <div class="withdraw-step-actions">
+                        <span></span>
+                        <button type="button" class="fintech-btn btn-primary" data-withdraw-next>Suivant</button>
+                    </div>
+                </section>
+                <section class="withdraw-step" data-withdraw-step="1" aria-labelledby="withdraw-step-amount-title" hidden>
+                    <h4 class="withdraw-step-title" id="withdraw-step-amount-title">Étape 2 — Montant</h4>
+                    <div style="margin-bottom:15px;">
+                        <label for="amount" style="display:block; font-weight:600; margin-bottom:5px;">Montant</label>
+                        <input type="number" id="amount" name="amount" step="0.01" min="0" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:8px;" required>
+                    </div>
+                    <p id="withdraw-fee-text" style="margin:0 0 15px; color:#475569; font-size:0.95rem; display:none;"></p>
+                    <div class="withdraw-step-actions">
+                        <button type="button" class="fintech-btn btn-secondary" data-withdraw-previous>Retour</button>
+                        <button type="button" class="fintech-btn btn-primary" data-withdraw-next>Suivant</button>
+                    </div>
+                </section>
+                <section class="withdraw-step" data-withdraw-step="2" aria-labelledby="withdraw-step-pin-title" hidden>
+                    <h4 class="withdraw-step-title" id="withdraw-step-pin-title">Étape 3 — Code PIN</h4>
+                    <div style="margin-bottom:15px;">
+                        <label for="pin-code" style="display:block; font-weight:600; margin-bottom:5px;">Code PIN (8 chiffres)</label>
+                        <input type="password" id="pin-code" name="pin_code" maxlength="8" pattern="\d{8}" inputmode="numeric" autocomplete="current-password" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:8px;" required>
+                    </div>
+                    <div class="withdraw-step-actions">
+                        <button type="button" class="fintech-btn btn-secondary" data-withdraw-previous>Retour</button>
+                        <button type="button" class="fintech-btn btn-primary" data-withdraw-next>Suivant</button>
+                    </div>
+                </section>
+                <section class="withdraw-step" data-withdraw-step="3" aria-labelledby="withdraw-step-confirm-title" hidden>
+                    <h4 class="withdraw-step-title" id="withdraw-step-confirm-title">Étape 4 — Confirmation</h4>
+                    <p id="withdraw-confirmation-summary" style="margin:0 0 15px; color:#334155; line-height:1.5;"></p>
+                    <div style="margin-bottom:20px;">
+                        <label for="final-code" style="display:block; font-weight:600; margin-bottom:5px;">Code final (4 chiffres)</label>
+                        <input type="password" id="final-code" name="final_code" maxlength="4" pattern="\d{4}" inputmode="numeric" autocomplete="current-password" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:8px;" required>
+                    </div>
+                    <p id="withdraw-status" role="status" aria-live="polite" style="display:none; margin:0 0 14px; color:#b91c1c;"></p>
+                    <div class="withdraw-step-actions">
+                        <button type="button" class="fintech-btn btn-secondary" data-withdraw-previous>Retour</button>
+                        <button type="submit" class="fintech-btn btn-success">Confirmer le retrait</button>
+                    </div>
+                </section>
+                <div style="display:flex; justify-content:flex-end; margin-top:8px;">
                     <button type="button" id="cancel-withdraw" class="fintech-btn btn-secondary">Annuler</button>
-                    <button type="submit" class="fintech-btn btn-success">Confirmer</button>
                 </div>
             </form>
         </div>
@@ -1494,7 +1783,7 @@
     </div>
 
     <!-- Withdrawal History Section -->
-    <div id="withdrawal-history" class="card" style="margin-top:2rem; background-color:#f8f9fa; border-left:4px solid #28a745;">
+    <div id="withdrawal-history" class="card profile-system-panel profile-operation-panel" data-profile-system-panel="history" data-profile-operation-panel="withdrawals" style="margin-top:2rem; background-color:#f8f9fa; border-left:4px solid #28a745;">
         <h3 style="color:#28a745; margin-bottom:1rem;">📜 Historique des Retraits</h3>
         {% if withdrawal_history %}
             <div style="overflow-x:auto;">
@@ -1545,7 +1834,7 @@
     </div>
 
     {% if request.user.is_staff %}
-    <div class="card" style="margin-top:2rem; background:#f8fafc; border-left:4px solid #1d4ed8;">
+    <div class="card profile-system-panel" data-profile-system-panel="security" style="margin-top:2rem; background:#f8fafc; border-left:4px solid #1d4ed8;">
         <h3 style="color:#1d4ed8; margin-bottom:1rem;">🛡️ Zone Cybersécurité</h3>
         <p style="color:#1e293b; margin-bottom:1rem; font-weight: 500;">Surveillance en continu et verrouillage d'urgence du système en cas d'attaque.</p>
 
@@ -1685,7 +1974,7 @@
     </div>
     {% endif %}
 
-    <div class="profile-action-cluster">
+    <div class="profile-action-cluster profile-system-panel" data-profile-system-panel="account">
     <h3 class="profile-action-heading">👤 Mon espace</h3>
     <button id="edit-profile-button" class="button" type="button" style="margin-top:1.5rem;">Modifier mon profil</button>
     {% if request.user.is_seller or request.user.is_staff %}
@@ -1707,7 +1996,7 @@
     
     <!-- Section des commandes en attente de confirmation -->
     {% if pending_orders %}
-    <div class="card" style="margin-top:1.5rem; background-color:#fff3cd; border-left:4px solid #ffc107;">
+    <div class="card profile-system-panel profile-operation-panel" data-profile-system-panel="commerce" data-profile-operation-panel="orders" style="margin-top:1.5rem; background-color:#fff3cd; border-left:4px solid #ffc107;">
         <h3 style="color:#856404; margin-bottom:1rem;">📦 Commandes en attente de confirmation</h3>
         <p style="color:#856404; margin-bottom:1rem;">Vous avez des commandes marquées comme livrées. Veuillez confirmer leur réception.</p>
         
@@ -1727,7 +2016,7 @@
     </div>
     {% endif %}
     
-    <div id="profile-edit-form" class="{% if not show_edit_form %}hidden-profile-form{% endif %}" style="margin-top:1.5rem;">
+    <div id="profile-edit-form" class="profile-system-panel {% if not show_edit_form %}hidden-profile-form{% endif %}" data-profile-system-panel="account" style="margin-top:1.5rem;">
         <form method="post" enctype="multipart/form-data">
             {% csrf_token %}
             <div style="display:grid; gap:1rem; max-width:520px;">
@@ -1743,7 +2032,7 @@
     </div>
 
     {% if request.user.is_staff %}
-    <div class="card" style="margin-top:1rem;">
+    <div class="card profile-system-panel profile-operation-panel" data-profile-system-panel="administration" data-profile-operation-panel="management" style="margin-top:1rem;">
         <h3>Gestion des commissions</h3>
         <p style="margin-bottom:1rem; color:#475569;">Modifiez les paramètres de commission globaux et par catégorie.</p>
 
@@ -1821,11 +2110,11 @@
             var formContainer = document.getElementById('profile-edit-form');
             if (editButton && formContainer) {
                 editButton.addEventListener('click', function() {
-                    if (formContainer.style.display === 'none' || formContainer.style.display === '') {
-                        formContainer.style.display = 'block';
+                    if (formContainer.classList.contains('hidden-profile-form')) {
+                        formContainer.classList.remove('hidden-profile-form');
                         editButton.textContent = 'Masquer la modification';
                     } else {
-                        formContainer.style.display = 'none';
+                        formContainer.classList.add('hidden-profile-form');
                         editButton.textContent = 'Modifier mon profil';
                     }
                 });
@@ -1853,6 +2142,129 @@
             var cancelWithdrawBtn = document.getElementById('cancel-withdraw');
             var withdrawForm = document.getElementById('withdraw-form');
             var accountTypeSelect = document.getElementById('account-type');
+            var withdrawSteps = withdrawForm ? Array.prototype.slice.call(withdrawForm.querySelectorAll('[data-withdraw-step]')) : [];
+            var withdrawProgressItems = withdrawForm ? Array.prototype.slice.call(withdrawForm.querySelectorAll('.withdraw-progress span')) : [];
+            var withdrawStatus = document.getElementById('withdraw-status');
+            var withdrawSummary = document.getElementById('withdraw-confirmation-summary');
+
+            function setWithdrawStep(stepIndex) {
+                withdrawSteps.forEach(function(step, index) {
+                    step.hidden = index !== stepIndex;
+                });
+                withdrawProgressItems.forEach(function(item, index) {
+                    item.classList.toggle('is-current', index === stepIndex);
+                    item.classList.toggle('is-complete', index < stepIndex);
+                });
+                var progress = withdrawForm ? withdrawForm.querySelector('.withdraw-progress') : null;
+                if (progress) {
+                    progress.setAttribute('aria-label', 'Étape ' + (stepIndex + 1) + ' sur ' + withdrawSteps.length);
+                }
+                if (stepIndex === 3 && withdrawSummary) {
+                    var accountLabel = accountTypeSelect.options[accountTypeSelect.selectedIndex].text;
+                    var currencyLabel = document.getElementById('currency').value;
+                    var amountLabel = document.getElementById('amount').value || '—';
+                    withdrawSummary.textContent = 'Vous confirmez un retrait de ' + amountLabel + ' ' + currencyLabel + ' depuis le compte ' + accountLabel + '.';
+                }
+                var activeStep = withdrawSteps[stepIndex];
+                var focusTarget = activeStep ? activeStep.querySelector('input:not([type="hidden"]), select, button') : null;
+                if (focusTarget) {
+                    focusTarget.focus();
+                }
+            }
+
+            if (withdrawForm) {
+                withdrawForm.querySelectorAll('[data-withdraw-next]').forEach(function(button) {
+                    button.addEventListener('click', function() {
+                        var currentStep = button.closest('[data-withdraw-step]');
+                        if (!currentStep) return;
+                        var invalidField = currentStep.querySelector('input:invalid, select:invalid, textarea:invalid');
+                        if (invalidField) {
+                            invalidField.reportValidity();
+                            return;
+                        }
+                        var nextIndex = Number(currentStep.getAttribute('data-withdraw-step')) + 1;
+                        setWithdrawStep(nextIndex);
+                        if (withdrawStatus) {
+                            withdrawStatus.style.display = 'none';
+                            withdrawStatus.textContent = '';
+                        }
+                    });
+                });
+                withdrawForm.querySelectorAll('[data-withdraw-previous]').forEach(function(button) {
+                    button.addEventListener('click', function() {
+                        var currentStep = button.closest('[data-withdraw-step]');
+                        if (!currentStep) return;
+                        setWithdrawStep(Number(currentStep.getAttribute('data-withdraw-step')) - 1);
+                    });
+                });
+            }
+
+            var profileSystemButtons = Array.prototype.slice.call(document.querySelectorAll('[data-profile-system-toggle]'));
+            var profileSystemPanels = Array.prototype.slice.call(document.querySelectorAll('[data-profile-system-panel]'));
+            var profileOperationButtons = Array.prototype.slice.call(document.querySelectorAll('[data-profile-operation-select]'));
+            var activeProfileSystem = 'account';
+            var activeProfileOperation = '';
+
+            function renderProfilePanels() {
+                profileSystemPanels.forEach(function(panel) {
+                    var isActiveSystem = panel.getAttribute('data-profile-system-panel') === activeProfileSystem;
+                    var operation = panel.getAttribute('data-profile-operation-panel');
+                    panel.hidden = !isActiveSystem || (operation && operation !== activeProfileOperation);
+                });
+                profileSystemButtons.forEach(function(button) {
+                    var isActive = button.getAttribute('data-profile-system-toggle') === activeProfileSystem;
+                    button.classList.toggle('is-active', isActive);
+                    button.setAttribute('aria-expanded', isActive ? 'true' : 'false');
+                });
+                profileOperationButtons.forEach(function(button) {
+                    var selection = button.getAttribute('data-profile-operation-select').split(':');
+                    var isActive = selection[0] === activeProfileSystem && selection[1] === activeProfileOperation;
+                    button.classList.toggle('is-active', isActive);
+                    button.setAttribute('aria-expanded', isActive ? 'true' : 'false');
+                });
+            }
+
+            function activateProfileSystem(system, operation) {
+                activeProfileSystem = system;
+                activeProfileOperation = operation || '';
+                renderProfilePanels();
+                var target = profileSystemPanels.find(function(panel) {
+                    return panel.getAttribute('data-profile-system-panel') === system &&
+                        (!panel.hasAttribute('data-profile-operation-panel') ||
+                            panel.getAttribute('data-profile-operation-panel') === activeProfileOperation);
+                });
+                if (target) {
+                    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+            }
+
+            profileSystemButtons.forEach(function(button) {
+                button.addEventListener('click', function() {
+                    activateProfileSystem(button.getAttribute('data-profile-system-toggle'));
+                });
+            });
+            profileOperationButtons.forEach(function(button) {
+                button.addEventListener('click', function() {
+                    var selection = button.getAttribute('data-profile-operation-select').split(':');
+                    activateProfileSystem(selection[0], selection[1]);
+                });
+            });
+            document.querySelectorAll('a[href="#agent-transfer-section"]').forEach(function(link) {
+                link.addEventListener('click', function(event) {
+                    event.preventDefault();
+                    activateProfileSystem('transfer');
+                });
+            });
+            var profilePage = document.querySelector('.profile-page');
+            if (profilePage) profilePage.classList.add('profile-systems-ready');
+            renderProfilePanels();
+
+            var personalWithdrawalButton = document.querySelector('[data-profile-open-personal-withdraw]');
+            if (personalWithdrawalButton && withdrawMainBtn) {
+                personalWithdrawalButton.addEventListener('click', function() {
+                    withdrawMainBtn.click();
+                });
+            }
 
             function calculateHtgWithdrawalFee(amount) {
                 var value = parseFloat(amount);
@@ -1922,6 +2334,11 @@
                     closeAllModals();
                     accountTypeSelect.value = 'principal';
                     setModalState(withdrawModal, true);
+                    setWithdrawStep(0);
+                    if (withdrawStatus) {
+                        withdrawStatus.style.display = 'none';
+                        withdrawStatus.textContent = '';
+                    }
                 });
             }
 
@@ -1934,6 +2351,11 @@
                     closeAllModals();
                     accountTypeSelect.value = 'multidevice';
                     setModalState(withdrawModal, true);
+                    setWithdrawStep(0);
+                    if (withdrawStatus) {
+                        withdrawStatus.style.display = 'none';
+                        withdrawStatus.textContent = '';
+                    }
                 });
             }
 
@@ -1941,6 +2363,7 @@
                 cancelWithdrawBtn.addEventListener('click', function() {
                     setModalState(withdrawModal, false);
                     withdrawForm.reset();
+                    setWithdrawStep(0);
                 });
             }
 
@@ -1950,6 +2373,7 @@
                     if (event.target === withdrawModal) {
                         setModalState(withdrawModal, false);
                         withdrawForm.reset();
+                        setWithdrawStep(0);
                     }
                 });
             }
@@ -1976,8 +2400,11 @@
 
             if (transferFormButton && recipientField && transferSection) {
                 transferFormButton.addEventListener('click', function() {
-                    transferSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    recipientField.focus();
+                    activateProfileSystem('transfer');
+                    window.setTimeout(function() {
+                        transferSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        recipientField.focus();
+                    }, 50);
                 });
             }
 
@@ -2092,6 +2519,15 @@
                 }
             }
 
+            function showExclusiveModal(modalToShow) {
+                [withdrawModal, receiptModal, identityModal, messageModal, selfieModal].forEach(function(modal) {
+                    if (modal !== modalToShow) {
+                        setModalState(modal, false);
+                    }
+                });
+                setModalState(modalToShow, true);
+            }
+
             if (addReceiptBtn) {
                 addReceiptBtn.addEventListener('click', function() {
                     closeAllModals();
@@ -2175,7 +2611,7 @@
 
             if (addIdentityBtn) {
                 addIdentityBtn.addEventListener('click', function() {
-                    identityModal.style.display = 'flex';
+                    showExclusiveModal(identityModal);
                 });
             }
 
@@ -2250,7 +2686,7 @@
             if (addMessageBtn) {
                 addMessageBtn.addEventListener('click', function() {
                     if (messageModal) {
-                        messageModal.style.display = 'flex';
+                        showExclusiveModal(messageModal);
                     }
                 });
             }
@@ -2283,7 +2719,7 @@
             if (captureSelfieBtn) {
                 captureSelfieBtn.addEventListener('click', async function() {
                     if (!selfieModal) return;
-                    selfieModal.style.display = 'flex';
+                    showExclusiveModal(selfieModal);
 
                     if (!selfieStream) {
                         try {
@@ -2381,6 +2817,9 @@
             if (withdrawForm) {
                 withdrawForm.addEventListener('submit', function(event) {
                     event.preventDefault();
+                    if (!withdrawForm.reportValidity()) {
+                        return;
+                    }
                     
                     const formData = new FormData(withdrawForm);
                     const data = {
@@ -2388,11 +2827,19 @@
                         amount: formData.get('amount'),
                         currency: formData.get('currency'),
                         pin: formData.get('pin_code'),
-                        secure_code: formData.get('final_code')
+                        secure_code: formData.get('final_code'),
+                        idempotency_key: formData.get('idempotency_key')
                     };
                     
-                    // Get CSRF token
-                    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+                    const csrfInput = document.querySelector('[name=csrfmiddlewaretoken]');
+                    if (!csrfInput) {
+                        if (withdrawStatus) {
+                            withdrawStatus.textContent = 'Impossible de vérifier la sécurité de la requête. Rechargez la page et réessayez.';
+                            withdrawStatus.style.display = 'block';
+                        }
+                        return;
+                    }
+                    const csrfToken = csrfInput.value;
                     
                     fetch('/withdraw/', {
                         method: 'POST',
@@ -2408,16 +2855,18 @@
                             alert('Succès: ' + result.message);
                             location.reload(); // Refresh to update balances
                         } else {
-                            alert('Erreur: ' + result.message);
+                            if (withdrawStatus) {
+                                withdrawStatus.textContent = result.message || 'Le retrait n’a pas pu être traité. Vérifiez les informations et réessayez.';
+                                withdrawStatus.style.display = 'block';
+                            }
                         }
-                        withdrawModal.style.display = 'none';
-                        withdrawForm.reset();
                     })
                     .catch(error => {
                         console.error('Error:', error);
-                        alert('Une erreur s\'est produite. Veuillez réessayer.');
-                        withdrawModal.style.display = 'none';
-                        withdrawForm.reset();
+                        if (withdrawStatus) {
+                            withdrawStatus.textContent = 'Une erreur s’est produite. Vos informations saisies sont conservées ; veuillez réessayer.';
+                            withdrawStatus.style.display = 'block';
+                        }
                     });
                 });
 
@@ -2530,7 +2979,7 @@
         });
     </script>
     
-    <div class="card" style="margin-top:1rem;">
+    <div class="card profile-system-panel profile-operation-panel" data-profile-system-panel="commerce" data-profile-operation-panel="purchases" style="margin-top:1rem;">
     <h3>Produits achetés</h3>
     {% if buyer_purchases %}
         <button class="button alt toggle-section-btn" type="button" data-target="buyer-purchases-details" data-label="détails des achats" style="margin-bottom:1rem;">Voir les achats</button>
@@ -2581,7 +3030,7 @@
     {% endif %}
 </div>
 
-<div class="card" style="margin-top:1rem;">
+<div id="transactions-panel" class="card profile-system-panel profile-operation-panel" data-profile-system-panel="history" data-profile-operation-panel="transactions" style="margin-top:1rem;">
     <h3>💳 Historique des Transactions</h3>
     {% if transactions %}
         <button class="button alt toggle-section-btn" type="button" data-target="transactions-details" data-label="historique des transactions" style="margin-bottom:1rem;">Voir les transactions</button>
@@ -2670,7 +3119,7 @@
 </div>
 
 {% if request.user.is_seller or request.user.is_staff %}
-<div class="card" style="margin-top:1rem;">
+<div class="card profile-system-panel profile-operation-panel" data-profile-system-panel="commerce" data-profile-operation-panel="sales" style="margin-top:1rem;">
     <h3>Produits vendus</h3>
     {% if seller_sales %}
         <button class="button alt toggle-section-btn" type="button" data-target="seller-sales-details" data-label="détails des ventes" style="margin-bottom:1rem;">Voir les ventes</button>
@@ -2709,7 +3158,7 @@
 </div>
 {% endif %}
 
-    <div style="display:flex; flex-wrap:wrap; gap:16px; margin-top:1rem;">
+    <div class="profile-system-panel profile-operation-panel" data-profile-system-panel="delivery" data-profile-operation-panel="access" style="display:flex; flex-wrap:wrap; gap:16px; margin-top:1rem;">
         {% if not profile.delivery_access_granted and request.user.can_request_delivery %}
             <form method="post" action="{% url 'request_delivery_access' %}" style="margin:0;">
                 {% csrf_token %}
@@ -2718,7 +3167,7 @@
         {% endif %}
     </div>
     {% if not request.user.is_delivery_agent and wallet %}
-        <div class="card" style="margin-top:1rem;">
+        <div class="card profile-system-panel" data-profile-system-panel="wallet" style="margin-top:1rem;">
             <h3>Wallet</h3>
             <p>Solde principal : <strong>${{ wallet.balance }}</strong></p>
             <p>Transfert autorisé : <strong>{{ wallet.can_transfer }}</strong></p>
@@ -2726,7 +3175,7 @@
         </div>
     {% endif %}
     {% if wallet %}
-        <div style="background: linear-gradient(135deg, #1a237e 0%, #283593 100%); padding: 0; margin: 20px 0; border-radius: 12px; box-shadow: 0 8px 20px rgba(0,0,0,0.15); overflow: hidden;">
+        <div class="profile-system-panel profile-operation-panel" data-profile-system-panel="delivery" data-profile-operation-panel="balances" style="background: linear-gradient(135deg, #1a237e 0%, #283593 100%); padding: 0; margin: 20px 0; border-radius: 12px; box-shadow: 0 8px 20px rgba(0,0,0,0.15); overflow: hidden;">
             <!-- En-tête -->
             <div style="background: linear-gradient(135deg, #1a237e 0%, #283593 100%); padding: 20px; color: white;">
                 <div style="display: flex; align-items: center; gap: 10px;">
@@ -2797,6 +3246,7 @@
             </div>
         </div>
     {% endif %}
+    <section class="profile-system-panel profile-operation-panel" data-profile-system-panel="administration" data-profile-operation-panel="management" hidden style="margin-top:1rem;">
     {% if request.user.is_staff and admin_delivery_users %}
         <h3>Gestion des accès livreur</h3>
         <p><small>Gérer les permissions d'accès aux livraisons pour tous les utilisateurs</small></p>
@@ -3103,6 +3553,7 @@
             </div>
         </div>
     {% endif %}
+    </section>
 <script>
     document.addEventListener('DOMContentLoaded', function() {
         var toggles = document.querySelectorAll('.toggle-section-btn');
@@ -3382,4 +3833,3 @@
     });
 </script>
 {% endblock %}
-
