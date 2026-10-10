@@ -7552,7 +7552,6 @@
                 font-size: 0.9rem;
             }
         }
-    </style>
         /* Last-resort override to ensure activity dropdown menu is visible when open */
         .activity-dropdown.open .activity-dropdown-menu {
             visibility: visible !important;
@@ -7653,9 +7652,17 @@
             const root = document.documentElement;
             const shell = document.querySelector('.responsive-scroll-shell');
             const compactFooter = document.querySelector('.compact-footer');
+            const supportCard = document.querySelector('.sdi-support-card');
+            const mobileBottomTabs = document.querySelector('.mobile-bottom-tabs');
             const footerAnchor = compactFooter ? document.createComment('compact-footer-anchor') : null;
             let responsiveFrame = 0;
             if (compactFooter && footerAnchor) compactFooter.parentNode.insertBefore(footerAnchor, compactFooter);
+            if (supportCard && shell && shell.contains(supportCard)) {
+                document.body.appendChild(supportCard);
+            }
+            if (mobileBottomTabs && shell && shell.contains(mobileBottomTabs)) {
+                document.body.appendChild(mobileBottomTabs);
+            }
 
             function syncCompactFooterHost() {
                 if (!compactFooter || !footerAnchor) return;
@@ -7691,10 +7698,18 @@
                     if (!element || getComputedStyle(element).display === 'none') return 0;
                     return element.getBoundingClientRect().height;
                 };
+                const mobileTabsHeight = window.innerWidth < 768 ? visibleHeight(mobileBottomTabs) : 0;
+                const supportHeight = window.innerWidth < 768 ? visibleHeight(supportCard) : 0;
+                if (mobileBottomTabs && window.innerWidth < 768) {
+                    mobileBottomTabs.style.setProperty('--support-card-height', `${supportHeight}px`);
+                }
 
                 root.style.setProperty('--responsive-banner-height', `${visibleHeight(banner)}px`);
                 root.style.setProperty('--responsive-header-height', `${visibleHeight(header)}px`);
-                root.style.setProperty('--responsive-bottom-height', `${visibleHeight(bottom)}px`);
+                root.style.setProperty(
+                    '--responsive-bottom-height',
+                    `${mobileTabsHeight + supportHeight || visibleHeight(bottom)}px`
+                );
             }
 
             function scheduleResponsiveShellUpdate() {
@@ -7709,8 +7724,8 @@
                 : null;
             if (responsiveResizeObserver) {
                 if (compactFooter) responsiveResizeObserver.observe(compactFooter);
-                const mobileTabs = document.querySelector('.mobile-bottom-tabs');
-                if (mobileTabs) responsiveResizeObserver.observe(mobileTabs);
+                if (mobileBottomTabs) responsiveResizeObserver.observe(mobileBottomTabs);
+                if (supportCard) responsiveResizeObserver.observe(supportCard);
             }
 
             window.addEventListener('resize', scheduleResponsiveShellUpdate, { passive: true });
