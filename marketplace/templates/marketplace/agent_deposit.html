@@ -1,7 +1,25 @@
 {% extends 'marketplace/base.html' %}
 
 {% block content %}
-<section class="fintech-card" style="max-width: 900px; margin: 32px auto; padding: 28px 32px;">
+<section class="fintech-card" style="width:calc(100% - 24px); max-width: 900px; box-sizing:border-box; margin: 32px auto; padding: 28px 32px;">
+    <style>
+        .deposit-step[hidden] { display: none !important; }
+        .deposit-step { min-width: 0; }
+        .deposit-step input,
+        .deposit-step select { min-height: 48px; font: inherit; }
+        .deposit-step-actions {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-top: 20px;
+        }
+        @media (max-width: 600px) {
+            .deposit-step-actions { display: grid; grid-template-columns: 1fr 1fr; }
+            .deposit-step-actions button,
+            .deposit-step-actions a { min-height: 48px; }
+        }
+    </style>
     <h1 style="margin-bottom: 16px;">Dépôt MicrosDiCash - Agent</h1>
     <p style="margin-bottom: 24px; color: #475569;">Saisissez le numéro du client et le montant en HTG, USD, DOP ou EUR. Le dépôt est instantané, sécurisé et traçable.</p>
 
@@ -10,7 +28,7 @@
             <h3 style="margin-bottom: 12px;">Solde agent</h3>
             <p style="margin: 6px 0; font-weight: 600;">USD : {{ agent_wallet.balance_usd|default:0|floatformat:2 }}</p>
             <p style="margin: 6px 0; font-weight: 600;">HTG : {{ agent_wallet.balance_htg|default:0|floatformat:2 }}</p>
-            <p style="margin: 6px 0; font-weight: 600;">DOP : {{ agent_wallet.balance_dop|default:0|floatformat:2 }}</p>
+            <p style="margin: 6px 0; font-weight: 600;">DOP : {{ agent_wallet.balance_peso|default:0|floatformat:2 }}</p>
             <p style="margin: 6px 0; font-weight: 600;">EUR : {{ agent_wallet.balance_eur|default:0|floatformat:2 }}</p>
         </div>
         <div class="fintech-panel" style="padding: 18px;">
@@ -41,18 +59,27 @@
         </div>
     </div>
 
-    <form method="post" style="display: grid; gap: 18px;">
+    <form method="post" id="agent-deposit-form" style="display: grid; gap: 18px;">
         {% csrf_token %}
-        <div>
+        <input type="hidden" name="idempotency_key" value="{{ deposit_idempotency_key }}">
+        {% for message in messages %}
+            {% if 'error' in message.tags %}<span data-deposit-server-error hidden></span>{% endif %}
+        {% endfor %}
+        <div class="deposit-step" data-deposit-step="0">
+            <h2 style="margin:0 0 16px;">Étape 1 — Numéro du client</h2>
             <label for="account_number" style="display:block; margin-bottom: 8px; font-weight: 600;">Numéro de compte client</label>
             <input id="account_number" name="account_number" type="text" placeholder="ACC178E50D7" required style="width:100%; padding: 14px 16px; border-radius: 14px; border: 1px solid #cbd5e1; background: #fff;" />
-            <p style="margin: 8px 0 0; color: #64748b; font-size: 0.95rem;">Vérification automatique du compte client lors de l'envoi.</p>
+            <p style="margin: 8px 0 0; color: #64748b; font-size: 0.95rem;">Le compte est vérifié par le traitement existant lors de l’envoi final.</p>
+            <div class="deposit-step-actions">
+                <a class="btn-fintech btn-secondary" href="{% url 'profile' %}" style="padding:12px 18px; text-align:center; text-decoration:none;">Annuler</a>
+                <button type="button" class="btn-fintech btn-primary" data-deposit-next style="padding:12px 18px;">OK</button>
+            </div>
         </div>
-        <div>
+
+        <div class="deposit-step" data-deposit-step="1" hidden>
+            <h2 style="margin:0 0 16px;">Étape 2 — Montant et devise</h2>
             <label for="amount" style="display:block; margin-bottom: 8px; font-weight: 600;">Montant</label>
             <input id="amount" name="amount" type="number" min="0.01" step="0.01" placeholder="500" required style="width:100%; padding: 14px 16px; border-radius: 14px; border: 1px solid #cbd5e1; background: #fff;" />
-        </div>
-        <div>
             <label for="currency" style="display:block; margin-bottom: 8px; font-weight: 600;">Devise</label>
             <select id="currency" name="currency" required style="width:100%; padding: 14px 16px; border-radius: 14px; border: 1px solid #cbd5e1; background: #fff;">
                 <option value="HTG">HTG</option>
@@ -60,35 +87,131 @@
                 <option value="DOP">DOP</option>
                 <option value="EUR">EUR</option>
             </select>
+            <div class="deposit-step-actions">
+                <button type="button" class="btn-fintech btn-secondary" data-deposit-previous style="padding:12px 18px;">Retour</button>
+                <button type="button" class="btn-fintech btn-primary" data-deposit-next style="padding:12px 18px;">OK</button>
+            </div>
         </div>
-        <div style="display: flex; align-items: center; gap: 10px;">
+
+        <div class="deposit-step" data-deposit-step="2" hidden>
+            <h2 style="margin:0 0 16px;">Étape 3 — Option Ti Kanè</h2>
+            <div style="display: flex; align-items: center; gap: 10px;">
             <input id="tikane_deposit" name="tikane_deposit" type="checkbox" value="on" style="width: 18px; height: 18px;" />
             <label for="tikane_deposit" style="margin: 0; font-weight: 600;">Déposer dans Ti Kanè Digital</label>
+            </div>
+            <p style="color: #475569; font-size: 0.95rem;">Si le client dispose d’un compte Ti Kanè actif, le montant sera ajouté à son carnet d’épargne digital.</p>
+            <div class="deposit-step-actions">
+                <button type="button" class="btn-fintech btn-secondary" data-deposit-previous style="padding:12px 18px;">Retour</button>
+                <button type="button" class="btn-fintech btn-primary" data-deposit-next style="padding:12px 18px;">OK</button>
+            </div>
         </div>
-        <div style="color: #475569; font-size: 0.95rem;">Si le client dispose d’un compte Ti Kanè actif, le montant sera ajouté à son carnet d’épargne digital.</div>
-        <div>
+
+        <div class="deposit-step" data-deposit-step="3" hidden>
+            <h2 style="margin:0 0 16px;">Étape 4 — PIN de sécurité</h2>
             <label for="agent_pin" style="display:block; margin-bottom: 8px; font-weight: 600;">PIN de sécurité agent</label>
             <input id="agent_pin" name="agent_pin" type="password" placeholder="PIN agent" required style="width:100%; padding: 14px 16px; border-radius: 14px; border: 1px solid #cbd5e1; background: #fff;" />
+            <div style="display:flex; gap: 12px; flex-wrap: wrap; align-items:center; margin-top:14px;">
+                <button type="button" id="toggle-security-fields" class="btn-fintech btn-secondary" style="padding: 12px 18px;">Afficher/masquer les codes</button>
+            </div>
+            <div class="deposit-step-actions">
+                <button type="button" class="btn-fintech btn-secondary" data-deposit-previous style="padding:12px 18px;">Retour</button>
+                <button type="button" class="btn-fintech btn-primary" data-deposit-next style="padding:12px 18px;">OK</button>
+            </div>
         </div>
-        <div>
+
+        <div class="deposit-step" data-deposit-step="4" hidden>
+            <h2 style="margin:0 0 16px;">Étape 5 — Confirmation</h2>
             <label for="final_code" style="display:block; margin-bottom: 8px; font-weight: 600;">Code final de confirmation</label>
             <input id="final_code" name="final_code" type="password" placeholder="Code final" required style="width:100%; padding: 14px 16px; border-radius: 14px; border: 1px solid #cbd5e1; background: #fff;" />
+            <div class="deposit-step-actions">
+                <button type="button" class="btn-fintech btn-secondary" data-deposit-previous style="padding:12px 18px;">Retour</button>
+                <button type="submit" class="btn-fintech btn-primary" style="padding:14px 24px;">Valider le dépôt</button>
+            </div>
         </div>
-        <div style="display:flex; gap: 12px; flex-wrap: wrap; align-items:center;">
-            <button type="button" id="toggle-security-fields" class="btn-fintech btn-secondary" style="padding: 12px 18px;">Afficher PIN + code final</button>
-            <span style="color: #475569; font-size: 0.95rem;">Cliquez pour afficher ou masquer les champs de sécurité.</span>
-        </div>
-        <div style="display:flex; gap: 12px; flex-wrap: wrap; align-items:center; margin-top: 6px; color: #475569; font-size: 0.95rem;">
-            <span style="font-weight: 600;">Étapes :</span>
-            <span>1. Vérifier le compte client</span>
-            <span>2. Vérifier le PIN agent</span>
-            <span>3. Valider le code final</span>
-        </div>
-        <button type="submit" class="btn-fintech btn-primary" style="width: fit-content; padding: 14px 24px;">Valider le Dépôt</button>
     </form>
 </section>
 <script>
     document.addEventListener('DOMContentLoaded', function() {
+        var depositForm = document.getElementById('agent-deposit-form');
+        var depositSteps = depositForm ? Array.prototype.slice.call(depositForm.querySelectorAll('[data-deposit-step]')) : [];
+        var accountNumberField = document.getElementById('account_number');
+        var amountField = document.getElementById('amount');
+        var currencyField = document.getElementById('currency');
+        var tikaneField = document.getElementById('tikane_deposit');
+        var draftStorageKey = 'agent-deposit-draft';
+        var hasServerError = !!document.querySelector('[data-deposit-server-error]');
+        var savedDraft = null;
+
+        function showDepositStep(index) {
+            depositSteps.forEach(function(step, stepIndex) {
+                step.hidden = stepIndex !== index;
+            });
+            var activeStep = depositSteps[index];
+            var focusTarget = activeStep ? activeStep.querySelector('input:not([type="hidden"]), select') : null;
+            if (focusTarget) focusTarget.focus();
+        }
+
+        if (depositForm && depositSteps.length) {
+            if (hasServerError) {
+                try {
+                    savedDraft = JSON.parse(sessionStorage.getItem(draftStorageKey) || 'null');
+                    if (savedDraft) {
+                        accountNumberField.value = savedDraft.accountNumber || '';
+                        amountField.value = savedDraft.amount || '';
+                        currencyField.value = savedDraft.currency || currencyField.value;
+                        tikaneField.checked = !!savedDraft.tikane;
+                    }
+                } catch (error) {
+                    console.error('Impossible de restaurer le brouillon du dépôt.', error);
+                }
+                try {
+                    sessionStorage.removeItem(draftStorageKey);
+                } catch (error) {
+                    console.error('Impossible de supprimer le brouillon du dépôt.', error);
+                }
+                showDepositStep(4);
+            } else {
+                try {
+                    sessionStorage.removeItem(draftStorageKey);
+                } catch (error) {
+                    console.error('Impossible de supprimer le brouillon du dépôt.', error);
+                }
+                showDepositStep(0);
+            }
+
+            depositForm.querySelectorAll('[data-deposit-next]').forEach(function(button) {
+                button.addEventListener('click', function() {
+                    var currentStep = button.closest('[data-deposit-step]');
+                    if (!currentStep) return;
+                    var invalidField = currentStep.querySelector('input:invalid, select:invalid, textarea:invalid');
+                    if (invalidField) {
+                        invalidField.reportValidity();
+                        return;
+                    }
+                    showDepositStep(Number(currentStep.getAttribute('data-deposit-step')) + 1);
+                });
+            });
+            depositForm.querySelectorAll('[data-deposit-previous]').forEach(function(button) {
+                button.addEventListener('click', function() {
+                    var currentStep = button.closest('[data-deposit-step]');
+                    if (!currentStep) return;
+                    showDepositStep(Number(currentStep.getAttribute('data-deposit-step')) - 1);
+                });
+            });
+            depositForm.addEventListener('submit', function() {
+                try {
+                    sessionStorage.setItem(draftStorageKey, JSON.stringify({
+                        accountNumber: accountNumberField.value,
+                        amount: amountField.value,
+                        currency: currencyField.value,
+                        tikane: tikaneField.checked
+                    }));
+                } catch (error) {
+                    console.error('Impossible de conserver le brouillon du dépôt.', error);
+                }
+            });
+        }
+
         // Toggle security fields visibility
         var toggleButton = document.getElementById('toggle-security-fields');
         var agentPinField = document.getElementById('agent_pin');
@@ -99,7 +222,7 @@
                 var isPassword = agentPinField.type === 'password';
                 agentPinField.type = isPassword ? 'text' : 'password';
                 finalCodeField.type = isPassword ? 'text' : 'password';
-                toggleButton.textContent = isPassword ? 'Masquer PIN + code final' : 'Afficher PIN + code final';
+                toggleButton.textContent = isPassword ? 'Masquer les codes' : 'Afficher/masquer les codes';
             });
         }
 

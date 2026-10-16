@@ -19,21 +19,79 @@ Structure:
 """
 
 import json
+import hashlib
 import os
 import urllib.request
 import urllib.error
+import uuid
 from django.utils import timezone
 from datetime import timedelta
 from decimal import Decimal
 from django.db import transaction as db_transaction
-from django.db.models import Count, Q
+from django.db.models import Count, Q, F
 from .models import (
     Order, OrderItem, DeliveryAssignment, DeliveryEmployee, 
     DeliveryTracking, DeliveryNotification, ReturnRequest,
     Transaction, Wallet, User, ExchangeRate, CommissionConfig,
     WithdrawalCommissionTier, TransferCommissionTier, PersistentNotification, ResellerProduct, Shop, Product,
+    FinancialOperation,
     MarketplaceSettings
 )
+
+
+class IdempotencyConflict(ValueError):
+    """Raised when a client reuses an idempotency key for a different request."""
+
+
+def get_session_idempotency_key(request, operation):
+    session_keys = request.session.get('financial_idempotency_keys', {})
+    key = session_keys.get(operation)
+    if not key:
+        key = uuid.uuid4().hex
+        session_keys[operation] = key
+        request.session['financial_idempotency_keys'] = session_keys
+    return key
+
+
+def rotate_session_idempotency_key(request, operation, completed_key):
+    session_keys = request.session.get('financial_idempotency_keys', {})
+    if session_keys.get(operation) == completed_key:
+        session_keys[operation] = uuid.uuid4().hex
+        request.session['financial_idempotency_keys'] = session_keys
+
+
+def begin_financial_operation(actor, operation, key, payload):
+    if not key or len(key) > 128:
+        raise ValueError('Une clé d’idempotence valide est requise.')
+
+    request_hash = hashlib.sha256(
+        json.dumps(payload, sort_keys=True, separators=(',', ':'), default=str).encode('utf-8')
+    ).hexdigest()
+    operation_record, created = FinancialOperation.objects.get_or_create(
+        actor=actor,
+        operation=operation,
+        idempotency_key=key,
+        defaults={'request_hash': request_hash},
+    )
+    if not created and operation_record.request_hash != request_hash:
+        raise IdempotencyConflict('Cette clé d’idempotence a déjà été utilisée pour une autre demande.')
+    return operation_record, created
+
+
+def complete_financial_operation(operation_record, result):
+    operation_record.result_model = result._meta.label_lower
+    operation_record.result_pk = str(result.pk)
+    operation_record.save(update_fields=['result_model', 'result_pk'])
+
+
+def get_financial_operation_result(operation_record, expected_model):
+    if operation_record.result_model != expected_model._meta.label_lower or not operation_record.result_pk:
+        raise RuntimeError('Une opération financière idempotente ne possède pas de résultat valide.')
+    result = expected_model._default_manager.filter(pk=operation_record.result_pk).first()
+    if result is None:
+        raise RuntimeError('Le résultat d’une opération financière idempotente est introuvable.')
+    return result
+
 
 # ===== DEVISE INTERNE =====
 USD_INTERNAL_CURRENCY = 'USD'  # Tous les calculs et stockage internes sont en USD
@@ -1468,28 +1526,41 @@ class PaymentManager:
         - Vendeur ← Rien (argent retourné)
         """
         
-        buyer_wallet = Wallet.objects.get(user=order.buyer)
-        buyer_wallet.balance += order.total_amount
-        buyer_wallet.save()
+        with db_transaction.atomic():
+            operation, created = begin_financial_operation(
+                order.buyer,
+                'order_refund',
+                f'order-{order.pk}',
+                {'order_id': order.pk, 'amount': str(order.total_amount), 'currency': 'USD'},
+            )
+            if not created:
+                get_financial_operation_result(operation, Transaction)
+                return True
+
+            buyer_wallet, _ = Wallet.objects.get_or_create(user=order.buyer)
+            buyer_wallet = Wallet.objects.select_for_update().get(pk=buyer_wallet.pk)
+            Wallet.objects.filter(pk=buyer_wallet.pk).update(
+                balance=F('balance') + order.total_amount
+            )
+            tx = Transaction.objects.create(
+                sender=None,
+                receiver=order.buyer,
+                amount=order.total_amount,
+                currency='USD',
+                type='refund',
+                status='approved'
+            )
+            complete_financial_operation(operation, tx)
+            create_persistent_notification(
+                recipient=order.buyer,
+                title=f'Remboursement effectué : {order.total_amount} USD',
+                message=f'Le remboursement de la commande #{order.id} a été crédité sur votre portefeuille.',
+                notification_type='refund',
+                deduplication_key=f'order-refund:{order.pk}:buyer:{order.buyer_id}',
+                target_url='/profile/',
+            )
         
-        # Transaction de remboursement
-        tx = Transaction.objects.create(
-            sender=None,  # Système
-            receiver=order.buyer,
-            amount=order.total_amount,
-            type='refund',
-            status='approved'
-        )
-        create_persistent_notification(
-            recipient=order.buyer,
-            title=f'💸 Remboursement effectué : {order.total_amount} USD',
-            message=f'Le remboursement de la commande #{order.id} a été crédité sur votre portefeuille.',
-            notification_type='refund',
-            deduplication_key=f'order-refund:{order.pk}:buyer:{order.buyer_id}',
-            target_url='/profile/',
-        )
-        
-        print(f"💵 Remboursement pour #{order.id}: {order.total_amount}€ → {order.buyer.username}")
+        print(f"Remboursement pour #{order.id}: {order.total_amount} EUR - {order.buyer.username}")
         
         return True
 

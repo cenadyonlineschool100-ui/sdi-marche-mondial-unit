@@ -1,12 +1,16 @@
 import base64
 import json
+from concurrent.futures import ThreadPoolExecutor
 from decimal import Decimal
+from threading import Barrier
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import call, patch
 
 from django.contrib import admin
 from django.contrib.auth.models import Permission
-from django.test import Client, RequestFactory, TestCase, override_settings
+from django.db import close_old_connections
+from django.db.models import Sum
+from django.test import Client, RequestFactory, TestCase, TransactionTestCase, override_settings
 from django.urls import reverse
 
 from .admin import MarketplaceSettingsAdmin
@@ -16,7 +20,7 @@ from .models import (
     User, Profile, Wallet, Agent, DepositCommissionConfig, Deposit, AgentCommission, Transaction, CommissionRule,
     DepositReceipt, Shop, Product, ProductAccessRequest, ResellerProduct, MarketplaceSettings, Order, OrderItem,
     Transfer, SDISolSettings, SDISolMember, SDISolPayment, RealEstateMembershipRequest, SystemSettings, PriorityGroup, SiteBanner, SiteBannerAccess, SiteBannerPayment, SiteBannerEvent, SiteBannerPermission,
-    PersistentNotification, PushSubscription, ReturnRequest,
+    PersistentNotification, PushSubscription, ReturnRequest, WithdrawalRequest, WithdrawalTransaction,
 )
 from .business_logic import PaymentManager, create_persistent_notification
 from .views_commission import get_commission_eligible_users
@@ -281,13 +285,16 @@ class MicrosDiCashAgentDepositTest(TestCase):
 
     def test_agent_can_make_htg_deposit(self):
         url = reverse('agent_deposit')
-        response = self.client.post(url, {
-            'account_number': self.client_user.account_code,
-            'amount': '2000',
-            'currency': 'HTG',
-            'agent_pin': '1234',
-            'final_code': '0000',
-        })
+        with patch('marketplace.web_push.send_notification_push') as send_push:
+            with self.captureOnCommitCallbacks(execute=True):
+                response = self.client.post(url, {
+                    'account_number': self.client_user.account_code,
+                    'amount': '2000',
+                    'currency': 'HTG',
+                    'agent_pin': '1234',
+                    'final_code': '0000',
+                    'idempotency_key': 'deposit-basic-001',
+                })
         self.assertEqual(response.status_code, 302)
         deposit = Deposit.objects.latest('created_at')
         self.assertEqual(deposit.agent, self.agent_user)
@@ -312,11 +319,41 @@ class MicrosDiCashAgentDepositTest(TestCase):
             recipient=self.agent_user,
             notification_type='commission_received',
         )
+        client_notification = PersistentNotification.objects.get(
+            recipient=self.client_user,
+            notification_type='money_received',
+        )
         self.assertEqual(
             commission_notification.deduplication_key,
             f'deposit-commission:{AgentCommission.objects.get(deposit=deposit).pk}:user:{self.agent_user.pk}',
         )
         self.assertEqual(commission_notification.target_url, '/profile/')
+        self.assertEqual(client_notification.target_url, '/profile/')
+        self.assertCountEqual(
+            send_push.call_args_list,
+            [call(client_notification.pk), call(commission_notification.pk)],
+        )
+
+    def test_repeated_deposit_post_creates_only_one_deposit(self):
+        payload = {
+            'account_number': self.client_user.account_code,
+            'amount': '2000',
+            'currency': 'HTG',
+            'agent_pin': '1234',
+            'final_code': '0000',
+            'idempotency_key': 'deposit-retry-001',
+        }
+
+        first = self.client.post(reverse('agent_deposit'), payload)
+        repeated = self.client.post(reverse('agent_deposit'), payload)
+
+        self.assertEqual(first.status_code, 302)
+        self.assertEqual(repeated.status_code, 302)
+        self.assertEqual(Deposit.objects.filter(agent=self.agent_user, client=self.client_user).count(), 1)
+        self.agent_wallet.refresh_from_db()
+        self.client_wallet.refresh_from_db()
+        self.assertEqual(self.agent_wallet.balance_htg, Decimal('48000.00'))
+        self.assertEqual(self.client_wallet.balance_htg, Decimal('2500.00'))
 
     def test_deposit_repay_real_estate_loan_before_credit(self):
         self.client_wallet.balance_htg = Decimal('0.00')
@@ -330,6 +367,7 @@ class MicrosDiCashAgentDepositTest(TestCase):
             'currency': 'HTG',
             'agent_pin': '1234',
             'final_code': '0000',
+            'idempotency_key': 'deposit-loan-001',
         })
         self.assertEqual(response.status_code, 302)
 
@@ -347,9 +385,57 @@ class MicrosDiCashAgentDepositTest(TestCase):
             'currency': 'HTG',
             'agent_pin': '1234',
             'final_code': '0000',
+            'idempotency_key': 'deposit-low-balance-001',
         }, follow=True)
         self.assertContains(response, 'Solde insuffisant')
         self.assertEqual(Deposit.objects.count(), 0)
+
+    def test_deposit_is_rejected_when_currency_has_no_active_configuration(self):
+        self.deposit_config.is_active = False
+        self.deposit_config.save(update_fields=['is_active'])
+
+        response = self.client.post(
+            reverse('agent_deposit'),
+            {
+                'account_number': self.client_user.account_code,
+                'amount': '100.00',
+                'currency': 'HTG',
+                'agent_pin': '1234',
+                'final_code': '0000',
+                'idempotency_key': 'deposit-disabled-currency-001',
+            },
+            follow=True,
+        )
+
+        self.assertContains(response, 'Dépôts non disponibles pour HTG')
+        self.assertFalse(Deposit.objects.exists())
+        self.assertFalse(Transaction.objects.filter(type='deposit').exists())
+        self.agent_wallet.refresh_from_db()
+        self.client_wallet.refresh_from_db()
+        self.assertEqual(self.agent_wallet.balance_htg, Decimal('50000.00'))
+        self.assertEqual(self.client_wallet.balance_htg, Decimal('500.00'))
+
+    def test_deposit_failure_rolls_back_wallet_and_records(self):
+        with patch(
+            'marketplace.views_deposit.create_persistent_notification',
+            side_effect=RuntimeError('simulated notification failure'),
+        ):
+            response = self.client.post(reverse('agent_deposit'), {
+                'account_number': self.client_user.account_code,
+                'amount': '2000',
+                'currency': 'HTG',
+                'agent_pin': '1234',
+                'final_code': '0000',
+                'idempotency_key': 'deposit-rollback-001',
+            })
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(Deposit.objects.count(), 0)
+        self.assertFalse(Transaction.objects.filter(type='deposit').exists())
+        self.agent_wallet.refresh_from_db()
+        self.client_wallet.refresh_from_db()
+        self.assertEqual(self.agent_wallet.balance_htg, Decimal('50000.00'))
+        self.assertEqual(self.client_wallet.balance_htg, Decimal('500.00'))
 
     def test_deposit_fails_when_client_phone_invalid(self):
         url = reverse('agent_deposit')
@@ -359,6 +445,7 @@ class MicrosDiCashAgentDepositTest(TestCase):
             'currency': 'HTG',
             'agent_pin': '1234',
             'final_code': '0000',
+            'idempotency_key': 'deposit-invalid-client-001',
         }, follow=True)
         self.assertContains(response, 'Aucun client trouvé')
         self.assertEqual(Deposit.objects.count(), 0)
@@ -372,6 +459,7 @@ class MicrosDiCashAgentDepositTest(TestCase):
             'currency': 'HTG',
             'agent_pin': '1234',
             'final_code': '0000',
+            'idempotency_key': 'deposit-history-001',
         }, follow=True)
         self.assertEqual(response.status_code, 200)
 
@@ -382,6 +470,10 @@ class MicrosDiCashAgentDepositTest(TestCase):
         history_url = reverse('agent_deposit_history')
         response = self.client.get(history_url)
         self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.context['stats']['HTG'],
+            {'total_amount': Decimal('2000.00'), 'total_commission': Decimal('5.00')},
+        )
         self.assertContains(response, 'Télécharger reçu')
         download_url = reverse('download_deposit_receipt', args=[receipt.id])
         self.assertContains(response, download_url)
@@ -398,6 +490,7 @@ class MicrosDiCashAgentDepositTest(TestCase):
             'currency': 'HTG',
             'agent_pin': '1234',
             'final_code': '0000',
+            'idempotency_key': 'deposit-receipts-001',
         }, follow=True)
         self.assertEqual(response.status_code, 200)
 
@@ -419,6 +512,131 @@ class MicrosDiCashAgentDepositTest(TestCase):
         response = self.client.get(view_url)
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Reçu de dépôt')
+
+
+class AgentWithdrawalNotificationTest(TestCase):
+    def setUp(self):
+        self.agent = User.objects.create_user(
+            username='withdrawal-agent',
+            password='agentpass123',
+            is_agent=True,
+        )
+        Agent.objects.filter(user=self.agent).update(is_active=True)
+        self.customer = User.objects.create_user(
+            username='withdrawal-customer',
+            password='customerpass123',
+        )
+        self.customer_profile, _ = Profile.objects.get_or_create(user=self.customer)
+        self.customer_profile.withdrawal_pin = '12345678'
+        self.customer_profile.withdrawal_code = '1234'
+        self.customer_profile.save(update_fields=['withdrawal_pin', 'withdrawal_code'])
+        self.wallet = Wallet.objects.get(user=self.customer)
+        self.wallet.balance = Decimal('100.00')
+        self.wallet.save(update_fields=['balance'])
+        self.client = Client()
+        self.client.login(username='withdrawal-agent', password='agentpass123')
+        self.customer_client = Client()
+        self.customer_client.login(username='withdrawal-customer', password='customerpass123')
+
+    def test_agent_completes_pending_request_without_second_debit_and_notifies_once(self):
+        no_fee = {
+            'total_fee': Decimal('0.00'),
+            'system_fee': Decimal('0.00'),
+            'agent_fee': Decimal('0.00'),
+        }
+
+        with patch('marketplace.views.CommissionManager.get_withdrawal_commission_breakdown', return_value=no_fee):
+            request_response = self.customer_client.post(
+                reverse('withdraw_funds'),
+                {
+                    'account': 'principal',
+                    'amount': '10.00',
+                    'currency': 'USD',
+                    'pin': self.customer_profile.withdrawal_pin,
+                    'secure_code': self.customer_profile.withdrawal_code,
+                    'idempotency_key': 'customer-withdrawal-request-001',
+                },
+            )
+
+        self.assertEqual(request_response.status_code, 200)
+        self.assertTrue(request_response.json()['success'])
+        withdrawal = WithdrawalRequest.objects.get(pk=request_response.json()['withdrawal_id'])
+        self.assertEqual(withdrawal.status, 'pending')
+        self.assertTrue(withdrawal.amount_debited)
+        self.wallet.refresh_from_db()
+        self.assertEqual(self.wallet.balance, Decimal('90.00'))
+
+        page = self.client.get(reverse('agent_process_withdrawal'))
+        self.assertEqual(page.status_code, 200)
+        self.assertContains(page, self.customer.username)
+
+        with patch('marketplace.web_push.send_notification_push') as send_push:
+            with self.captureOnCommitCallbacks(execute=True):
+                first = self.client.post(
+                    reverse('agent_process_withdrawal'),
+                    {'withdrawal_id': withdrawal.pk},
+                )
+                repeated = self.client.post(
+                    reverse('agent_process_withdrawal'),
+                    {'withdrawal_id': withdrawal.pk},
+                )
+
+        self.assertEqual(first.status_code, 302)
+        self.assertEqual(repeated.status_code, 302)
+        withdrawal.refresh_from_db()
+        self.assertEqual(withdrawal.status, 'completed')
+        self.assertEqual(withdrawal.processed_by, self.agent)
+        self.assertEqual(WithdrawalRequest.objects.filter(user=self.customer).count(), 1)
+        self.assertEqual(
+            WithdrawalTransaction.objects.filter(
+                withdrawal_request=withdrawal,
+                agent=self.agent,
+                status='completed',
+            ).count(),
+            1,
+        )
+        self.assertEqual(
+            Transaction.objects.filter(
+                sender=self.customer,
+                receiver=self.agent,
+                type='withdrawal_agent',
+                amount=Decimal('10.00'),
+                currency='USD',
+                status='completed',
+            ).count(),
+            1,
+        )
+        self.wallet.refresh_from_db()
+        self.assertEqual(self.wallet.balance, Decimal('90.00'))
+
+        notification = PersistentNotification.objects.get(
+            recipient=self.customer,
+            notification_type='withdrawal_completed',
+        )
+        self.assertEqual(
+            notification.deduplication_key,
+            f'agent-withdrawal-completed:{withdrawal.pk}:user:{self.customer.pk}',
+        )
+        self.assertEqual(notification.target_url, '/profile/')
+        self.assertEqual(
+            PersistentNotification.objects.filter(recipient=self.customer).count(),
+            1,
+        )
+        send_push.assert_called_once_with(notification.pk)
+
+    def test_inactive_agent_cannot_process_withdrawal(self):
+        Agent.objects.filter(user=self.agent).update(is_active=False)
+
+        response = self.client.post(
+            reverse('agent_process_withdrawal'),
+            {},
+        )
+
+        self.assertEqual(response.status_code, 403)
+        self.wallet.refresh_from_db()
+        self.assertEqual(self.wallet.balance, Decimal('100.00'))
+        self.assertFalse(WithdrawalRequest.objects.filter(user=self.customer).exists())
+        self.assertFalse(PersistentNotification.objects.filter(recipient=self.customer).exists())
 
 
 class SiteBannerAdminAccessTest(TestCase):
@@ -920,12 +1138,15 @@ class TransferFundsTest(TestCase):
 
     def test_sender_can_transfer_usd_to_receiver(self):
         url = reverse('transfer_funds')
-        response = self.client.post(url, {
-            'recipient_account_code': self.receiver.account_code,
-            'source_account': 'principal',
-            'currency': 'USD',
-            'amount': '10.00',
-        })
+        with patch('marketplace.web_push.send_notification_push') as send_push:
+            with self.captureOnCommitCallbacks(execute=True):
+                response = self.client.post(url, {
+                    'recipient_account_code': self.receiver.account_code,
+                    'source_account': 'principal',
+                    'currency': 'USD',
+                    'amount': '10.00',
+                    'idempotency_key': 'transfer-usd-001',
+                })
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json().get('success'), True)
         self.sender_wallet.refresh_from_db()
@@ -943,6 +1164,100 @@ class TransferFundsTest(TestCase):
             notification.deduplication_key,
             f'transfer-received:{transfer.pk}:user:{self.receiver.pk}',
         )
+        self.assertEqual(notification.target_url, reverse('profile'))
+        send_push.assert_called_once_with(notification.pk)
+
+    def test_repeated_transfer_request_with_same_key_moves_money_once(self):
+        payload = {
+            'recipient_account_code': self.receiver.account_code,
+            'source_account': 'principal',
+            'currency': 'USD',
+            'amount': '10.00',
+            'idempotency_key': 'transfer-retry-001',
+        }
+
+        first = self.client.post(reverse('transfer_funds'), payload)
+        repeated = self.client.post(reverse('transfer_funds'), payload)
+        conflicting = self.client.post(
+            reverse('transfer_funds'),
+            {**payload, 'amount': '12.00'},
+        )
+
+        self.assertEqual(first.status_code, 200)
+        self.assertEqual(repeated.status_code, 200)
+        self.assertTrue(repeated.json()['duplicate'])
+        self.assertEqual(conflicting.status_code, 409)
+        self.sender_wallet.refresh_from_db()
+        self.receiver_wallet.refresh_from_db()
+        self.assertEqual(self.sender_wallet.balance, Decimal('90.00'))
+        self.assertEqual(self.receiver_wallet.balance, Decimal('10.00'))
+        self.assertEqual(Transfer.objects.filter(sender=self.sender, receiver=self.receiver).count(), 1)
+
+    def test_transfer_rejects_invalid_amount_recipient_and_insufficient_balance(self):
+        url = reverse('transfer_funds')
+        invalid_amount = self.client.post(url, {
+            'recipient_account_code': self.receiver.account_code,
+            'source_account': 'principal',
+            'currency': 'USD',
+            'amount': '0',
+            'idempotency_key': 'transfer-invalid-amount-001',
+        })
+        self_transfer = self.client.post(url, {
+            'recipient_account_code': self.sender.account_code,
+            'source_account': 'principal',
+            'currency': 'USD',
+            'amount': '10.00',
+            'idempotency_key': 'transfer-self-001',
+        })
+        missing_recipient = self.client.post(url, {
+            'recipient_account_code': 'NOT-A-REAL-ACCOUNT',
+            'source_account': 'principal',
+            'currency': 'USD',
+            'amount': '10.00',
+            'idempotency_key': 'transfer-missing-recipient-001',
+        })
+        insufficient_balance = self.client.post(url, {
+            'recipient_account_code': self.receiver.account_code,
+            'source_account': 'principal',
+            'currency': 'USD',
+            'amount': '200.00',
+            'idempotency_key': 'transfer-insufficient-001',
+        })
+
+        self.assertEqual(invalid_amount.status_code, 400)
+        self.assertEqual(self_transfer.status_code, 400)
+        self.assertEqual(missing_recipient.status_code, 400)
+        self.assertEqual(insufficient_balance.status_code, 400)
+        self.sender_wallet.refresh_from_db()
+        self.receiver_wallet.refresh_from_db()
+        self.assertEqual(self.sender_wallet.balance, Decimal('100.00'))
+        self.assertEqual(self.receiver_wallet.balance, Decimal('0.00'))
+        self.assertFalse(Transfer.objects.exists())
+        self.assertFalse(Transaction.objects.filter(type='transfer').exists())
+
+    def test_transfer_failure_after_wallet_updates_rolls_back_operation(self):
+        payload = {
+            'recipient_account_code': self.receiver.account_code,
+            'source_account': 'principal',
+            'currency': 'USD',
+            'amount': '10.00',
+            'idempotency_key': 'transfer-rollback-001',
+        }
+
+        with patch(
+            'marketplace.views.TransferReceipt.objects.create',
+            side_effect=RuntimeError('simulated receipt creation failure'),
+        ):
+            with self.assertRaises(RuntimeError):
+                self.client.post(reverse('transfer_funds'), payload)
+
+        self.sender_wallet.refresh_from_db()
+        self.receiver_wallet.refresh_from_db()
+        self.assertEqual(self.sender_wallet.balance, Decimal('100.00'))
+        self.assertEqual(self.receiver_wallet.balance, Decimal('0.00'))
+        self.assertFalse(Transfer.objects.exists())
+        self.assertFalse(Transaction.objects.filter(type='transfer').exists())
+        self.assertFalse(PersistentNotification.objects.exists())
 
     def test_profile_transfer_creates_persistent_notification_for_receiver(self):
         response = self.client.post(reverse('profile'), {
@@ -951,6 +1266,7 @@ class TransferFundsTest(TestCase):
             'source_account': 'principal',
             'currency': 'USD',
             'amount': '10.00',
+            'idempotency_key': 'transfer-profile-001',
         })
 
         self.assertEqual(response.status_code, 302)
@@ -984,6 +1300,7 @@ class TransferFundsTest(TestCase):
             'source_account': 'micro_device',
             'currency': 'HTG',
             'amount': '50.00',
+            'idempotency_key': 'transfer-htg-001',
         })
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json().get('success'), True)
@@ -1013,6 +1330,7 @@ class TransferFundsTest(TestCase):
             'source_account': 'micro_device',
             'currency': 'HTG',
             'amount': '50.00',
+            'idempotency_key': 'transfer-agent-htg-001',
         })
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json().get('success'), True)
@@ -1025,6 +1343,227 @@ class TransferFundsTest(TestCase):
         self.assertEqual(self.admin_wallet.commission_balance_htg, Decimal('4.00'))
         self.assertTrue(Transfer.objects.filter(sender=self.sender, receiver=self.receiver, amount=Decimal('50.00'), currency='HTG').exists())
         self.assertTrue(Transaction.objects.filter(sender=self.sender, receiver=self.receiver, amount=Decimal('50.00'), currency='HTG', type='transfer').exists())
+
+
+class MicroSDICashCriticalProtectionTest(TestCase):
+    def setUp(self):
+        self.user_a = User.objects.create_user(username='cash-user-a', password='testpass123')
+        self.user_b = User.objects.create_user(username='cash-user-b', password='testpass123')
+        self.wallet_a = Wallet.objects.get(user=self.user_a)
+        self.wallet_b = Wallet.objects.get(user=self.user_b)
+        self.client.force_login(self.user_a)
+
+    def test_wallet_and_transaction_apis_are_scoped_to_authenticated_user(self):
+        Transaction.objects.create(
+            sender=self.user_b,
+            receiver=self.user_b,
+            amount=Decimal('8.00'),
+            currency='USD',
+            type='private-test',
+            status='approved',
+        )
+
+        wallets_response = self.client.get(reverse('wallet-list'))
+        transactions_response = self.client.get(reverse('transaction-list'))
+
+        wallets_payload = wallets_response.json()
+        wallets = wallets_payload.get('results', []) if isinstance(wallets_payload, dict) else wallets_payload
+        transactions_payload = transactions_response.json()
+        transactions = transactions_payload.get('results', []) if isinstance(transactions_payload, dict) else transactions_payload
+        self.assertEqual([item['user'] for item in wallets], [self.user_a.pk])
+        self.assertFalse(any(
+            transaction['sender'] == self.user_b.pk or transaction['receiver'] == self.user_b.pk
+            for transaction in transactions
+        ))
+
+    def test_agent_api_does_not_allow_normal_user_to_update_another_agent(self):
+        self.user_b.is_agent = True
+        self.user_b.role = 'agent'
+        self.user_b.save(update_fields=['is_agent', 'role'])
+        other_agent, _ = Agent.objects.get_or_create(user=self.user_b)
+        other_agent.is_active = True
+        other_agent.save(update_fields=['is_active'])
+
+        response = self.client.patch(
+            reverse('agent-detail', args=[other_agent.pk]),
+            data=json.dumps({'is_active': False}),
+            content_type='application/json',
+        )
+
+        self.assertIn(response.status_code, (403, 404))
+        other_agent.refresh_from_db()
+        self.assertTrue(other_agent.is_active)
+
+    def test_agent_recharge_rejects_nonpositive_values_and_is_idempotent(self):
+        self.user_a.is_agent = True
+        self.user_a.role = 'agent'
+        self.user_a.save(update_fields=['is_agent', 'role'])
+        agent, _ = Agent.objects.get_or_create(user=self.user_a)
+        agent.is_active = True
+        agent.save(update_fields=['is_active'])
+        self.wallet_a.balance = Decimal('10.00')
+        self.wallet_a.save(update_fields=['balance'])
+
+        url = reverse('agent-recharge')
+        for value in ('0', '-1.00'):
+            response = self.client.post(
+                url,
+                data=json.dumps({'user_id': self.user_b.pk, 'amount': value}),
+                content_type='application/json',
+            )
+            self.assertEqual(response.status_code, 400)
+
+        payload = {'user_id': self.user_b.pk, 'amount': '2.50'}
+        first = self.client.post(
+            url,
+            data=json.dumps(payload),
+            content_type='application/json',
+            HTTP_IDEMPOTENCY_KEY='recharge-test-001',
+        )
+        repeated = self.client.post(
+            url,
+            data=json.dumps(payload),
+            content_type='application/json',
+            HTTP_IDEMPOTENCY_KEY='recharge-test-001',
+        )
+
+        self.assertEqual(first.status_code, 200)
+        self.assertEqual(repeated.status_code, 200)
+        self.assertTrue(repeated.json()['duplicate'])
+        self.wallet_a.refresh_from_db()
+        self.wallet_b.refresh_from_db()
+        self.assertEqual(self.wallet_a.balance, Decimal('7.50'))
+        self.assertEqual(self.wallet_b.balance, Decimal('2.50'))
+        self.assertEqual(Transaction.objects.filter(type='recharge').count(), 1)
+
+    def test_new_profile_wallet_starts_at_zero(self):
+        Wallet.objects.filter(user=self.user_a).delete()
+
+        response = self.client.get(reverse('profile'))
+
+        self.assertEqual(response.status_code, 200)
+        self.wallet_a = Wallet.objects.get(user=self.user_a)
+        self.assertEqual(self.wallet_a.balance, Decimal('0.00'))
+
+    def test_profile_forms_share_pending_keys_across_tabs(self):
+        first_page = self.client.get(reverse('profile'))
+        first_key = first_page.context['transfer_idempotency_key']
+        second_page = self.client.get(reverse('profile'))
+        self.assertEqual(second_page.context['transfer_idempotency_key'], first_key)
+
+    def test_withdrawal_request_failure_rolls_back_wallet_debit(self):
+        profile, _ = Profile.objects.get_or_create(user=self.user_a)
+        profile.withdrawal_pin = '12345678'
+        profile.withdrawal_code = '1234'
+        profile.save(update_fields=['withdrawal_pin', 'withdrawal_code'])
+        self.wallet_a.balance = Decimal('100.00')
+        self.wallet_a.save(update_fields=['balance'])
+        payload = {
+            'account': 'principal',
+            'amount': '10.00',
+            'currency': 'USD',
+            'pin': profile.withdrawal_pin,
+            'secure_code': profile.withdrawal_code,
+            'idempotency_key': 'withdraw-rollback-001',
+        }
+
+        with patch(
+            'marketplace.models.WithdrawalRequest.objects.create',
+            side_effect=RuntimeError('simulated request creation failure'),
+        ):
+            with self.assertRaises(RuntimeError):
+                self.client.post(reverse('withdraw_funds'), payload)
+
+        self.wallet_a.refresh_from_db()
+        self.assertEqual(self.wallet_a.balance, Decimal('100.00'))
+        self.assertFalse(WithdrawalRequest.objects.filter(user=self.user_a).exists())
+
+    def test_repeated_withdrawal_post_debits_wallet_once(self):
+        profile, _ = Profile.objects.get_or_create(user=self.user_a)
+        profile.withdrawal_pin = '12345678'
+        profile.withdrawal_code = '1234'
+        profile.save(update_fields=['withdrawal_pin', 'withdrawal_code'])
+        self.wallet_a.balance = Decimal('100.00')
+        self.wallet_a.save(update_fields=['balance'])
+        payload = {
+            'account': 'principal',
+            'amount': '10.00',
+            'currency': 'USD',
+            'pin': profile.withdrawal_pin,
+            'secure_code': profile.withdrawal_code,
+            'idempotency_key': 'withdraw-repeat-001',
+        }
+        no_fee = {'total_fee': Decimal('0.00'), 'system_fee': Decimal('0.00'), 'agent_fee': Decimal('0.00')}
+
+        with patch('marketplace.views.CommissionManager.get_withdrawal_commission_breakdown', return_value=no_fee):
+            first = self.client.post(reverse('withdraw_funds'), payload)
+            repeated = self.client.post(reverse('withdraw_funds'), payload)
+
+        self.assertTrue(first.json()['success'])
+        self.assertTrue(repeated.json()['duplicate'])
+        self.wallet_a.refresh_from_db()
+        self.assertEqual(self.wallet_a.balance, Decimal('90.00'))
+        self.assertEqual(WithdrawalRequest.objects.filter(user=self.user_a).count(), 1)
+
+
+class ConcurrentTransferProtectionTest(TransactionTestCase):
+    reset_sequences = True
+
+    def test_simultaneous_transfers_cannot_overdraw_one_wallet(self):
+        sender = User.objects.create_user(username='concurrent-sender', password='testpass123')
+        receiver = User.objects.create_user(username='concurrent-receiver', password='testpass123')
+        User.objects.create_superuser(
+            username='concurrent-admin',
+            email='concurrent-admin@example.com',
+            password='testpass123',
+        )
+        sender_wallet = Wallet.objects.get(user=sender)
+        sender_wallet.balance = Decimal('10.00')
+        sender_wallet.can_transfer = True
+        sender_wallet.save(update_fields=['balance', 'can_transfer'])
+
+        clients = [Client(), Client()]
+        for client in clients:
+            client.force_login(sender)
+
+        barrier = Barrier(2)
+        payloads = [
+            {
+                'recipient_account_code': receiver.account_code,
+                'source_account': 'principal',
+                'currency': 'USD',
+                'amount': '7.00',
+                'idempotency_key': f'concurrent-transfer-{index}',
+            }
+            for index in (1, 2)
+        ]
+
+        def submit(client, payload):
+            close_old_connections()
+            try:
+                barrier.wait(timeout=10)
+                response = client.post(reverse('transfer_funds'), payload)
+                return response.status_code, response.json()
+            finally:
+                close_old_connections()
+
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            futures = [
+                executor.submit(submit, client, payload)
+                for client, payload in zip(clients, payloads)
+            ]
+            outcomes = [future.result(timeout=30) for future in futures]
+
+        sender_wallet.refresh_from_db()
+        receiver_wallet = Wallet.objects.get(user=receiver)
+        self.assertGreaterEqual(sender_wallet.balance, Decimal('0.00'))
+        self.assertEqual(
+            receiver_wallet.balance,
+            Transfer.objects.filter(sender=sender, receiver=receiver).aggregate(
+                total=Sum('amount')
+            )['total'] or Decimal('0.00'),
+        )
+        self.assertTrue(any(status_code == 200 and body.get('success') for status_code, body in outcomes))
 
 
 class ReturnRefundNotificationTest(TestCase):
@@ -1049,6 +1588,14 @@ class ReturnRefundNotificationTest(TestCase):
             description='Produit endommagé',
         )
         self.client.force_login(self.admin)
+
+    def test_order_refund_replay_credits_wallet_once(self):
+        PaymentManager.refund_order(self.order)
+        PaymentManager.refund_order(self.order)
+
+        self.wallet.refresh_from_db()
+        self.assertEqual(self.wallet.balance, Decimal('40.00'))
+        self.assertEqual(Transaction.objects.filter(receiver=self.customer, type='refund').count(), 1)
 
     def test_process_refund_notifies_without_changing_wallet_balance(self):
         with patch('marketplace.web_push.send_notification_push') as send_push:
@@ -1097,7 +1644,11 @@ class AdminAddAgentViewTest(TestCase):
 
     def test_admin_can_activate_user_as_agent(self):
         url = reverse('admin_add_agent')
-        response = self.client.post(url, {'user_id': self.target_user.id}, follow=True)
+        response = self.client.post(
+            url,
+            {'user_id': self.target_user.id, 'action': 'activate'},
+            follow=True,
+        )
         self.assertEqual(response.status_code, 200)
 
         self.target_user.refresh_from_db()
@@ -1107,6 +1658,161 @@ class AdminAddAgentViewTest(TestCase):
         self.assertIsNotNone(agent_obj)
         self.assertTrue(agent_obj.is_active)
         self.assertContains(response, 'a été activé comme agent', msg_prefix='Le message de succès doit apparaître')
+
+    def test_principal_admin_funds_active_agent_wallet_once(self):
+        self.target_user.is_agent = True
+        self.target_user.save(update_fields=['is_agent'])
+        agent, _ = Agent.objects.get_or_create(user=self.target_user)
+        agent.is_active = True
+        agent.save(update_fields=['is_active'])
+        wallet, _ = Wallet.objects.get_or_create(user=self.target_user)
+        wallet.balance_htg = Decimal('15.00')
+        wallet.commission_balance_htg = Decimal('3.00')
+        wallet.save(update_fields=['balance_htg', 'commission_balance_htg'])
+        payload = {
+            'action': 'add',
+            'target': 'single',
+            'user_id': str(self.target_user.pk),
+            'account_type': 'agent',
+            'currency': 'HTG',
+            'amount': '7.50',
+            'idempotency_key': 'admin-agent-funding-001',
+        }
+
+        first = self.client.post(reverse('admin_add_money'), payload)
+        repeated = self.client.post(reverse('admin_add_money'), payload)
+
+        self.assertEqual(first.status_code, 302)
+        self.assertEqual(repeated.status_code, 302)
+        wallet.refresh_from_db()
+        self.assertEqual(wallet.balance_htg, Decimal('22.50'))
+        self.assertEqual(wallet.commission_balance_htg, Decimal('3.00'))
+        transaction_record = Transaction.objects.get(type='admin_add_agent')
+        self.assertEqual(transaction_record.sender, self.admin_user)
+        self.assertEqual(transaction_record.receiver, self.target_user)
+        self.assertEqual(transaction_record.amount, Decimal('7.50'))
+        self.assertEqual(transaction_record.currency, 'HTG')
+        self.assertEqual(transaction_record.status, 'approved')
+        self.assertEqual(Transaction.objects.filter(type='admin_add_agent').count(), 1)
+
+    def test_agent_funding_rejects_invalid_requests_without_credit(self):
+        self.target_user.is_agent = True
+        self.target_user.save(update_fields=['is_agent'])
+        agent, _ = Agent.objects.get_or_create(user=self.target_user)
+        agent.is_active = True
+        agent.save(update_fields=['is_active'])
+        ordinary_user = User.objects.create_user(
+            username='ordinary_funding_target',
+            password='userpass123',
+        )
+        wallet, _ = Wallet.objects.get_or_create(user=self.target_user)
+        wallet.balance_htg = Decimal('10.00')
+        wallet.save(update_fields=['balance_htg'])
+        base_payload = {
+            'action': 'add',
+            'target': 'single',
+            'user_id': str(self.target_user.pk),
+            'account_type': 'agent',
+            'currency': 'HTG',
+            'idempotency_key': 'admin-agent-funding-invalid-001',
+        }
+
+        for invalid_amount in ('0', '-2', '1.001', 'NaN'):
+            self.client.post(
+                reverse('admin_add_money'),
+                {**base_payload, 'amount': invalid_amount},
+            )
+
+        self.client.post(
+            reverse('admin_add_money'),
+            {**base_payload, 'user_id': str(self.admin_user.pk), 'amount': '5.00'},
+        )
+        self.client.post(
+            reverse('admin_add_money'),
+            {**base_payload, 'user_id': str(ordinary_user.pk), 'amount': '5.00'},
+        )
+        self.client.post(
+            reverse('admin_add_money'),
+            {**base_payload, 'user_id': '99999999', 'amount': '5.00'},
+        )
+
+        wallet.refresh_from_db()
+        self.assertEqual(wallet.balance_htg, Decimal('10.00'))
+        self.assertFalse(Transaction.objects.filter(type='admin_add_agent').exists())
+
+    def test_nonprincipal_staff_and_agent_cannot_fund_agent_wallet(self):
+        self.target_user.is_agent = True
+        self.target_user.save(update_fields=['is_agent'])
+        agent, _ = Agent.objects.get_or_create(user=self.target_user)
+        agent.is_active = True
+        agent.save(update_fields=['is_active'])
+        wallet, _ = Wallet.objects.get_or_create(user=self.target_user)
+        wallet.balance_htg = Decimal('10.00')
+        wallet.save(update_fields=['balance_htg'])
+
+        staff_user = User.objects.create_user(
+            username='nonprincipal_staff',
+            password='staffpass123',
+            is_staff=True,
+        )
+        self.client.force_login(staff_user)
+        payload = {
+            'action': 'add',
+            'target': 'single',
+            'user_id': str(self.target_user.pk),
+            'account_type': 'agent',
+            'currency': 'HTG',
+            'amount': '5.00',
+            'idempotency_key': 'staff-agent-funding-001',
+        }
+        self.client.post(reverse('admin_add_money'), payload)
+
+        agent_user = User.objects.create_user(
+            username='ordinary_funding_agent',
+            password='agentpass123',
+            is_agent=True,
+        )
+        agent, _ = Agent.objects.get_or_create(user=agent_user)
+        agent.is_active = True
+        agent.save(update_fields=['is_active'])
+        self.client.force_login(agent_user)
+        self.client.post(reverse('admin_add_money'), payload)
+
+        wallet.refresh_from_db()
+        self.assertEqual(wallet.balance_htg, Decimal('10.00'))
+        self.assertFalse(Transaction.objects.filter(type='admin_add_agent').exists())
+
+    def test_agent_funding_rolls_back_if_transaction_creation_fails(self):
+        self.target_user.is_agent = True
+        self.target_user.save(update_fields=['is_agent'])
+        agent, _ = Agent.objects.get_or_create(user=self.target_user)
+        agent.is_active = True
+        agent.save(update_fields=['is_active'])
+        wallet, _ = Wallet.objects.get_or_create(user=self.target_user)
+        wallet.balance_htg = Decimal('10.00')
+        wallet.save(update_fields=['balance_htg'])
+
+        with patch(
+            'marketplace.views.Transaction.objects.create',
+            side_effect=RuntimeError('simulated transaction creation failure'),
+        ):
+            with self.assertRaises(RuntimeError):
+                self.client.post(
+                    reverse('admin_add_money'),
+                    {
+                        'action': 'add',
+                        'target': 'single',
+                        'user_id': str(self.target_user.pk),
+                        'account_type': 'agent',
+                        'currency': 'HTG',
+                        'amount': '5.00',
+                        'idempotency_key': 'admin-agent-funding-rollback-001',
+                    },
+                )
+
+        wallet.refresh_from_db()
+        self.assertEqual(wallet.balance_htg, Decimal('10.00'))
+        self.assertFalse(Transaction.objects.filter(type='admin_add_agent').exists())
 
 
 class MarketplaceResellerFlowTest(TestCase):
