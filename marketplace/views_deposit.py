@@ -240,7 +240,7 @@ def agent_deposit_view(request):
         admin_wallet, _ = Wallet.objects.get_or_create(user=admin_user)
         admin_balance = getattr(admin_wallet, wallet_field, Decimal('0'))
 
-        if commission > 0:
+        if commission > 0 and admin_balance < commission:
             messages.error(request, f"Solde administrateur insuffisant pour payer la commission de {commission} {currency}.")
             return redirect('agent_deposit')
 
