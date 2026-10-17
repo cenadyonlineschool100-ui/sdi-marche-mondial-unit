@@ -203,10 +203,26 @@ def agent_deposit_view(request):
             return default_config.calculate_commission(amount)
 
         def get_system_admin_user():
-            admin_user = User.objects.filter(username__iexact='admin').first()
-            if not admin_user:
-                admin_user = User.objects.filter(is_superuser=True).first()
-            return admin_user
+            # Choisir un superadministrateur dont le portefeuille
+            # peut réellement couvrir la commission dans la devise demandée.
+            admin_users = User.objects.filter(
+                is_superuser=True,
+                is_active=True,
+            ).order_by('pk')
+
+            for candidate in admin_users:
+                candidate_wallet = Wallet.objects.filter(user=candidate).first()
+                if candidate_wallet is None:
+                    continue
+                candidate_balance = getattr(
+                    candidate_wallet,
+                    wallet_field,
+                    Decimal('0'),
+                )
+                if candidate_balance >= commission:
+                    return candidate
+
+            return None
 
         commission = calculate_commission_for_deposit(request.user, amount, commission_config)
         required_amount = amount
