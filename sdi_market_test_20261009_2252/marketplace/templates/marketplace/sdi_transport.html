@@ -1,0 +1,628 @@
+{% extends 'marketplace/base.html' %}
+
+{% block extra_css %}
+<style>
+    .transport-hero {
+        display: grid;
+        gap: 1.5rem;
+        grid-template-columns: 1.2fr 0.8fr;
+        align-items: center;
+        padding: 3rem 0 1.5rem;
+    }
+    .transport-hero > div:first-child {
+        max-width: 100%;
+    }
+    .transport-hero h1 {
+        font-size: clamp(2.2rem, 5vw, 4.2rem);
+        margin: 0;
+        line-height: 1.08;
+        color: #0f172a;
+        text-shadow: none;
+        background: #ffffff;
+        display: inline-block;
+        padding: 0.35rem 0.7rem;
+        border-radius: 12px;
+        box-shadow: 0 12px 35px rgba(14, 64, 140, 0.08);
+    }
+    .transport-hero p {
+        font-size: 1.05rem;
+        color: #1e293b;
+        max-width: 680px;
+        background: #ffffff;
+        display: inline-block;
+        padding: 0.75rem 0.9rem;
+        border-radius: 10px;
+        line-height: 1.6;
+    }
+    .transport-hero .hero-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.8rem 1.1rem;
+        border-radius: 999px;
+        background: #ffffff;
+        border: 1px solid #bfdbfe;
+        color: #1d4ed8;
+        font-weight: 800;
+        margin-bottom: 1.2rem;
+        box-shadow: 0 8px 22px rgba(37, 99, 235, 0.08);
+    }
+    .transport-hero .hero-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.9rem;
+        margin-top: 1.25rem;
+    }
+    .transport-hero .hero-actions .button {
+        min-width: 0;
+        width: auto;
+        max-width: 100%;
+        padding: 1rem 1.3rem;
+        border-radius: 999px;
+        font-weight: 700;
+        letter-spacing: 0.01em;
+        line-height: 1.3;
+        white-space: normal;
+        text-align: center;
+    }
+    .transport-hero .hero-actions .button.primary {
+        background: linear-gradient(135deg, #0ea5e9, #2563eb);
+        color: #ffffff;
+        box-shadow: 0 16px 28px rgba(37, 99, 235, 0.2);
+    }
+    .transport-hero .hero-actions .button.secondary {
+        background: #ffffff;
+        color: #1d4ed8;
+        border: 1px solid #bfdbfe;
+    }
+    .transport-hero .hero-visual {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 0.75rem;
+    }
+    .transport-hero .hero-card {
+        border-radius: 16px;
+        padding: 1.1rem 1.15rem;
+        min-height: 0;
+        position: relative;
+        overflow: hidden;
+        background: #ffffff;
+        border: 1px solid #dbeafe;
+        box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+    }
+    .transport-hero .hero-card::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: none;
+        pointer-events: none;
+    }
+    .transport-hero .hero-card span {
+        display: inline-flex;
+        width: 46px;
+        height: 46px;
+        align-items: center;
+        justify-content: center;
+        border-radius: 10px;
+        background: #dbeafe;
+        color: #1d4ed8;
+        font-size: 1.25rem;
+        margin-bottom: 0.7rem;
+        z-index: 1;
+        position: relative;
+    }
+    .transport-hero .hero-card strong {
+        display: block;
+        color: #0f172a;
+        font-size: 1rem;
+        margin-bottom: 0.5rem;
+        z-index: 1;
+        position: relative;
+    }
+    .transport-hero .hero-card p {
+        color: #334155;
+        line-height: 1.5;
+        margin: 0;
+        z-index: 1;
+        position: relative;
+    }
+    .transport-intro,
+    .transport-info,
+    .transport-advantages,
+    .application-form {
+        padding: 3rem 0;
+    }
+    .transport-section-header {
+        display: flex;
+        align-items: center;
+        gap: 0.85rem;
+        margin-bottom: 1.5rem;
+    }
+    .transport-section-header .section-tag {
+        width: 52px;
+        height: 52px;
+        border-radius: 18px;
+        background: linear-gradient(135deg, #0ea5e9, #2563eb);
+        display: grid;
+        place-items: center;
+        color: white;
+        font-size: 1.1rem;
+        box-shadow: 0 14px 30px rgba(37,99,235,0.22);
+    }
+    .transport-section-header h2 {
+        margin: 0;
+        font-size: 2rem;
+    }
+    .transport-section-header p {
+        margin: 0;
+        color: #475569;
+    }
+    .transport-carousel {
+        position: relative;
+    }
+    .transport-carousel .cards-carousel {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 1.5rem;
+        perspective: none;
+    }
+    .transport-card {
+        background: #ffffff;
+        border-radius: 16px;
+        padding: 1.25rem 1.15rem;
+        min-height: 240px;
+        box-shadow: 0 18px 50px rgba(15, 23, 42, 0.12);
+        transform: translateZ(0);
+        transition: transform 0.4s ease, box-shadow 0.4s ease;
+        position: relative;
+        overflow: hidden;
+        border: 1px solid rgba(15,23,42,0.05);
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        justify-content: flex-start;
+        min-width: 0;
+    }
+    .transport-card.active {
+        transform: rotateY(0deg) translateY(-8px);
+        box-shadow: 0 30px 70px rgba(15, 23, 42, 0.16);
+    }
+    .transport-card:not(.active) {
+        transform: rotateY(-10deg) scale(0.98);
+        opacity: 0.92;
+    }
+    .transport-card span.icon {
+        display: inline-flex;
+        width: 60px;
+        height: 60px;
+        align-items: center;
+        justify-content: center;
+        border-radius: 12px;
+        background: linear-gradient(135deg, #0ea5e9, #2563eb);
+        color: white;
+        font-size: 1.6rem;
+        margin-bottom: 1rem;
+    }
+    .transport-card h3 {
+        margin: 0 0 0.75rem;
+        font-size: clamp(1.08rem, 2.4vw, 1.35rem);
+        line-height: 1.3;
+    }
+    .transport-card p {
+        margin: 0 0 1.25rem;
+        color: #475569;
+        line-height: 1.6;
+        flex: 1 1 auto;
+    }
+    .transport-card .button {
+        width: fit-content;
+        max-width: 100%;
+        background: linear-gradient(135deg, #2563eb, #1d4ed8);
+        color: white;
+        padding: 0.9rem 1.2rem;
+        border-radius: 10px;
+    }
+    .transport-card.bus-card {
+        background: linear-gradient(180deg, #eff6ff, #dbeafe);
+        border-color: rgba(37, 99, 235, 0.16);
+    }
+    .transport-card.bus-card h3,
+    .transport-card.bus-card p {
+        color: #0f172a;
+    }
+    .info-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 1.5rem;
+    }
+    .info-card,
+    .advantage-card,
+    .application-panel {
+        background: #ffffff;
+        border-radius: 28px;
+        border: 1px solid rgba(15,23,42,0.08);
+        box-shadow: 0 16px 40px rgba(15,23,42,0.08);
+        padding: 2rem;
+    }
+    .info-card h3,
+    .advantage-card h3,
+    .application-panel h3 {
+        margin-top: 0;
+    }
+    .info-list,
+    .advantage-list {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+        display: grid;
+        gap: 0.9rem;
+    }
+    .info-list li,
+    .advantage-list li {
+        background: #f8fafc;
+        border-radius: 18px;
+        padding: 1rem 1.1rem;
+        display: flex;
+        align-items: flex-start;
+        gap: 0.85rem;
+        color: #334155;
+    }
+    .info-list li::before,
+    .advantage-list li::before {
+        content: '✔';
+        color: #2563eb;
+        font-weight: 700;
+        min-width: 1.4rem;
+    }
+    .application-form .application-grid {
+        display: grid;
+        grid-template-columns: 1.3fr 0.7fr;
+        gap: 1.75rem;
+    }
+    .application-form form {
+        display: grid;
+        gap: 1.25rem;
+    }
+    .application-form fieldset {
+        border: none;
+        padding: 0;
+        margin: 0;
+        display: grid;
+        gap: 1rem;
+    }
+    .application-form label {
+        display: block;
+        font-weight: 700;
+        margin-bottom: 0.35rem;
+        color: #0f172a;
+    }
+    .application-form input,
+    .application-form select,
+    .application-form textarea {
+        width: 100%;
+        border-radius: 18px;
+        border: 1px solid rgba(15,23,42,0.12);
+        padding: 1rem 1.1rem;
+        font: inherit;
+        background: #f8fafc;
+        color: #0f172a;
+        transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+    .application-form input:focus,
+    .application-form select:focus,
+    .application-form textarea:focus {
+        outline: none;
+        border-color: #2563eb;
+        box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.12);
+    }
+    .application-form textarea {
+        min-height: 180px;
+        resize: vertical;
+    }
+    .application-form .form-note {
+        font-size: 0.95rem;
+        color: #475569;
+    }
+    .application-form .button.submit {
+        width: fit-content;
+    }
+    .honeypot {
+        position: absolute;
+        left: -9999px;
+        top: -9999px;
+        opacity: 0;
+        visibility: hidden;
+        pointer-events: none;
+    }
+    .application-panel { gap: 1rem; }
+    .application-panel .panel-tag {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.75rem 1rem;
+        border-radius: 999px;
+        background: rgba(37, 99, 235, 0.12);
+        color: #1d4ed8;
+        font-weight: 700;
+    }
+    .application-panel ul {
+        list-style: none;
+        padding: 0;
+        margin: 1rem 0 0;
+        display: grid;
+        gap: 0.85rem;
+    }
+    .application-panel li {
+        display: flex;
+        align-items: flex-start;
+        gap: 0.85rem;
+        color: #334155;
+    }
+    .application-panel li::before {
+        content: '•';
+        color: #2563eb;
+        font-size: 1.25rem;
+        line-height: 1;
+        margin-top: 0.15rem;
+    }
+    @media (max-width: 1070px) {
+        .transport-hero,
+        .application-form .application-grid,
+        .info-grid {
+            grid-template-columns: 1fr;
+        }
+        .transport-carousel .cards-carousel {
+            grid-template-columns: 1fr;
+        }
+    }
+    @media (max-width: 640px) {
+        .transport-hero {
+            padding-top: 2.2rem;
+            gap: 1.1rem;
+        }
+        .transport-hero .hero-actions {
+            display: grid;
+            grid-template-columns: 1fr;
+            width: 100%;
+        }
+        .transport-hero .hero-actions .button {
+            width: 100%;
+            min-width: 0;
+        }
+        .transport-hero .hero-visual {
+            grid-template-columns: 1fr;
+        }
+        .transport-card {
+            min-height: 0;
+            padding: 1.2rem 1rem;
+        }
+        .transport-card .button {
+            width: 100%;
+            text-align: center;
+            justify-content: center;
+        }
+    }
+    @media (max-width: 420px) {
+        .transport-hero h1 {
+            font-size: clamp(1.9rem, 8vw, 2.7rem);
+        }
+        .transport-hero p {
+            font-size: 0.98rem;
+        }
+        .transport-hero .hero-badge {
+            font-size: 0.92rem;
+            padding: 0.7rem 0.9rem;
+        }
+        .transport-section-header h2 {
+            font-size: 1.6rem;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block hero %}
+<section class="transport-hero">
+    <div>
+        <span class="hero-badge">🚍 Recrutement SDI Transport</span>
+        <h1>Bienvenue à SDI Transport</h1>
+        <p>Votre mobilité, notre priorité. Nous connectons les personnes avec un service de transport fiable, rapide et sécurisé.</p>
+        <div class="hero-actions">
+            <a href="#application-form" class="button primary">💙 Envoyer ma candidature</a>
+            <a href="#jobs" class="button secondary">Voir les postes disponibles</a>
+        </div>
+    </div>
+    <div class="hero-visual">
+        <div class="hero-card">
+            <span><i class="fa-solid fa-motorcycle"></i></span>
+            <strong>Transport urbain express</strong>
+            <p>Réponse rapide pour les déplacements en ville avec une flotte de motos professionnelles.</p>
+        </div>
+        <div class="hero-card">
+            <span><i class="fa-solid fa-bus"></i></span>
+            <strong>Transport collectif sûr</strong>
+            <p>Solutions de bus dédiées aux trajets en groupe avec un service organisé et structuré.</p>
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block content %}
+<section class="transport-intro">
+    <div class="transport-section-header">
+        <div class="section-tag">🏁</div>
+        <div>
+            <h2>SDI Transport recrute des chauffeurs</h2>
+            <p>Conducteurs sérieux, responsables et motivés sont attendus pour rejoindre notre équipe professionnelle.</p>
+        </div>
+    </div>
+</section>
+
+<section id="jobs" class="transport-carousel">
+    <div class="transport-section-header">
+        <div class="section-tag">🚗</div>
+        <div>
+            <h2>Postes disponibles</h2>
+            <p>Trois opportunités illustrées dans un style moderne et professionnel.</p>
+        </div>
+    </div>
+    <div class="cards-carousel" id="transport-carousel">
+        <article class="transport-card active" data-card="0">
+            <span class="icon"><i class="fa-solid fa-motorcycle"></i></span>
+            <h3>Conducteur Moto</h3>
+            <p>Transport rapide en zone urbaine, idéal pour les livraisons et déplacements express.</p>
+            <a href="#application-form" class="button">Postuler Moto</a>
+        </article>
+        <article class="transport-card" data-card="1">
+            <span class="icon"><i class="fa-solid fa-car"></i></span>
+            <h3>Conducteur Voiture</h3>
+            <p>Transport privé et professionnel pour clients exigeants en quête de confort.</p>
+            <a href="#application-form" class="button">Postuler Voiture</a>
+        </article>
+        <article class="transport-card bus-card" data-card="2">
+            <span class="icon"><i class="fa-solid fa-bus"></i></span>
+            <h3>Conducteur Bus</h3>
+            <p>Transport collectif sécurisé, avec une carte principale mise en avant pour les trajets en groupe.</p>
+            <a href="#application-form" class="button">Postuler Bus</a>
+        </article>
+    </div>
+</section>
+
+<section class="transport-info">
+    <div class="transport-section-header">
+        <div class="section-tag">📢</div>
+        <div>
+            <h2>Informations importantes</h2>
+            <p>Après soumission, votre candidature est examinée rapidement pour assurer une réponse en 24 à 72 heures.</p>
+        </div>
+    </div>
+    <div class="info-grid">
+        <div class="info-card">
+            <h3>Étude de candidature</h3>
+            <ul class="info-list">
+                <li>Votre candidature sera étudiée par l’administration.</li>
+                <li>Délai de réponse : 24 à 72 heures.</li>
+                <li>Vous serez contacté si votre profil est retenu.</li>
+            </ul>
+        </div>
+        <div class="advantage-card">
+            <h3>Avantages SDI Transport</h3>
+            <ul class="advantage-list">
+                <li>Formation possible pour débutants</li>
+                <li>Opportunités d’évolution</li>
+                <li>Travail organisé et structuré</li>
+                <li>Flexibilité selon le poste</li>
+                <li>Environnement professionnel sérieux</li>
+            </ul>
+        </div>
+    </div>
+</section>
+
+<section id="application-form" class="application-form">
+    <div class="transport-section-header">
+        <div class="section-tag">📝</div>
+        <div>
+            <h2>Formulaire de candidature</h2>
+            <p>Remplissez les informations ci-dessous et soumettez votre dossier en toute sécurité.</p>
+        </div>
+    </div>
+    <div class="application-grid">
+        <form method="post" enctype="multipart/form-data">
+            {% csrf_token %}
+            <input type="text" name="website" class="honeypot" autocomplete="off" tabindex="-1" />
+
+            <fieldset>
+                <legend>Informations personnelles</legend>
+                <label for="first_name">Nom</label>
+                <input id="first_name" name="first_name" type="text" value="{{ form_data.first_name|default:'' }}" required>
+
+                <label for="last_name">Prénom</label>
+                <input id="last_name" name="last_name" type="text" value="{{ form_data.last_name|default:'' }}" required>
+
+                <label for="birth_date">Date de naissance</label>
+                <input id="birth_date" name="birth_date" type="date" value="{{ form_data.birth_date|default:'' }}" required>
+
+                <label for="address">Adresse complète</label>
+                <input id="address" name="address" type="text" value="{{ form_data.address|default:'' }}" required>
+
+                <label for="phone">Téléphone</label>
+                <input id="phone" name="phone" type="tel" value="{{ form_data.phone|default:'' }}" required>
+
+                <label for="email">Email</label>
+                <input id="email" name="email" type="email" value="{{ form_data.email|default:'' }}" required>
+            </fieldset>
+
+            <fieldset>
+                <legend>Expérience</legend>
+                <label for="experience_years">Années d’expérience</label>
+                <input id="experience_years" name="experience_years" type="number" min="0" value="{{ form_data.experience_years|default:'' }}" required>
+
+                <label for="vehicle_type">Type de véhicule conduit</label>
+                <select id="vehicle_type" name="vehicle_type" required>
+                    <option value="" disabled {% if not form_data.vehicle_type %}selected{% endif %}>Sélectionnez</option>
+                    <option value="Moto" {% if form_data.vehicle_type == 'Moto' %}selected{% endif %}>Moto</option>
+                    <option value="Voiture" {% if form_data.vehicle_type == 'Voiture' %}selected{% endif %}>Voiture</option>
+                    <option value="Bus" {% if form_data.vehicle_type == 'Bus' %}selected{% endif %}>Bus</option>
+                </select>
+
+                <label for="license_category">Permis (catégorie)</label>
+                <input id="license_category" name="license_category" type="text" value="{{ form_data.license_category|default:'' }}" required>
+
+                <label for="experience_description">Description de l’expérience</label>
+                <textarea id="experience_description" name="experience_description" required>{{ form_data.experience_description|default:'' }}</textarea>
+            </fieldset>
+
+            <fieldset>
+                <legend>Documents</legend>
+                <label for="identity_photo">Photo d’identité</label>
+                <input id="identity_photo" name="identity_photo" type="file" accept="image/*">
+
+                <label for="driver_license">Permis de conduire</label>
+                <input id="driver_license" name="driver_license" type="file" accept="image/*,application/pdf">
+
+                <label for="resume">CV (optionnel)</label>
+                <input id="resume" name="resume" type="file" accept="application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document">
+            </fieldset>
+
+            <p class="form-note">Validation automatique des champs, anti-spam intégré, soumission sécurisée avec protection CSRF.</p>
+            <button type="submit" class="button submit primary">💙 Envoyer ma candidature</button>
+        </form>
+
+        <aside class="application-panel">
+            <div class="panel-tag">PRO</div>
+            <h3>Option Pro recommandée</h3>
+            <p>Ce site peut évoluer vers un tableau de bord RH complet pour gérer les candidatures et suivre les statuts.</p>
+            <ul>
+                <li>Dashboard admin pour gérer les candidatures</li>
+                <li>Statut candidature : en attente / accepté / refusé</li>
+                <li>Notification automatique email/SMS</li>
+                <li>Filtrage par expérience et permis</li>
+            </ul>
+        </aside>
+    </div>
+</section>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const cards = Array.from(document.querySelectorAll('#transport-carousel .transport-card'));
+        let currentIndex = 0;
+
+        function updateCards(index) {
+            cards.forEach((card, idx) => {
+                card.classList.toggle('active', idx === index);
+            });
+        }
+
+        cards.forEach((card, idx) => {
+            card.addEventListener('click', () => {
+                currentIndex = idx;
+                updateCards(currentIndex);
+                card.scrollIntoView({ behavior: 'smooth', inline: 'center' });
+            });
+        });
+
+        updateCards(currentIndex);
+    });
+</script>
+{% endblock %}

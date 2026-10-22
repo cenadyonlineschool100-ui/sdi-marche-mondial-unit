@@ -1,0 +1,881 @@
+{% extends 'marketplace/base.html' %}
+{% load image_tags %}
+
+{% block content %}
+<style>
+    .beauty-hero {
+        background: linear-gradient(135deg, #e86eb0 0%, #8059c7 100%);
+        color: white;
+        padding: 50px 20px;
+        border-radius: 16px;
+        margin-bottom: 30px;
+        display: grid;
+        grid-template-columns: 1.5fr 1fr;
+        gap: 24px;
+        align-items: center;
+    }
+    .beauty-hero h1 {
+        font-size: 2.6rem;
+        margin-bottom: 16px;
+        font-weight: 700;
+    }
+    .beauty-hero p {
+        font-size: 1rem;
+        opacity: 0.95;
+        max-width: 680px;
+        line-height: 1.65;
+    }
+    .beauty-hero .hero-actions {
+        margin-top: 24px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+    }
+    .beauty-hero .cover-photo {
+        position: relative;
+        border-radius: 16px;
+        overflow: hidden;
+        min-height: 340px;
+    }
+    .beauty-hero .cover-slideshow {
+        position: relative;
+        width: 100%;
+        height: 100%;
+    }
+    .beauty-hero .cover-slide {
+        position: absolute;
+        inset: 0;
+        background-size: cover;
+        background-position: center;
+        opacity: 0;
+        transition: opacity 0.8s ease;
+    }
+    .beauty-hero .cover-slide.active {
+        opacity: 1;
+    }
+    .beauty-hero .cover-slide::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: rgba(0,0,0,0.35);
+    }
+    .beauty-hero .cover-label {
+        position: absolute;
+        bottom: 24px;
+        left: 24px;
+        color: white;
+        font-size: 0.95rem;
+        opacity: 0.95;
+        z-index: 1;
+    }
+    .beauty-hero .cover-carousel-dots {
+        position: absolute;
+        bottom: 18px;
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        gap: 10px;
+        z-index: 1;
+    }
+    .beauty-hero .cover-carousel-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 999px;
+        background: rgba(255,255,255,0.45);
+        cursor: pointer;
+        transition: transform .2s ease, background .2s ease;
+    }
+    .beauty-hero .cover-carousel-dot.active {
+        background: white;
+        transform: scale(1.1);
+    }
+    .section {
+        margin-bottom: 40px;
+    }
+    .section-header h2 {
+        font-size: 1.9rem;
+        margin-bottom: 10px;
+        color: #1d1d35;
+    }
+    .section-header p {
+        color: #5f6370;
+        margin-bottom: 24px;
+    }
+    .services-grid,
+    .grid.grid-2,
+    .grid.grid-3,
+    .admin-grid {
+        display: grid;
+        gap: 20px;
+    }
+    .services-grid,
+    .grid.grid-3 {
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    }
+    .grid.grid-2 {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .product-card,
+    .info-card,
+    .admin-card,
+    .center-card,
+    .card {
+        background: white;
+        border-radius: 16px;
+        box-shadow: 0 14px 35px rgba(40, 40, 63, 0.08);
+        padding: 24px;
+    }
+    .product-card {
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+    }
+    .product-image-fallback,
+    .service-image {
+        min-height: 180px;
+        border-radius: 14px;
+        background: linear-gradient(135deg, #f5f1ff 0%, #fff4fb 100%);
+        display: grid;
+        place-items: center;
+        color: #8a70b8;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.02em;
+        padding: 20px;
+        margin-bottom: 18px;
+    }
+    .product-title,
+    .info-card h3,
+    .admin-card h4 {
+        font-size: 1.2rem;
+        margin-bottom: 12px;
+        color: #1d1d35;
+    }
+    .product-price {
+        font-weight: 700;
+        color: #9b4dcd;
+        margin: 12px 0;
+    }
+    .product-actions,
+    .hero-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+    .button,
+    .btn-primary,
+    .btn-secondary {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        text-decoration: none;
+        border-radius: 999px;
+        padding: 12px 22px;
+        font-weight: 600;
+        transition: transform .2s ease, box-shadow .2s ease;
+    }
+    .button.primary,
+    .btn-primary {
+        background: linear-gradient(135deg, #8c4fd2 0%, #f85cc8 100%);
+        color: white;
+        border: none;
+    }
+    .button.secondary,
+    .btn-secondary {
+        background: white;
+        color: #5f6370;
+        border: 1px solid #d9d9e3;
+    }
+    .button:hover,
+    .btn-primary:hover,
+    .btn-secondary:hover {
+        transform: translateY(-2px);
+    }
+    .form-group {
+        margin-bottom: 18px;
+    }
+    .form-control {
+        width: 100%;
+        padding: 12px 14px;
+        border: 1px solid #d7d9e0;
+        border-radius: 12px;
+        font-size: 0.95rem;
+    }
+    input[type="file"] {
+        display: none !important;
+    }
+    .upload-zone:hover {
+        border-color: #f85cc8 !important;
+        background: linear-gradient(135deg, rgba(248, 92, 200, 0.1) 0%, rgba(140, 79, 210, 0.1) 100%) !important;
+    }
+    .center-card {
+        text-align: center;
+        padding: 32px;
+    }
+    .center-card p {
+        margin-bottom: 22px;
+        color: #5f6370;
+    }
+    .admin-grid {
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    }
+    .transaction-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 16px;
+    }
+    .transaction-table th,
+    .transaction-table td {
+        border: 1px solid #e5e7eb;
+        padding: 12px 14px;
+        text-align: left;
+    }
+    .transaction-table th {
+        background: #f9fafb;
+        color: #374151;
+        font-weight: 700;
+    }
+    .transaction-table tbody tr:hover {
+        background: #f3f4f6;
+    }
+    .transaction-badge {
+        display: inline-flex;
+        padding: 6px 10px;
+        border-radius: 999px;
+        font-size: 0.82rem;
+        color: #374151;
+        background: #eef2ff;
+    }
+</style>
+
+<div class="container" style="max-width: 1200px; margin: 0 auto; padding: 20px;">
+    <div class="beauty-hero">
+        <div>
+            <span class="eyebrow">Studio de Beauté</span>
+            {% if approved_shop %}
+                <h1>Bienvenue dans le Studio de Beauté de {{ studio_owner_name }}</h1>
+                <p>Votre page professionnelle a été validée par l'administration. Gérez vos services, vos tarifs et vos réservations depuis votre espace.</p>
+            {% else %}
+                <h1>Créez votre Studio de Beauté professionnel</h1>
+                <p>Demandez la validation administrative et obtenez une page studio personnalisée avec services, réservation et paiement sécurisé.</p>
+            {% endif %}
+            <div class="hero-actions">
+                {% if approved_shop %}
+                    <a href="{% url 'my_shop' %}" class="btn-primary">Gérer mon studio</a>
+                    <a href="#services" class="btn-secondary">Voir les services</a>
+                {% else %}
+                    <a href="{% url 'studio_beaute_request' %}" class="btn-primary">➕ Créer mon Studio de Beauté</a>
+                    <a href="#services" class="btn-secondary">Découvrir l'offre</a>
+                {% endif %}
+            </div>
+        </div>
+        <div class="cover-photo">
+            <div class="cover-slideshow">
+                {% if cover_photos %}
+                    {% for photo in cover_photos %}
+                        <div class="cover-slide{% if forloop.first %} active{% endif %}" style="background-image: url('{{ photo.image.url }}');">
+                            <div class="cover-label">Photo de couverture personnalisable</div>
+                        </div>
+                    {% endfor %}
+                    <div class="cover-carousel-dots">
+                        {% for photo in cover_photos %}
+                            <div class="cover-carousel-dot{% if forloop.first %} active{% endif %}" data-slide-index="{{ forloop.counter0 }}"></div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="cover-slide active" style="background-image: url('/static/images/beauty-cover.jpg');">
+                        <div class="cover-label">Photo de couverture personnalisable</div>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="section" id="beauty-studios">
+        <div class="section-header">
+            <h2>Studios de Beauté</h2>
+            <p>Découvrez les meilleurs studios de beauté, salons esthétiques et spécialistes en coiffure, maquillage, soins du visage, manucure et pédicure.</p>
+        </div>
+        <div class="services-grid">
+            <div class="product-card" style="background: linear-gradient(135deg, rgba(255,240,246,0.95), rgba(248,94,184,0.12)); border: 1px solid rgba(248,92,200,0.25);">
+                <div class="product-image-fallback" style="background: linear-gradient(135deg, #fce7f3 0%, #fee2e1 100%); color: #b91c8a;">
+                    ➕ Créer ton Studio
+                </div>
+                <h3 class="product-title">Créer ton Studio de Beauté</h3>
+                <p class="product-description">Tu possèdes un salon de beauté ou tu offres des services esthétiques ? Crée gratuitement ta page professionnelle et présente tes services à des milliers de visiteurs.</p>
+                <div class="product-actions">
+                    <a href="{% url 'studio_beaute_request' %}" class="button primary">🚀 Créer mon Studio</a>
+                </div>
+            </div>
+
+            {% for studio in approved_beauty_studios %}
+            <div class="product-card">
+                {% if studio.approved_shop.cover_photos.first %}
+                <div class="product-image-fallback" style="background-image: url('{{ studio.approved_shop.cover_photos.first.image.url }}'); background-size: cover; background-position: center; color: white;">
+                    <span style="background: rgba(0,0,0,0.45); padding: 8px 12px; border-radius: 999px;">Studio</span>
+                </div>
+                {% else %}
+                <div class="product-image-fallback">✨ Studio Élégance</div>
+                {% endif %}
+                <h3 class="product-title">{{ studio.studio_name }}</h3>
+                <p class="product-shop">{{ studio.description|truncatechars:85|default:'Salon de beauté professionnel avec salon et services premium.' }}</p>
+                <p class="product-description">{{ studio.specialties|default:'Coiffure, maquillage, soins du visage, manucure et pédicure.' }}</p>
+                <p style="margin-top: 10px; color:#6b7280; font-size:0.95rem;">📍 {{ studio.address|default:'Port-au-Prince' }}</p>
+                <p style="margin: 0 0 16px; color:#6b7280; font-size:0.95rem;">📞 {{ studio.phone|default:'+509 0000 0000' }}</p>
+                <div class="product-actions">
+                    <a href="{% url 'shop_detail' studio.approved_shop.id %}" class="button secondary">👁️ Voir le profil</a>
+                </div>
+            </div>
+            {% empty %}
+            <div class="center-card" style="grid-column:1/-1;">
+                <h3>Aucun studio approuvé pour le moment</h3>
+                <p>Demandez la création de votre studio et soyez le premier à apparaître dans notre catalogue.</p>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    {% if approved_shop and request.user == approved_shop.owner %}
+    <div class="section">
+        <div class="card">
+            <h3>📸 Photos de couverture</h3>
+            <p>Ajoutez plusieurs images. Elles défileront automatiquement sur la page du studio comme un écran TV.</p>
+            <form method="post" enctype="multipart/form-data" id="cover-photo-form">
+                {% csrf_token %}
+                <div class="form-group" style="margin-top: 24px;">
+                    <div class="upload-zone" id="upload-zone" style="
+                        border: 3px dashed #8c4fd2;
+                        border-radius: 16px;
+                        padding: 40px 20px;
+                        text-align: center;
+                        background: linear-gradient(135deg, rgba(140, 79, 210, 0.05) 0%, rgba(248, 92, 200, 0.05) 100%);
+                        cursor: pointer;
+                        transition: all 0.3s ease;
+                    ">
+                        <div style="font-size: 2.5rem; margin-bottom: 12px;">📤</div>
+                        <p style="font-size: 1.1rem; color: #1d1d35; margin: 12px 0; font-weight: 600;">
+                            Déposez vos images ici ou cliquez pour sélectionner
+                        </p>
+                        <p style="color: #5f6370; margin: 8px 0; font-size: 0.95rem;">
+                            Formats acceptés: JPG, PNG, GIF, WebP (Max 5 MB par fichier)
+                        </p>
+                        {{ cover_photo_form.images }}
+                    </div>
+                    {% if cover_photo_form.images.errors %}
+                        <div style="color: #dc2626; background: #fee2e2; padding: 12px 16px; border-radius: 8px; margin-top: 12px;">
+                            {{ cover_photo_form.images.errors }}
+                        </div>
+                    {% endif %}
+                    <div id="file-list" style="margin-top: 16px; display: none;">
+                        <p style="color: #5f6370; font-weight: 600; margin-bottom: 12px;">Fichiers sélectionnés:</p>
+                        <ul id="selected-files" style="list-style: none; padding: 0; margin: 0;"></ul>
+                    </div>
+                </div>
+                <div style="display: flex; gap: 12px; margin-top: 24px;">
+                    <button type="submit" name="cover_upload_submit" class="button primary" id="submit-btn">✅ Ajouter les photos</button>
+                    <button type="reset" class="button secondary">Réinitialiser</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <script>
+    const uploadZone = document.getElementById('upload-zone');
+    const fileInput = document.querySelector('input[name="images"]');
+    const fileList = document.getElementById('file-list');
+    const selectedFilesList = document.getElementById('selected-files');
+    const form = document.getElementById('cover-photo-form');
+    
+    // Clic sur la zone d'upload
+    uploadZone.addEventListener('click', function() {
+        fileInput.click();
+    });
+    
+    // Drag & drop
+    uploadZone.addEventListener('dragover', function(e) {
+        e.preventDefault();
+        uploadZone.style.borderColor = '#f85cc8';
+        uploadZone.style.background = 'linear-gradient(135deg, rgba(248, 92, 200, 0.1) 0%, rgba(140, 79, 210, 0.1) 100%)';
+    });
+    
+    uploadZone.addEventListener('dragleave', function(e) {
+        e.preventDefault();
+        uploadZone.style.borderColor = '#8c4fd2';
+        uploadZone.style.background = 'linear-gradient(135deg, rgba(140, 79, 210, 0.05) 0%, rgba(248, 92, 200, 0.05) 100%)';
+    });
+    
+    uploadZone.addEventListener('drop', function(e) {
+        e.preventDefault();
+        uploadZone.style.borderColor = '#8c4fd2';
+        uploadZone.style.background = 'linear-gradient(135deg, rgba(140, 79, 210, 0.05) 0%, rgba(248, 92, 200, 0.05) 100%)';
+        fileInput.files = e.dataTransfer.files;
+        updateFileList();
+    });
+    
+    // Changement de fichiers
+    fileInput.addEventListener('change', updateFileList);
+    
+    const previewCoverSlide = document.querySelector('.beauty-hero .cover-slide.active');
+    const originalCoverBackground = previewCoverSlide ? previewCoverSlide.style.backgroundImage : '';
+    const previewCoverLabel = previewCoverSlide ? previewCoverSlide.querySelector('.cover-label') : null;
+    const originalCoverLabelText = previewCoverLabel ? previewCoverLabel.textContent : '';
+    
+    function updateCoverPreview(file) {
+        if (!file || !previewCoverSlide) {
+            return;
+        }
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            previewCoverSlide.style.backgroundImage = `url('${e.target.result}')`;
+            if (previewCoverLabel) {
+                previewCoverLabel.textContent = 'Prévisualisation de la photo de couverture';
+            }
+        };
+        reader.readAsDataURL(file);
+    }
+    
+    function restoreCoverPreview() {
+        if (!previewCoverSlide) {
+            return;
+        }
+        previewCoverSlide.style.backgroundImage = originalCoverBackground;
+        if (previewCoverLabel) {
+            previewCoverLabel.textContent = originalCoverLabelText;
+        }
+    }
+    
+    function updateFileList() {
+        const files = fileInput.files;
+        if (files.length > 0) {
+            selectedFilesList.innerHTML = '';
+            updateCoverPreview(files[0]);
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                const fileSize = (file.size / (1024 * 1024)).toFixed(2);
+                const li = document.createElement('li');
+                li.style.cssText = 'background: #f3f4f6; padding: 12px 16px; border-radius: 8px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center;';
+                li.innerHTML = `
+                    <div>
+                        <div style="font-weight: 600; color: #1d1d35;">${file.name}</div>
+                        <div style="font-size: 0.85rem; color: #6b7280;">${fileSize} MB</div>
+                    </div>
+                    <div style="color: #10b981; font-weight: 600;">✓</div>
+                `;
+                selectedFilesList.appendChild(li);
+            }
+            fileList.style.display = 'block';
+        } else {
+            fileList.style.display = 'none';
+            restoreCoverPreview();
+        }
+    }
+    
+    form.addEventListener('reset', function() {
+        setTimeout(function() {
+            if (!fileInput.files.length) {
+                selectedFilesList.innerHTML = '';
+                fileList.style.display = 'none';
+                restoreCoverPreview();
+            }
+        }, 0);
+    });
+    
+    // Valider avant soumission
+    form.addEventListener('submit', function(e) {
+        if (fileInput.files.length === 0) {
+            e.preventDefault();
+            alert('Veuillez sélectionner au moins une image.');
+        }
+    });
+    </script>
+    {% endif %}
+
+    <div class="section" id="services">
+        <div class="section-header">
+            <h2>Services en vedette</h2>
+            <p>La page affiche trois cartes de services par défaut, avec images, prix et bouton « Choisir ce modèle ».</p>
+        </div>
+        <div class="services-grid">
+            <div class="product-card">
+                <div class="service-image">💅 Manucure</div>
+                <div class="product-info">
+                    <h3 class="product-title">Manucure</h3>
+                    <p class="product-shop">Image du service</p>
+                    <p class="product-price">{{ current_currency_symbol }}10.00</p>
+                    <p class="product-description">Soin des ongles, pose de vernis et soin des mains.</p>
+                </div>
+                <div class="product-actions">
+                    <a href="?service=manucure#booking" class="button secondary">Choisir ce modèle</a>
+                </div>
+            </div>
+            <div class="product-card">
+                <div class="service-image">🦶 Pédicure</div>
+                <div class="product-info">
+                    <h3 class="product-title">Pédicure</h3>
+                    <p class="product-shop">Image du service</p>
+                    <p class="product-price">{{ current_currency_symbol }}12.00</p>
+                    <p class="product-description">Soin des pieds, exfoliation et préparation pour vernis.</p>
+                </div>
+                <div class="product-actions">
+                    <a href="?service=pedicure#booking" class="button secondary">Choisir ce modèle</a>
+                </div>
+            </div>
+            <div class="product-card">
+                <div class="service-image">💇 Soins Capillaires</div>
+                <div class="product-info">
+                    <h3 class="product-title">Soins Capillaires</h3>
+                    <p class="product-shop">Image du service</p>
+                    <p class="product-price">{{ current_currency_symbol }}20.00</p>
+                    <p class="product-description">Coiffure, soins profonds et coiffage professionnel.</p>
+                </div>
+                <div class="product-actions">
+                    <a href="?service=cheveux#booking" class="button secondary">Choisir ce modèle</a>
+                </div>
+            </div>
+            <div class="product-card">
+                <div class="service-image">🧕 Tresse Africaine</div>
+                <div class="product-info">
+                    <h3 class="product-title">Tresse Africaine</h3>
+                    <p class="product-shop">Image du service</p>
+                    <p class="product-price">{{ current_currency_symbol }}18.00</p>
+                    <p class="product-description">Tresses africaines élégantes et durables.</p>
+                </div>
+                <div class="product-actions">
+                    <a href="?service=tresse-africaine#booking" class="button secondary">Choisir ce modèle</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="section" id="studio-services">
+        <div class="section-header">
+            <h2>Services personnalisés du studio</h2>
+            <p>Ajoutez vos photos de service, un nom et un prix pour chaque prestation.</p>
+        </div>
+        {% if studio_services %}
+            <div class="services-grid">
+                {% for service in studio_services %}
+                    <div class="product-card">
+                        <div class="service-image" style="background: {% if service.image %}url('{{ service.image.url }}') no-repeat center/cover{% else %}linear-gradient(135deg, #f5f1ff 0%, #fff4fb 100%){% endif %}; min-height: 200px; color: white; display: flex; align-items: flex-end; padding: 18px;">
+                            <div style="background: rgba(0,0,0,0.35); border-radius: 999px; padding: 6px 12px; font-size: 0.95rem;">{{ service.get_service_type_display }}</div>
+                        </div>
+                        <div class="product-info">
+                            <h3 class="product-title">{{ service.title }}</h3>
+                            <p class="product-price">{{ current_currency_symbol }}{{ service.price_ht|floatformat:2 }}</p>
+                            <p class="product-description">{{ service.description|default:'Description du service' }}</p>
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="center-card">
+                <p>Aucun service personnalisé n'a encore été ajouté pour ce studio.</p>
+            </div>
+        {% endif %}
+
+        {% if approved_shop and request.user == approved_shop.owner %}
+            <div class="card">
+                <h3>Ajouter un service</h3>
+                <form method="post" enctype="multipart/form-data">
+                    {% csrf_token %}
+                    <div class="form-group">
+                        {{ service_form.service_type.label_tag }}
+                        {{ service_form.service_type }}
+                        {{ service_form.service_type.errors }}
+                    </div>
+                    <div class="form-group">
+                        {{ service_form.title.label_tag }}
+                        {{ service_form.title }}
+                        {{ service_form.title.errors }}
+                    </div>
+                    <div class="form-group">
+                        {{ service_form.price_ht.label_tag }}
+                        {{ service_form.price_ht }}
+                        {{ service_form.price_ht.errors }}
+                    </div>
+                    <div class="form-group">
+                        {{ service_form.image.label_tag }}
+                        {{ service_form.image }}
+                        {{ service_form.image.errors }}
+                    </div>
+                    <div class="form-group">
+                        {{ service_form.description.label_tag }}
+                        {{ service_form.description }}
+                        {{ service_form.description.errors }}
+                    </div>
+                    <button type="submit" name="service_submit" class="button primary">Ajouter le service</button>
+                </form>
+            </div>
+        {% endif %}
+    </div>
+
+    <div class="section" id="booking">
+        <div class="section-header">
+            <h2>Réservation de Services</h2>
+            <p>Les clients peuvent sélectionner un service et effectuer une réservation directement depuis la page du studio.</p>
+        </div>
+        <div class="grid grid-2">
+            <div class="card">
+                <h3>Service sélectionné</h3>
+                {% if selected_service %}
+                    <p><strong>{{ selected_service.name }}</strong></p>
+                    <p><strong>Prix :</strong> {{ current_currency_symbol }}{{ selected_service.price_ht }}</p>
+                    <p>{{ selected_service.description|truncatechars:220 }}</p>
+                {% elif selected_service_name %}
+                    <p><strong>{{ selected_service_name }}</strong></p>
+                    <p>Demande de réservation enregistrée pour ce modèle.</p>
+                {% else %}
+                    <p>Sélectionnez un modèle dans les services en vedette pour commencer.</p>
+                {% endif %}
+                <hr>
+                <p><strong>Nom complet :</strong> {{ request.user.get_full_name|default:request.user.username }}</p>
+                <p><strong>Téléphone :</strong> {{ profile_phone|default:'Veuillez compléter votre profil' }}</p>
+            </div>
+            <div class="card">
+                <h3>Service à Domicile</h3>
+                <p>Remplissez les informations ci-dessous pour demander une intervention à domicile.</p>
+                <form method="post" novalidate>
+                    {% csrf_token %}
+                    {{ booking_form.non_field_errors }}
+                    {{ booking_form.product }}
+
+                    <div class="form-group">
+                        {{ booking_form.booking_type.label_tag }}
+                        {{ booking_form.booking_type }}
+                        {{ booking_form.booking_type.errors }}
+                    </div>
+                    <div class="form-group">
+                        {{ booking_form.scheduled_date.label_tag }}
+                        {{ booking_form.scheduled_date }}
+                        {{ booking_form.scheduled_date.errors }}
+                    </div>
+                    <div class="form-group">
+                        {{ booking_form.scheduled_time.label_tag }}
+                        {{ booking_form.scheduled_time }}
+                        {{ booking_form.scheduled_time.errors }}
+                    </div>
+                    <div class="form-group">
+                        {{ booking_form.address.label_tag }}
+                        {{ booking_form.address }}
+                        {{ booking_form.address.errors }}
+                    </div>
+                    <div class="form-group">
+                        {{ booking_form.instructions.label_tag }}
+                        {{ booking_form.instructions }}
+                        {{ booking_form.instructions.errors }}
+                    </div>
+                    <button type="submit" name="booking_submit" class="button primary">Envoyer la demande</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="section">
+        <div class="section-header">
+            <h2>Gestion Financière</h2>
+            <p>Tous les paiements transitent par le portefeuille principal du système. Les commissions et transactions sont gérées automatiquement par la plateforme.</p>
+        </div>
+        {% if approved_shop and studio_wallet %}
+        <div class="grid grid-3">
+            <div class="info-card">
+                <h3>Solde principal</h3>
+                <p><strong>USD :</strong> {{ studio_wallet.balance|floatformat:2 }}</p>
+                <p><strong>HTG :</strong> {{ studio_wallet.balance_htg|floatformat:2 }}</p>
+            </div>
+            <div class="info-card">
+                <h3>Commissions</h3>
+                <p><strong>HTG :</strong> {{ commission_summary.HTG|floatformat:2 }}</p>
+                <p><strong>USD :</strong> {{ commission_summary.USD|floatformat:2 }}</p>
+                <p><strong>EUR :</strong> {{ commission_summary.EUR|floatformat:2 }}</p>
+                <p><strong>DOP :</strong> {{ commission_summary.PESO|floatformat:2 }}</p>
+            </div>
+            <div class="info-card">
+                <h3>Historique rapide</h3>
+                <p>Suivez les dépôts entrants, les transferts et les retraits effectués depuis votre studio.</p>
+                <p>Le nom de l’expéditeur est affiché pour chaque événement de réception.</p>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>Transactions récentes</h3>
+            <table class="transaction-table">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Type</th>
+                        <th>Montant</th>
+                        <th>Envoyeur</th>
+                        <th>Statut</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for tx in recent_studio_transactions %}
+                        <tr>
+                            <td>{{ tx.created_at|date:'d/m/Y H:i' }}</td>
+                            <td>{{ tx.type_display }}</td>
+                            <td>{{ current_currency_symbol }}{{ tx.amount|floatformat:2 }}</td>
+                            <td>
+                                {% if tx.sender_name %}
+                                    {{ tx.sender_name }}
+                                {% elif tx.sender %}
+                                    {{ tx.sender.get_full_name|default:tx.sender.username }}
+                                {% else %}
+                                    Système
+                                {% endif %}
+                            </td>
+                            <td>{{ tx.status|capfirst }}</td>
+                        </tr>
+                    {% empty %}
+                        <tr>
+                            <td colspan="5">Aucune transaction récente enregistrée.</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="card">
+            <h3>Transferts entrants</h3>
+            <table class="transaction-table">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Type</th>
+                        <th>Montant</th>
+                        <th>Envoyeur</th>
+                        <th>Frais</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for tx in recent_studio_transfers %}
+                        <tr>
+                            <td>{{ tx.created_at|date:'d/m/Y H:i' }}</td>
+                            <td>{{ tx.currency }} {{ tx.get_sender_account_type_display }}</td>
+                            <td>{{ current_currency_symbol }}{{ tx.amount|floatformat:2 }}</td>
+                            <td>
+                                {% if tx.sender %}
+                                    {{ tx.sender.get_full_name|default:tx.sender.username }}
+                                {% else %}
+                                    Anonyme
+                                {% endif %}
+                            </td>
+                            <td>{{ current_currency_symbol }}{{ tx.fee|floatformat:2 }}</td>
+                        </tr>
+                    {% empty %}
+                        <tr>
+                            <td colspan="5">Aucun transfert récent.</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="card">
+            <h3>Retraits récents</h3>
+            <table class="transaction-table">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Type</th>
+                        <th>Montant</th>
+                        <th>Destination</th>
+                        <th>Statut</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for tx in recent_studio_withdrawals %}
+                        <tr>
+                            <td>{{ tx.created_at|date:'d/m/Y H:i' }}</td>
+                            <td>{{ tx.type_display }}</td>
+                            <td>{{ current_currency_symbol }}{{ tx.amount|floatformat:2 }}</td>
+                            <td>
+                                {% if tx.receiver %}
+                                    {{ tx.receiver.get_full_name|default:tx.receiver.username }}
+                                {% else %}
+                                    Retrait externe
+                                {% endif %}
+                            </td>
+                            <td>{{ tx.status|capfirst }}</td>
+                        </tr>
+                    {% empty %}
+                        <tr>
+                            <td colspan="5">Aucun retrait récent.</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="grid grid-3">
+            <div class="info-card">
+                <h3>Commissions gérées</h3>
+                <p>La plateforme applique automatiquement les commissions sur chaque réservation pour une gestion claire et sécurisée.</p>
+            </div>
+            <div class="info-card">
+                <h3>Paiements sécurisés</h3>
+                <p>Les clients règlent via le portefeuille SDI, sans contact direct entre client et prestataire.</p>
+            </div>
+            <div class="info-card">
+                <h3>Suivi des revenus</h3>
+                <p>Le propriétaire peut consulter ses revenus et son historique de réservations depuis son espace boutique.</p>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="section">
+        <div class="section-header">
+            <h2>Administration</h2>
+            <p>Le propriétaire du studio peut gérer tous les aspects de sa page professionnelle.</p>
+        </div>
+        <div class="admin-grid">
+            <div class="admin-card"><h4>Gérer ses photos et modèles</h4></div>
+            <div class="admin-card"><h4>Modifier ses tarifs</h4></div>
+            <div class="admin-card"><h4>Consulter ses réservations</h4></div>
+            <div class="admin-card"><h4>Recevoir les demandes à domicile</h4></div>
+            <div class="admin-card"><h4>Suivre ses paiements et revenus</h4></div>
+        </div>
+    </div>
+
+    <div class="section" id="studio-request">
+        <div class="section-header">
+            <h2>Création d'un Studio de Beauté</h2>
+            <p>Soumettez votre demande à l'administration. Après validation, une page professionnelle vous sera attribuée.</p>
+        </div>
+        <div class="center-card">
+            <p>Le studio validé bénéficiera d'une présence professionnelle sur la plateforme, d'une page dédiée et d'un accès à la gestion de service.</p>
+            <a href="{% url 'studio_beaute_request' %}" class="button primary">➕ Créer mon Studio de Beauté</a>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const slides = document.querySelectorAll('.beauty-hero .cover-slide');
+        const dots = document.querySelectorAll('.beauty-hero .cover-carousel-dot');
+        if (!slides.length) return;
+
+        let currentIndex = 0;
+        const showSlide = index => {
+            slides.forEach((slide, slideIndex) => {
+                slide.classList.toggle('active', slideIndex === index);
+            });
+            dots.forEach((dot, dotIndex) => {
+                dot.classList.toggle('active', dotIndex === index);
+            });
+        };
+
+        dots.forEach(dot => {
+            dot.addEventListener('click', function() {
+                currentIndex = Number(this.dataset.slideIndex);
+                showSlide(currentIndex);
+            });
+        });
+
+        setInterval(function() {
+            currentIndex = (currentIndex + 1) % slides.length;
+            showSlide(currentIndex);
+        }, 5000);
+    });
+</script>
+{% endblock %}

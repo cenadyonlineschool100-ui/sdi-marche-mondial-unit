@@ -1,0 +1,691 @@
+{% extends 'marketplace/base.html' %}
+{% block content %}
+
+<style>
+    .control-section {
+        background: white;
+        border-radius: 8px;
+        padding: 20px;
+        margin-bottom: 20px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    .section-title {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: #1e293b;
+        margin-bottom: 15px;
+        border-bottom: 2px solid #007bff;
+        padding-bottom: 10px;
+    }
+    
+    .user-list {
+        max-height: 400px;
+        overflow-y: auto;
+        border: 1px solid #e2e8f0;
+        border-radius: 6px;
+    }
+    
+    .user-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 12px 15px;
+        border-bottom: 1px solid #e2e8f0;
+        transition: background 0.2s;
+    }
+    
+    .user-item:hover {
+        background: #f8fafc;
+    }
+    
+    .user-info {
+        flex: 1;
+    }
+    
+    .user-name {
+        font-weight: 600;
+        color: #1e293b;
+        margin-bottom: 3px;
+    }
+    
+    .user-role {
+        font-size: 0.85rem;
+        color: #64748b;
+    }
+    
+    .user-actions {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+    }
+    
+    .btn-small {
+        padding: 6px 12px;
+        font-size: 0.85rem;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    
+    .btn-change-pwd {
+        background: #007bff;
+        color: white;
+    }
+    
+    .btn-change-pwd:hover {
+        background: #0056b3;
+    }
+    
+    .modal {
+        display: none;
+        position: fixed;
+        z-index: 1000;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0,0,0,0.5);
+    }
+    
+    .modal-content {
+        background-color: white;
+        margin: 5% auto;
+        padding: 25px;
+        border-radius: 8px;
+        width: 90%;
+        max-width: 500px;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+    }
+    
+    .modal-header {
+        font-size: 1.3rem;
+        font-weight: 700;
+        margin-bottom: 15px;
+        color: #1e293b;
+    }
+    
+    .form-group {
+        margin-bottom: 15px;
+    }
+    
+    .form-group label {
+        display: block;
+        font-weight: 600;
+        margin-bottom: 6px;
+        color: #1e293b;
+    }
+    
+    .form-group input,
+    .form-group select {
+        width: 100%;
+        padding: 10px;
+        border: 1px solid #cbd5e1;
+        border-radius: 4px;
+        font-size: 1rem;
+        box-sizing: border-box;
+    }
+    
+    .form-group input:focus {
+        outline: none;
+        border-color: #007bff;
+        box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
+    }
+    
+    .btn-modal {
+        background: #007bff;
+        color: white;
+        padding: 10px 20px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-weight: 600;
+        transition: all 0.2s;
+    }
+    
+    .btn-modal:hover {
+        background: #0056b3;
+    }
+    
+    .btn-cancel {
+        background: #6c757d;
+        margin-left: 10px;
+    }
+    
+    .btn-cancel:hover {
+        background: #5a6268;
+    }
+    
+    .close-modal {
+        color: #64748b;
+        float: right;
+        font-size: 28px;
+        font-weight: bold;
+        cursor: pointer;
+    }
+    
+    .close-modal:hover {
+        color: #1e293b;
+    }
+    
+    .permission-checkbox {
+        display: flex;
+        align-items: center;
+        margin: 12px 0;
+    }
+    
+    .permission-checkbox input[type="checkbox"] {
+        width: auto;
+        margin-right: 10px;
+        cursor: pointer;
+    }
+    
+    .permission-checkbox label {
+        margin: 0;
+        cursor: pointer;
+        font-weight: 400;
+    }
+    
+    .alert {
+        padding: 12px 15px;
+        border-radius: 4px;
+        margin-bottom: 15px;
+    }
+    
+    .alert-success {
+        background: #d4edda;
+        color: #155724;
+        border: 1px solid #c3e6cb;
+    }
+    
+    .alert-error {
+        background: #f8d7da;
+        color: #721c24;
+        border: 1px solid #f5c6cb;
+    }
+    
+    .admin-badge {
+        background: #dc3545;
+        color: white;
+        padding: 3px 8px;
+        border-radius: 3px;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+    
+    .user-products {
+        margin-top: 10px;
+        padding: 10px;
+        background: #f8f9fa;
+        border-radius: 6px;
+        border: 1px solid #e2e8f0;
+    }
+</style>
+
+<div style="padding: 20px; display:flex; gap:1rem; align-items:flex-start; flex-wrap:wrap;">
+        <div style="flex:1; min-width:240px;">
+            <h1 style="color: #1e293b; margin-bottom: 10px;">🔒 Contrôle Système</h1>
+            <p style="color: #64748b; margin-bottom: 25px;">Gestion centralisée des mots de passe et des permissions administrateur</p>
+        </div>
+        <div style="display:flex; gap:0.75rem; flex-wrap:wrap; align-items:center;">
+            <form action="{% url 'refresh_exchange_rates' %}" method="post" style="margin:0;">
+                {% csrf_token %}
+                <button type="submit" class="button" style="background-color: #2563eb; color: white;">🔄 Actualiser le taux de change</button>
+            </form>
+            <a href="{% url 'profile' %}" class="button" style="background-color: #6b7280; color: white;">Retour au profil</a>
+        </div>
+    </div>
+    
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert {% if message.tags %}alert-{{ message.tags }}{% else %}alert-success{% endif %}">
+                {{ message }}
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    {% if active_rate %}
+    <div class="control-section" style="background: #f8f9fe; border: 1px solid #dbeafe;">
+        <div class="section-title">💱 Taux de change actif</div>
+        <p style="color: #334155; margin-bottom: 10px;">Taux utilisé par le système pour convertir USD, HTG, DOP/PESO et EUR.</p>
+        <div style="display:grid; grid-template-columns:repeat(3, minmax(180px, 1fr)); gap: 12px;">
+            <div style="background:white; padding:15px; border-radius:8px; border:1px solid #e2e8f0;">
+                <strong>1 USD =</strong>
+                <div style="font-size:1.25rem; font-weight:700; color:#1d4ed8;">{{ active_rate.usd_to_htg }} HTG</div>
+            </div>
+            <div style="background:white; padding:15px; border-radius:8px; border:1px solid #e2e8f0;">
+                <strong>1 USD =</strong>
+                <div style="font-size:1.25rem; font-weight:700; color:#1d4ed8;">{{ active_rate.usd_to_peso }} DOP</div>
+            </div>
+            <div style="background:white; padding:15px; border-radius:8px; border:1px solid #e2e8f0;">
+                <strong>1 EUR =</strong>
+                <div style="font-size:1.25rem; font-weight:700; color:#1d4ed8;">{{ active_rate.eur_to_usd }} USD</div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="control-section">
+        <div class="section-title">✏️ Modifier manuellement les taux de change</div>
+        <p style="color: #64748b; margin-bottom: 15px;">Saisissez vos taux bancaires ou manuels. Le dernier taux enregistré devient actif.</p>
+        <form method="post" style="display:grid; gap:12px; max-width:760px;">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="update_exchange_rate">
+            <div style="display:grid; grid-template-columns:repeat(3, minmax(180px, 1fr)); gap:12px;">
+                <label style="display:block;">
+                    <span style="font-weight:600;">USD → HTG</span>
+                    <input type="number" step="0.000001" name="usd_to_htg" value="{{ active_rate.usd_to_htg|default_if_none:'' }}" required style="width:100%; padding:10px; border:1px solid #cbd5e1; border-radius:6px;">
+                </label>
+                <label style="display:block;">
+                    <span style="font-weight:600;">USD → DOP</span>
+                    <input type="number" step="0.000001" name="usd_to_peso" value="{{ active_rate.usd_to_peso|default_if_none:'' }}" required style="width:100%; padding:10px; border:1px solid #cbd5e1; border-radius:6px;">
+                </label>
+                <label style="display:block;">
+                    <span style="font-weight:600;">EUR → USD</span>
+                    <input type="number" step="0.000001" name="eur_to_usd" value="{{ active_rate.eur_to_usd|default_if_none:'' }}" required style="width:100%; padding:10px; border:1px solid #cbd5e1; border-radius:6px;">
+                </label>
+            </div>
+            <div style="display:flex; gap:12px; flex-wrap:wrap;">
+                <button type="submit" class="button" style="background-color: #2563eb; color: white;">💾 Enregistrer les taux</button>
+                <span style="align-self:center; color:#475569;">Le système calculera automatiquement les taux dérivés.</span>
+            </div>
+        </form>
+    </div>
+    
+    <!-- Section 1: Gestion des Utilisateurs -->
+    <div class="control-section">
+        <div class="section-title">👥 Gestion des Mots de Passe Utilisateurs</div>
+        <p style="color: #64748b; margin-bottom: 15px;">Voir et modifier les mots de passe des clients, vendeurs, acheteurs et livreurs.</p>
+        
+        <div class="user-list">
+            {% for user_data in all_users_with_wallets %}
+                <div class="user-item">
+                    <div class="user-info">
+                        <div class="user-name">{{ user_data.user.username }}</div>
+                        <div class="user-role">
+                            {% if user_data.user.is_delivery_agent %}🚗 Livreur{% endif %}
+                            {% if user_data.user.is_seller and user_data.user.is_buyer %}💼 Vendeur/Acheteur{% elif user_data.user.is_seller %}💼 Vendeur{% elif user_data.user.is_buyer %}🛍️ Acheteur{% endif %}
+                            <br>
+                            <span style="color: #28a745; font-weight: 600;">
+                                💰 Solde: {{ user_data.wallet.balance }} HTG
+                            </span>
+                            {% if user_data.user.is_seller %}
+                            <br>
+                            <span style="color: #007bff; font-size: 0.85rem;">
+                                📦 {{ user_data.products|length }} produit(s) en vente
+                            </span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="user-actions">
+                        <button class="btn-small btn-change-pwd" onclick="openPasswordModal({{ user_data.user.id }}, '{{ user_data.user.username }}')">
+                            Modifier MDP
+                        </button>
+                        <button class="btn-small" style="background: #28a745; color: white;" onclick="openBalanceModal({{ user_data.user.id }}, '{{ user_data.user.username }}', '{{ user_data.wallet.balance }}')">
+                            Modifier Solde
+                        </button>
+                        {% if user_data.user.is_seller and user_data.products %}
+                        <button class="btn-small" style="background: #17a2b8; color: white;" onclick="toggleProducts({{ user_data.user.id }})">
+                            Voir Produits
+                        </button>
+                        {% endif %}
+                    </div>
+                    
+                    <!-- Section produits (masquée par défaut) -->
+                    {% if user_data.user.is_seller and user_data.products %}
+                    <div id="products-{{ user_data.user.id }}" class="user-products" style="display: none; margin-top: 10px; padding: 10px; background: #f8f9fa; border-radius: 6px;">
+                        <strong style="color: #007bff;">📦 Produits en vente :</strong>
+                        <div style="margin-top: 8px;">
+                            {% for product in user_data.products %}
+                            <div style="display: flex; justify-content: space-between; align-items: center; padding: 5px 0; border-bottom: 1px solid #e2e8f0;">
+                                <span style="font-weight: 500;">{{ product.name }}</span>
+                                <span style="color: #28a745; font-weight: 600;">{{ current_currency|currency_symbol }}{{ product|format_product_price:current_currency }}</span>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            {% empty %}
+                <div style="padding: 15px; color: #64748b; text-align: center;">
+                    Aucun utilisateur trouvé
+                </div>
+            {% endfor %}
+        </div>
+    </div>
+    
+    <!-- Section 2: Gestion des Permissions Admin -->
+    <div class="control-section">
+        <div class="section-title">🛡️ Gestion des Permissions Administrateur</div>
+        <p style="color: #64748b; margin-bottom: 15px;">Autorisez les admins secondaires à voir/modifier les mots de passe et à gérer d'autres admins.</p>
+        
+        <!-- Bouton pour créer un nouvel admin secondaire -->
+        <div style="margin-bottom: 20px;">
+            <button class="btn-small" style="background: #28a745; color: white; border: none; padding: 10px 15px; border-radius: 4px; cursor: pointer;" onclick="openCreateAdminModal()">
+                ➕ Créer Admin Secondaire
+            </button>
+        </div>
+        
+        {% if secondary_admins %}
+            <div class="user-list">
+                {% for admin, perm in admin_permissions %}
+                    <div class="user-item">
+                        <div class="user-info">
+                            <div class="user-name">
+                                {{ admin.username }}
+                                <span class="admin-badge">ADMIN</span>
+                            </div>
+                            <div class="user-role">
+                                Permissions: 
+                                {% if perm.can_view_passwords %}📖 Voir{% endif %}
+                                {% if perm.can_change_passwords %}✏️ Modifier{% endif %}
+                                {% if perm.can_manage_other_admins %}👨‍💼 Gérer Admins{% endif %}
+                                {% if not perm.can_view_passwords and not perm.can_change_passwords and not perm.can_manage_other_admins %}
+                                    <span style="color: #dc3545;">Aucune permission</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="user-actions">
+                            <button class="btn-small btn-change-pwd" onclick="openPermissionModal({{ admin.id }}, '{{ admin.username }}')">
+                                Modifier Permissions
+                            </button>
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div style="padding: 15px; color: #64748b; text-align: center;">
+                Aucun admin secondaire trouvé
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Modal: Modifier le mot de passe d'un utilisateur -->
+<div id="passwordModal" class="modal">
+    <div class="modal-content">
+        <span class="close-modal" onclick="closePasswordModal()">&times;</span>
+        <div class="modal-header">Modifier le mot de passe</div>
+        <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="change_user_password">
+            <input type="hidden" name="user_id" id="passwordUserId">
+            
+            <div class="form-group">
+                <label>Utilisateur: <span id="passwordUsername" style="font-weight: 700;"></span></label>
+            </div>
+            
+            <div class="form-group">
+                <label for="newPassword">Nouveau mot de passe</label>
+                <input type="password" id="newPassword" name="new_password" required placeholder="Entrez le nouveau mot de passe" minlength="6">
+            </div>
+            
+            <div class="form-group">
+                <label for="confirmPassword">Confirmer le mot de passe</label>
+                <input type="password" id="confirmPassword" required placeholder="Confirmez le mot de passe" minlength="6">
+            </div>
+            
+            <div style="margin-top: 20px;">
+                <button type="submit" class="btn-modal" onclick="return validatePasswords()">Modifier</button>
+                <button type="button" class="btn-modal btn-cancel" onclick="closePasswordModal()">Annuler</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal: Modifier le solde d'un utilisateur -->
+<div id="balanceModal" class="modal">
+    <div class="modal-content">
+        <span class="close-modal" onclick="closeBalanceModal()">&times;</span>
+        <div class="modal-header">Modifier le solde</div>
+        <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="change_user_balance">
+            <input type="hidden" name="user_id" id="balanceUserId">
+            
+            <div class="form-group">
+                <label>Utilisateur: <span id="balanceUsername" style="font-weight: 700;"></span></label>
+            </div>
+            
+            <div class="form-group">
+                <label for="currentBalance">Solde actuel</label>
+                <input type="text" id="currentBalance" readonly style="background: #f8f9fa;">
+            </div>
+            
+            <div class="form-group">
+                <label for="newBalance">Nouveau solde (HTG)</label>
+                <input type="number" id="newBalance" name="new_balance" step="0.01" required placeholder="Entrez le nouveau solde">
+            </div>
+            
+            <div class="form-group">
+                <label for="balanceReason">Raison de la modification</label>
+                <textarea id="balanceReason" name="balance_reason" placeholder="Expliquez pourquoi vous modifiez le solde" rows="3"></textarea>
+            </div>
+            
+            <div style="margin-top: 20px;">
+                <button type="submit" class="btn-modal">Modifier Solde</button>
+                <button type="button" class="btn-modal btn-cancel" onclick="closeBalanceModal()">Annuler</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal: Modifier les permissions d'un admin -->
+<div id="permissionModal" class="modal">
+    <div class="modal-content">
+        <span class="close-modal" onclick="closePermissionModal()">&times;</span>
+        <div class="modal-header">Modifier les permissions</div>
+        <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="update_admin_permission">
+            <input type="hidden" name="admin_id" id="permissionAdminId">
+            
+            <div class="form-group">
+                <label>Administrateur: <span id="permissionAdminName" style="font-weight: 700;"></span></label>
+            </div>
+            
+            <div class="permission-checkbox">
+                <input type="checkbox" id="canViewPasswords" name="can_view_passwords">
+                <label for="canViewPasswords">📖 Peut voir les mots de passe des utilisateurs</label>
+            </div>
+            
+            <div class="permission-checkbox">
+                <input type="checkbox" id="canChangePasswords" name="can_change_passwords">
+                <label for="canChangePasswords">✏️ Peut modifier les mots de passe des utilisateurs</label>
+            </div>
+            
+            <div class="permission-checkbox">
+                <input type="checkbox" id="canManageAdmins" name="can_manage_other_admins">
+                <label for="canManageAdmins">👨‍💼 Peut gérer les autres administrateurs</label>
+            </div>
+            
+            <div style="margin-top: 20px;">
+                <button type="submit" class="btn-modal">Enregistrer les permissions</button>
+                <button type="button" class="btn-modal btn-cancel" onclick="closePermissionModal()">Annuler</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal: Créer un nouvel admin secondaire -->
+<div id="createAdminModal" class="modal">
+    <div class="modal-content">
+        <span class="close-modal" onclick="closeCreateAdminModal()">&times;</span>
+        <div class="modal-header">Créer un Administrateur Secondaire</div>
+        <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="create_secondary_admin">
+            
+            <div class="form-group">
+                <label for="adminUsername">Nom d'utilisateur *</label>
+                <input type="text" id="adminUsername" name="username" required placeholder="Entrez le nom d'utilisateur" minlength="3">
+            </div>
+            
+            <div class="form-group">
+                <label for="adminEmail">Email *</label>
+                <input type="email" id="adminEmail" name="email" required placeholder="admin@example.com">
+            </div>
+            
+            <div class="form-group">
+                <label for="adminFirstName">Prénom</label>
+                <input type="text" id="adminFirstName" name="first_name" placeholder="Prénom">
+            </div>
+            
+            <div class="form-group">
+                <label for="adminLastName">Nom</label>
+                <input type="text" id="adminLastName" name="last_name" placeholder="Nom de famille">
+            </div>
+            
+            <div class="form-group">
+                <label for="adminPassword">Mot de passe *</label>
+                <input type="password" id="adminPassword" name="password" required placeholder="Mot de passe sécurisé" minlength="8">
+            </div>
+            
+            <div class="form-group">
+                <label for="adminConfirmPassword">Confirmer le mot de passe *</label>
+                <input type="password" id="adminConfirmPassword" name="password_confirm" required placeholder="Confirmer le mot de passe" minlength="8">
+            </div>
+            
+            <div style="margin-top: 20px;">
+                <button type="submit" class="btn-modal" onclick="return validateCreateAdminForm()">Créer l'administrateur</button>
+                <button type="button" class="btn-modal btn-cancel" onclick="closeCreateAdminModal()">Annuler</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    function openPasswordModal(userId, username) {
+        document.getElementById('passwordUserId').value = userId;
+        document.getElementById('passwordUsername').textContent = username;
+        document.getElementById('newPassword').value = '';
+        document.getElementById('confirmPassword').value = '';
+        document.getElementById('passwordModal').style.display = 'block';
+    }
+    
+    function closePasswordModal() {
+        document.getElementById('passwordModal').style.display = 'none';
+    }
+    
+    function openBalanceModal(userId, username, currentBalance) {
+        document.getElementById('balanceUserId').value = userId;
+        document.getElementById('balanceUsername').textContent = username;
+        document.getElementById('currentBalance').value = currentBalance + ' HTG';
+        document.getElementById('newBalance').value = currentBalance;
+        document.getElementById('balanceReason').value = '';
+        document.getElementById('balanceModal').style.display = 'block';
+    }
+    
+    function closeBalanceModal() {
+        document.getElementById('balanceModal').style.display = 'none';
+    }
+    
+    function toggleProducts(userId) {
+        const productsDiv = document.getElementById('products-' + userId);
+        if (productsDiv.style.display === 'none' || productsDiv.style.display === '') {
+            productsDiv.style.display = 'block';
+        } else {
+            productsDiv.style.display = 'none';
+        }
+    }
+    
+    function validatePasswords() {
+        const pwd = document.getElementById('newPassword').value;
+        const confirmPwd = document.getElementById('confirmPassword').value;
+        
+        if (pwd !== confirmPwd) {
+            alert('Les mots de passe ne correspondent pas!');
+            return false;
+        }
+        
+        if (pwd.length < 6) {
+            alert('Le mot de passe doit contenir au moins 6 caractères!');
+            return false;
+        }
+        
+        return confirm('Êtes-vous sûr de vouloir modifier le mot de passe?');
+    }
+    
+    function openCreateAdminModal() {
+        document.getElementById('adminUsername').value = '';
+        document.getElementById('adminEmail').value = '';
+        document.getElementById('adminFirstName').value = '';
+        document.getElementById('adminLastName').value = '';
+        document.getElementById('adminPassword').value = '';
+        document.getElementById('adminConfirmPassword').value = '';
+        document.getElementById('createAdminModal').style.display = 'block';
+    }
+    
+    function closeCreateAdminModal() {
+        document.getElementById('createAdminModal').style.display = 'none';
+    }
+    
+    function validateCreateAdminForm() {
+        const username = document.getElementById('adminUsername').value.trim();
+        const email = document.getElementById('adminEmail').value.trim();
+        const password = document.getElementById('adminPassword').value;
+        const confirmPassword = document.getElementById('adminConfirmPassword').value;
+        
+        if (username.length < 3) {
+            alert('Le nom d\'utilisateur doit contenir au moins 3 caractères!');
+            return false;
+        }
+        
+        if (!email.includes('@')) {
+            alert('Veuillez entrer une adresse email valide!');
+            return false;
+        }
+        
+        if (password.length < 8) {
+            alert('Le mot de passe doit contenir au moins 8 caractères!');
+            return false;
+        }
+        
+        if (password !== confirmPassword) {
+            alert('Les mots de passe ne correspondent pas!');
+            return false;
+        }
+        
+        return confirm('Êtes-vous sûr de vouloir créer cet administrateur secondaire?');
+    }
+    
+    function openPermissionModal(adminId, adminName) {
+        document.getElementById('permissionAdminId').value = adminId;
+        document.getElementById('permissionAdminName').textContent = adminName;
+        // Récupérer les permissions actuelles via AJAX
+        fetchAdminPermissions(adminId);
+        document.getElementById('permissionModal').style.display = 'block';
+    }
+    
+    function closePermissionModal() {
+        document.getElementById('permissionModal').style.display = 'none';
+    }
+    
+    function fetchAdminPermissions(adminId) {
+        // Cette fonction pourrait faire un appel AJAX pour récupérer les permissions actuelles
+        // Pour le moment, on réinitialise les checkboxes
+        document.getElementById('canViewPasswords').checked = false;
+        document.getElementById('canChangePasswords').checked = false;
+        document.getElementById('canManageAdmins').checked = false;
+    }
+    
+    // Fermer les modales en cliquant en dehors
+    window.onclick = function(event) {
+        const passwordModal = document.getElementById('passwordModal');
+        const permissionModal = document.getElementById('permissionModal');
+        const createAdminModal = document.getElementById('createAdminModal');
+        
+        if (event.target === passwordModal) {
+            passwordModal.style.display = 'none';
+        }
+        if (event.target === permissionModal) {
+            permissionModal.style.display = 'none';
+        }
+        if (event.target === createAdminModal) {
+            createAdminModal.style.display = 'none';
+        }
+    }
+</script>
+
+{% endblock %}

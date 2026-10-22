@@ -1,0 +1,293 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Gestion des Annonces Admin{% endblock %}
+
+{% block extra_css %}
+<style>
+    .announcement-card {
+        background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+        border-radius: 12px;
+        padding: 20px;
+        margin-bottom: 20px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        transition: all 0.3s ease;
+    }
+
+    .announcement-card:hover {
+        box-shadow: 0 8px 12px rgba(0, 0, 0, 0.15);
+        transform: translateY(-2px);
+    }
+
+    .announcement-status {
+        display: inline-block;
+        padding: 6px 12px;
+        border-radius: 20px;
+        font-size: 12px;
+        font-weight: 600;
+        text-transform: uppercase;
+        margin-right: 10px;
+    }
+
+    .announcement-status.active {
+        background-color: #28a745;
+        color: white;
+    }
+
+    .announcement-status.inactive {
+        background-color: #6c757d;
+        color: white;
+    }
+
+    .announcement-priority {
+        display: inline-block;
+        background-color: #ff6b6b;
+        color: white;
+        padding: 6px 12px;
+        border-radius: 20px;
+        font-size: 12px;
+        font-weight: 600;
+    }
+
+    .announcement-actions {
+        margin-top: 15px;
+    }
+
+    .announcement-actions button,
+    .announcement-actions a {
+        margin-right: 8px;
+        margin-bottom: 8px;
+    }
+
+    .announcement-title {
+        font-size: 18px;
+        font-weight: bold;
+        color: #1a3a52;
+        margin-bottom: 10px;
+    }
+
+    .announcement-message {
+        color: #333;
+        font-size: 14px;
+        margin-bottom: 10px;
+        line-height: 1.5;
+    }
+
+    .announcement-meta {
+        font-size: 12px;
+        color: #666;
+        margin-top: 10px;
+    }
+
+    .announcement-icon {
+        font-size: 24px;
+        margin-right: 10px;
+        vertical-align: middle;
+    }
+
+    .btn-create {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+        padding: 12px 30px;
+        border-radius: 25px;
+        font-weight: bold;
+        margin-bottom: 20px;
+        transition: all 0.3s ease;
+    }
+
+    .btn-create:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 12px rgba(102, 126, 234, 0.4);
+        color: white;
+    }
+
+    .header-section {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 30px;
+        flex-wrap: wrap;
+    }
+
+    .header-section h1 {
+        flex: 1;
+        margin-bottom: 0;
+    }
+
+    .empty-state {
+        text-align: center;
+        padding: 40px 20px;
+        color: #666;
+    }
+
+    .empty-state-icon {
+        font-size: 48px;
+        margin-bottom: 20px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="header-section">
+        <h1>📢 Gestion des Annonces Administratives</h1>
+        {% if can_create %}
+        <a href="{% url 'announcement_create' %}" class="btn btn-create">
+            + Créer une Annonce
+        </a>
+        {% endif %}
+    </div>
+
+    {% if messages %}
+    <div class="alert alert-info alert-dismissible fade show" role="alert">
+        {% for message in messages %}
+        <div>{{ message }}</div>
+        {% endfor %}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    {% endif %}
+
+    {% if announcements %}
+    <div class="announcements-list">
+        {% for announcement in announcements %}
+        <div class="announcement-card">
+            <div class="d-flex justify-content-between align-items-start">
+                <div style="flex: 1;">
+                    <div>
+                        <span class="announcement-icon">{{ announcement.icon }}</span>
+                        <div class="announcement-title" style="display: inline-block; vertical-align: middle;">
+                            {{ announcement.title }}
+                        </div>
+                    </div>
+
+                    <div class="announcement-message">
+                        {{ announcement.message|truncatewords:30 }}
+                    </div>
+
+                    <div class="mt-2">
+                        <span class="announcement-status {% if announcement.is_active %}active{% else %}inactive{% endif %}">
+                            {% if announcement.is_active %}Activée{% else %}Désactivée{% endif %}
+                        </span>
+                        {% if announcement.is_priority %}
+                        <span class="announcement-priority">⭐ Prioritaire</span>
+                        {% endif %}
+                    </div>
+
+                    <div class="announcement-meta">
+                        <small>
+                            Créée le: {{ announcement.created_at|date:"d/m/Y H:i" }}<br>
+                            Vues: <strong>{{ announcement.view_count }}</strong> | 
+                            Clics: <strong>{{ announcement.click_count }}</strong>
+                            {% if announcement.start_date %}
+                            | Début: {{ announcement.start_date|date:"d/m/Y H:i" }}
+                            {% endif %}
+                            {% if announcement.end_date %}
+                            | Fin: {{ announcement.end_date|date:"d/m/Y H:i" }}
+                            {% endif %}
+                        </small>
+                    </div>
+                </div>
+
+                <div class="announcement-actions">
+                    {% if can_edit %}
+                    <a href="{% url 'announcement_edit' announcement.id %}" class="btn btn-sm btn-primary">
+                        ✏️ Modifier
+                    </a>
+                    {% endif %}
+
+                    {% if announcement.is_active and can_edit %}
+                    <button class="btn btn-sm btn-warning toggle-active" data-id="{{ announcement.id }}">
+                        🔴 Désactiver
+                    </button>
+                    {% elif not announcement.is_active and can_edit %}
+                    <button class="btn btn-sm btn-success toggle-active" data-id="{{ announcement.id }}">
+                        🟢 Activer
+                    </button>
+                    {% endif %}
+
+                    {% if not announcement.is_priority and can_edit %}
+                    <button class="btn btn-sm btn-info toggle-priority" data-id="{{ announcement.id }}">
+                        ⭐ Prioritaire
+                    </button>
+                    {% elif announcement.is_priority and can_edit %}
+                    <button class="btn btn-sm btn-secondary toggle-priority" data-id="{{ announcement.id }}">
+                        ☆ Normal
+                    </button>
+                    {% endif %}
+
+                    {% if can_delete %}
+                    <form method="post" action="{% url 'announcement_delete' announcement.id %}" style="display: inline;" onsubmit="return confirm('Êtes-vous sûr?');">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-sm btn-danger">
+                            🗑️ Supprimer
+                        </button>
+                    </form>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <div class="empty-state-icon">📭</div>
+        <h3>Aucune annonce</h3>
+        <p>Il n'y a pas d'annonces administratives pour le moment.</p>
+        {% if can_create %}
+        <a href="{% url 'announcement_create' %}" class="btn btn-create">
+            Créer la première annonce
+        </a>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+
+{% if can_edit %}
+<script>
+document.querySelectorAll('.toggle-active').forEach(button => {
+    button.addEventListener('click', function() {
+        const id = this.getAttribute('data-id');
+        fetch(`/announcements/${id}/toggle-active/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}',
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                location.reload();
+            } else {
+                alert('Erreur: ' + data.message);
+            }
+        })
+        .catch(error => console.error('Erreur:', error));
+    });
+});
+
+document.querySelectorAll('.toggle-priority').forEach(button => {
+    button.addEventListener('click', function() {
+        const id = this.getAttribute('data-id');
+        fetch(`/announcements/${id}/toggle-priority/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}',
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                location.reload();
+            } else {
+                alert('Erreur: ' + data.message);
+            }
+        })
+        .catch(error => console.error('Erreur:', error));
+    });
+});
+</script>
+{% endif %}
+{% endblock %}

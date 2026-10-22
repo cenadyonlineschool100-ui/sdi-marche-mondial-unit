@@ -4,7 +4,7 @@ import os
 from decimal import Decimal
 import datetime
 from datetime import datetime, timedelta
-from django.db import models
+from django.db import models, transaction
 from django.utils import timezone
 # Ensure timezone.utc is available (some Django versions may not expose it)
 try:
@@ -15,9 +15,17 @@ except Exception:
 from django.utils.text import slugify
 from django.contrib.auth.models import AbstractUser
 from django.contrib.auth.hashers import make_password, check_password
+from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.db.models import JSONField
 from django.core.files.storage import default_storage
+
+TIKANE_CURRENCY_CHOICES = (
+    ('USD', 'USD'),
+    ('HTG', 'HTG'),
+    ('DOP', 'DOP'),
+    ('EUR', 'EUR'),
+)
 
 # -------------------------------
 # Utilisateur (acheteur + vendeur + employé livraison)
@@ -286,6 +294,7 @@ class TiKanePlan(models.Model):
         ordering = ['duration_days', 'name']
 
 class TiKaneAccessRequest(models.Model):
+    CURRENCY_CHOICES = TIKANE_CURRENCY_CHOICES
     STATUS_CHOICES = [
         ('pending', 'En attente d\'approbation'),
         ('approved', 'Approuvé'),
@@ -297,6 +306,7 @@ class TiKaneAccessRequest(models.Model):
     full_name = models.CharField(max_length=255)
     email = models.EmailField(max_length=254)
     phone = models.CharField(max_length=20)
+    currency = models.CharField(max_length=3, choices=TIKANE_CURRENCY_CHOICES, null=True)
     identity_document = models.ImageField(upload_to='tikane/identity_documents/', blank=True, null=True)
     passport_document = models.ImageField(upload_to='tikane/passports/', blank=True, null=True)
     driver_license_document = models.ImageField(upload_to='tikane/driver_licenses/', blank=True, null=True)
@@ -312,6 +322,10 @@ class TiKaneAccessRequest(models.Model):
     admin_notes = models.TextField(blank=True)
 
     def save(self, *args, **kwargs):
+        if self.currency not in dict(TIKANE_CURRENCY_CHOICES) and (
+            self._state.adding or self.currency is not None
+        ):
+            raise ValidationError({'currency': 'La devise du compte Ti Kanè est obligatoire.'})
         if self.status == 'approved' and not self.account_number:
             self.account_number = self.account_number or f"TK-{timezone.now().year}-{str(self.pk or int(datetime.datetime.now().timestamp()))[-6:]}"
         if self.status == 'approved' and not self.tikaned_id:
@@ -327,6 +341,7 @@ class TiKaneAccessRequest(models.Model):
         ordering = ['-requested_at']
 
 class TiKaneAccount(models.Model):
+    CURRENCY_CHOICES = TIKANE_CURRENCY_CHOICES
     STATUS_CHOICES = [
         ('active', 'Actif'),
         ('pending', 'En attente'),
@@ -342,6 +357,7 @@ class TiKaneAccount(models.Model):
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='active')
     unique_identifier = models.CharField(max_length=50, unique=True)
     plan = models.ForeignKey('TiKanePlan', on_delete=models.SET_NULL, null=True, blank=True, related_name='accounts')
+    currency = models.CharField(max_length=3, choices=TIKANE_CURRENCY_CHOICES, null=True)
     balance = models.DecimalField(max_digits=20, decimal_places=2, default=0)
     total_deposits = models.DecimalField(max_digits=20, decimal_places=2, default=0)
     total_withdrawals = models.DecimalField(max_digits=20, decimal_places=2, default=0)
@@ -354,6 +370,10 @@ class TiKaneAccount(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     def save(self, *args, **kwargs):
+        if self.currency not in dict(TIKANE_CURRENCY_CHOICES) and (
+            self._state.adding or self.currency is not None
+        ):
+            raise ValidationError({'currency': 'La devise du compte Ti Kanè est obligatoire.'})
         if not self.account_number:
             self.account_number = f"TK-{timezone.now().year}-{str(uuid.uuid4())[:8].upper()}"
         if not self.unique_identifier:
@@ -402,6 +422,13 @@ class TiKaneAccount(models.Model):
         return None
 
     def mark_next_unpaid_day_paid(self, deposit=None):
+        if deposit and (
+            not deposit.tikane_deposit
+            or deposit.tikane_account_id != self.pk
+            or not self.currency
+            or deposit.currency != self.currency
+        ):
+            raise ValueError('Le dépôt ne correspond pas à la devise et au compte Ti Kanè.')
         next_day = self.get_next_unpaid_day()
         if next_day is None:
             return None
@@ -730,6 +757,41 @@ class ShopCoverPhoto(models.Model):
 # -------------------------------
 # Produit
 # -------------------------------
+class PriorityGroup(models.Model):
+    name = models.CharField(max_length=100, unique=True, verbose_name='Nom du groupe')
+    priority = models.PositiveIntegerField(default=100, verbose_name='Priorité')
+    weight = models.PositiveIntegerField(default=1, verbose_name='Poids de diffusion')
+    is_active = models.BooleanField(default=True, verbose_name='Groupe actif')
+    start_date = models.DateTimeField(blank=True, null=True, verbose_name='Date de début')
+    end_date = models.DateTimeField(blank=True, null=True, verbose_name='Date de fin')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['priority', 'name']
+        verbose_name = 'Groupe de priorité'
+        verbose_name_plural = 'Groupes de priorité'
+
+    def __str__(self):
+        return self.name
+
+    def is_scheduled_active(self, now=None):
+        now = now or timezone.now()
+        return (
+            self.is_active
+            and (self.start_date is None or self.start_date <= now)
+            and (self.end_date is None or self.end_date >= now)
+        )
+
+    def is_expired(self, now=None):
+        now = now or timezone.now()
+        return bool(self.end_date and self.end_date < now)
+
+    def is_scheduled(self, now=None):
+        now = now or timezone.now()
+        return self.is_active and self.start_date and self.start_date > now
+
+
 class Product(models.Model):
     CURRENCY_CHOICES = (
         ('USD', 'USD ($)'),
@@ -761,6 +823,9 @@ class Product(models.Model):
     banner_blocked_by_admin = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='blocked_banner_products', help_text="Admin qui a bloqué")
     banner_blocked_at = models.DateTimeField(null=True, blank=True, help_text="Date du blocage")
     banner_block_reason = models.TextField(blank=True, default='', help_text="Raison du blocage")
+    priority_group = models.ForeignKey(PriorityGroup, on_delete=models.SET_NULL, null=True, blank=True, related_name='products', verbose_name='Groupe de priorité')
+    banner_priority = models.PositiveIntegerField(default=100, verbose_name='Priorité individuelle')
+    banner_weight = models.PositiveIntegerField(default=1, verbose_name='Poids individuel')
     
     def get_display_image(self):
         """Retourne l'image à afficher (custom si existe, sinon auto-générée)"""
@@ -877,6 +942,7 @@ class SiteBanner(models.Model):
     end_date = models.DateTimeField(blank=True, null=True)
     display_mode = models.CharField(max_length=20, choices=DISPLAY_MODE_CHOICES, default='static')
     autoplay_seconds = models.PositiveSmallIntegerField(default=0, help_text='0 désactive la lecture automatique')
+    autoplay_enabled = models.BooleanField(default=True, verbose_name='Défilement automatique actif')
     scope = models.CharField(max_length=20, choices=SCOPE_CHOICES, default='all')
     shops = models.ManyToManyField(Shop, blank=True, related_name='site_banners')
     access_mode = models.CharField(max_length=20, choices=ACCESS_MODE_CHOICES, default='free')
@@ -1238,6 +1304,7 @@ class SDISolSettings(models.Model):
     contribution_amount_usd = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('100.00'))
     contribution_amount_htg = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('2600.00'))
     frequency = models.CharField(max_length=10, choices=FREQUENCY_CHOICES, default='weekly')
+    start_date = models.DateField(null=True, blank=True)
     withdrawal_fee_htg = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('1000.00'))
     withdrawal_fee_usd = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('10.00'))
     created_at = models.DateTimeField(auto_now_add=True)
@@ -1261,6 +1328,49 @@ class SDISolSettings(models.Model):
         return timezone.timedelta(days=7)
 
 
+class SDISolPlan(models.Model):
+    name = models.CharField(max_length=100, unique=True)
+    duration_days = models.PositiveSmallIntegerField(validators=[MinValueValidator(1)])
+    amount_usd = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    amount_htg = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    is_active = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['duration_days', 'name']
+        verbose_name = 'SDI Sol Plan'
+        verbose_name_plural = 'SDI Sol Plans'
+
+    def __str__(self):
+        return f'{self.name} ({self.duration_days} jours)'
+
+
+class SDISolGroup(models.Model):
+    plan = models.OneToOneField(
+        SDISolPlan,
+        on_delete=models.CASCADE,
+        related_name='sdi_group',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'SDI Sol Group'
+        verbose_name_plural = 'SDI Sol Groups'
+
+    def __str__(self):
+        return f'{self.plan.name} — groupe unique'
+
+    @property
+    def capacity(self):
+        return SDISolSettings.get_solo().max_members
+
+    @property
+    def available_places(self):
+        occupied = self.plan.members.filter(active=True).count()
+        return max(self.capacity - occupied, 0)
+
+
 class SDISolMember(models.Model):
     STATUS_CHOICES = (
         ('ontime', 'À jour'),
@@ -1268,7 +1378,21 @@ class SDISolMember(models.Model):
         ('pending', 'En attente'),
     )
 
-    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='sdi_sol_member')
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='sdi_sol_members')
+    plan = models.ForeignKey(SDISolPlan, on_delete=models.SET_NULL, null=True, blank=True, related_name='members')
+    group = models.ForeignKey(
+        SDISolGroup,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='members',
+    )
+    group_position = models.PositiveSmallIntegerField(default=0)
+    plan_name = models.CharField(max_length=100, blank=True, default='')
+    plan_duration_days = models.PositiveSmallIntegerField(null=True, blank=True)
+    plan_amount_usd = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    plan_amount_htg = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    plan_start_date = models.DateField(null=True, blank=True)
     joined_at = models.DateTimeField(auto_now_add=True)
     position = models.PositiveSmallIntegerField(default=0)
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='pending')
@@ -1278,6 +1402,7 @@ class SDISolMember(models.Model):
     total_paid_htg = models.DecimalField(max_digits=15, decimal_places=2, default=Decimal('0.00'))
     active = models.BooleanField(default=True)
     admin_approved = models.BooleanField(default=False)
+    admin_rejected = models.BooleanField(default=False)
     admin_approval_date = models.DateTimeField(null=True, blank=True)
     notes = models.TextField(blank=True, default='')
 
@@ -1285,6 +1410,18 @@ class SDISolMember(models.Model):
         verbose_name = 'SDI Sol Member'
         verbose_name_plural = 'SDI Sol Members'
         ordering = ['position', 'joined_at']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['user', 'plan'],
+                condition=models.Q(active=True),
+                name='uniq_active_sdi_sol_user_plan',
+            ),
+            models.UniqueConstraint(
+                fields=['group', 'group_position'],
+                condition=models.Q(active=True, admin_approved=True),
+                name='uniq_active_sdi_sol_group_place',
+            ),
+        ]
 
     def __str__(self):
         return f'{self.user.username} - Sol SDI'
@@ -1300,23 +1437,51 @@ class SDISolMember(models.Model):
 
     def schedule_next_due_date(self):
         settings = SDISolSettings.get_solo()
-        period = settings.get_period_timedelta()
-        base_date = self.last_payment_date or timezone.now()
+        period = timezone.timedelta(days=self.plan_duration_days) if self.plan_duration_days else settings.get_period_timedelta()
+        if self.last_payment_date:
+            base_date = self.last_payment_date
+        elif self.plan_start_date:
+            base_date = timezone.make_aware(datetime.combine(self.plan_start_date, datetime.min.time()))
+        else:
+            base_date = timezone.now()
         self.next_due_date = base_date + period
 
     @staticmethod
     def recalculate_rankings():
-        members = list(SDISolMember.objects.filter(active=True, admin_approved=True).order_by('status', '-last_payment_date', 'joined_at'))
-        members.sort(key=lambda m: (m.status != 'ontime', m.last_payment_date is None, m.last_payment_date or timezone.now(), m.joined_at))
-        for idx, member in enumerate(members, start=1):
-            if member.position != idx:
-                member.position = idx
+        members = list(
+            SDISolMember.objects.filter(
+                active=True,
+                admin_approved=True,
+            ).order_by('status', '-last_payment_date', 'joined_at')
+        )
+        members.sort(
+            key=lambda member: (
+                member.status != 'ontime',
+                member.last_payment_date is None,
+                member.last_payment_date or timezone.now(),
+                member.joined_at,
+            )
+        )
+        for position, member in enumerate(members, start=1):
+            if member.position != position:
+                member.position = position
                 member.save(update_fields=['position'])
 
-    def approve(self):
+    def approve(self, group, position, group_position):
+        self.group = group
+        self.position = position
+        self.group_position = group_position
         self.admin_approved = True
+        self.admin_rejected = False
         self.admin_approval_date = timezone.now()
-        self.save(update_fields=['admin_approved', 'admin_approval_date'])
+        self.save(update_fields=[
+            'group',
+            'position',
+            'group_position',
+            'admin_approved',
+            'admin_rejected',
+            'admin_approval_date',
+        ])
 
     @property
     def is_approved(self):
@@ -1335,15 +1500,21 @@ class SDISolPayment(models.Model):
         ('pending', 'En attente'),
         ('completed', 'Effectué'),
         ('late', 'En retard'),
+        ('rejected', 'Refusé'),
     )
 
     member = models.ForeignKey(SDISolMember, on_delete=models.CASCADE, related_name='payments')
     amount = models.DecimalField(max_digits=15, decimal_places=2)
     currency = models.CharField(max_length=3, choices=(('USD', 'USD'), ('HTG', 'HTG')))
+    plan_name = models.CharField(max_length=100, blank=True, default='')
+    plan_duration_days = models.PositiveSmallIntegerField(null=True, blank=True)
     fee = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
     receipt_number = models.CharField(max_length=100, unique=True)
     due_date = models.DateTimeField()
     paid_at = models.DateTimeField(null=True, blank=True)
+    reviewed_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='reviewed_sdi_sol_payments')
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    admin_note = models.TextField(blank=True, default='')
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='pending')
     notes = models.TextField(blank=True, default='')
     created_at = models.DateTimeField(auto_now_add=True)
@@ -1367,23 +1538,34 @@ class SDISolPayment(models.Model):
         super().save(*args, **kwargs)
 
     def mark_paid(self, paid_at=None):
-        self.paid_at = paid_at or timezone.now()
-        self.status = 'completed' if self.paid_at <= self.due_date else 'late'
-        self.save()
-        member = self.member
-        if self.currency == 'USD':
-            member.total_paid_usd += self.amount
-        else:
-            member.total_paid_htg += self.amount
-        member.last_payment_date = self.paid_at
-        member.schedule_next_due_date()
-        member.update_status()
-        member.save(update_fields=['total_paid_usd', 'total_paid_htg', 'last_payment_date', 'next_due_date', 'status'])
+        paid_at = paid_at or timezone.now()
+        payment_status = 'completed' if paid_at <= self.due_date else 'late'
+        with transaction.atomic():
+            updated = type(self).objects.filter(
+                pk=self.pk,
+                status='pending',
+                paid_at__isnull=True,
+            ).update(paid_at=paid_at, status=payment_status)
+            if not updated:
+                return False
+
+            member = SDISolMember.objects.select_for_update().get(pk=self.member_id)
+            if self.currency == 'USD':
+                member.total_paid_usd += self.amount
+            else:
+                member.total_paid_htg += self.amount
+            member.last_payment_date = paid_at
+            member.schedule_next_due_date()
+            member.update_status()
+            member.save(update_fields=['total_paid_usd', 'total_paid_htg', 'last_payment_date', 'next_due_date', 'status'])
+
+        self.refresh_from_db()
+        return True
 
     def get_receipt_summary(self):
         return {
             'member_name': self.member.user.username,
-            'position': self.member.position,
+            'position': self.member.group_position or self.member.position,
             'date': self.paid_at or self.created_at,
             'amount': self.amount,
             'currency': self.currency,
@@ -1899,6 +2081,29 @@ class Transaction(models.Model):
     def type_display(self):
         return self.type.replace('_', ' ').title()
 
+
+class FinancialOperation(models.Model):
+    actor = models.ForeignKey(User, on_delete=models.PROTECT, related_name='financial_operations')
+    operation = models.CharField(max_length=40)
+    idempotency_key = models.CharField(max_length=128)
+    request_hash = models.CharField(max_length=64)
+    result_model = models.CharField(max_length=100, blank=True)
+    result_pk = models.CharField(max_length=64, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['actor', 'operation', 'idempotency_key'],
+                name='uniq_financial_operation_key',
+            ),
+        ]
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.operation}:{self.idempotency_key}"
+
+
 class TransferCommissionTier(models.Model):
     currency = models.CharField(max_length=10, default='HTG')
     min_amount = models.DecimalField(max_digits=15, decimal_places=2)
@@ -2251,6 +2456,14 @@ class Deposit(models.Model):
         super().save(*args, **kwargs)
 
 
+DEPOSIT_WALLET_BALANCE_FIELDS = {
+    'USD': 'balance_usd',
+    'HTG': 'balance_htg',
+    'DOP': 'balance_peso',
+    'EUR': 'balance_eur',
+}
+
+
 class AgentCommission(models.Model):
     agent = models.ForeignKey(User, on_delete=models.CASCADE, related_name='agent_commissions')
     deposit = models.ForeignKey(Deposit, on_delete=models.CASCADE, related_name='agent_commissions')
@@ -2283,8 +2496,15 @@ class DepositReceipt(models.Model):
         current_balance = None
         current_balance_display = 'N/A'
         if self.deposit and self.deposit.client and hasattr(self.deposit.client, 'wallet'):
-            wallet_field = 'balance' if self.deposit.currency == 'USD' else f"balance_{self.deposit.currency.lower()}"
-            current_balance = getattr(self.deposit.client.wallet, wallet_field, None)
+            if self.deposit.tikane_deposit:
+                wallet_field = 'balance' if self.deposit.currency == 'USD' else f"balance_{self.deposit.currency.lower()}"
+                current_balance = getattr(self.deposit.client.wallet, wallet_field, None)
+            else:
+                wallet_field = DEPOSIT_WALLET_BALANCE_FIELDS.get(self.deposit.currency)
+                if wallet_field:
+                    current_balance = Wallet.objects.filter(
+                        user_id=self.deposit.client_id
+                    ).values_list(wallet_field, flat=True).first()
             if current_balance is not None:
                 previous_balance = f"{(current_balance - self.deposit.amount):.2f} {self.deposit.currency}"
                 current_balance_display = f"{current_balance:.2f}"
@@ -2431,6 +2651,8 @@ class PersistentNotification(models.Model):
     title = models.CharField(max_length=200)
     message = models.TextField()
     notification_type = models.CharField(max_length=50)  # 'delivery_assigned', 'admin_alert', etc.
+    deduplication_key = models.CharField(max_length=180, unique=True, null=True, blank=True)
+    target_url = models.CharField(max_length=500, blank=True)
     related_assignment = models.ForeignKey(DeliveryAssignment, on_delete=models.CASCADE, null=True, blank=True)
     is_read = models.BooleanField(default=False)
     read_at = models.DateTimeField(null=True, blank=True)
@@ -2476,6 +2698,23 @@ class PersistentNotification(models.Model):
         self.last_sound_at = timezone.now()
         self.save()
 
+
+class PushSubscription(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='push_subscriptions')
+    endpoint = models.TextField(unique=True)
+    p256dh = models.CharField(max_length=128)
+    auth = models.CharField(max_length=64)
+    user_agent = models.CharField(max_length=512, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    last_used_at = models.DateTimeField(null=True, blank=True)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"Push subscription for {self.user_id}"
+
 # -------------------------------
 # Demandes de retour
 # -------------------------------
@@ -2518,32 +2757,76 @@ class ReturnRequest(models.Model):
 
     def process_refund(self, amount=None):
         """Traiter le remboursement"""
+        from django.db import transaction as db_transaction
+        from .business_logic import (
+            begin_financial_operation, complete_financial_operation,
+            get_financial_operation_result,
+        )
+
         if amount is None:
             amount = self.order.total_amount
-        self.refund_amount = amount
-        self.status = 'refunded'
-        self.processed_at = timezone.now()
-        self.save()
+        amount = Decimal(str(amount))
+        if not amount.is_finite() or amount <= 0 or amount != amount.quantize(Decimal('0.01')):
+            raise ValueError('Le montant du remboursement doit être positif et limité à deux décimales.')
 
-        # Créer une transaction de remboursement
-        Transaction.objects.create(
-            sender=None,  # Système
-            receiver=self.customer,
-            amount=amount,
-            type='refund',
-            status='approved'
-        )
+        with db_transaction.atomic():
+            return_request = self.__class__.objects.select_for_update().get(pk=self.pk)
+            operation, created = begin_financial_operation(
+                return_request.customer,
+                'return_request_refund',
+                f'return-{return_request.pk}',
+                {'return_request_id': return_request.pk, 'amount': str(amount), 'currency': 'HTG'},
+            )
+            if not created:
+                get_financial_operation_result(operation, Transaction)
+                return False
+
+            return_request.refund_amount = amount
+            return_request.status = 'refunded'
+            return_request.processed_at = timezone.now()
+            return_request.save(update_fields=['refund_amount', 'status', 'processed_at'])
+            refund_transaction = Transaction.objects.create(
+                sender=None,
+                receiver=return_request.customer,
+                amount=amount,
+                type='refund',
+                status='approved'
+            )
+            complete_financial_operation(operation, refund_transaction)
+        return True
 
 # -------------------------------
 # Paramètres système
 # -------------------------------
 class SystemSettings(models.Model):
+    banner_enabled = models.BooleanField(default=True, verbose_name='Activer le système de bannière')
+    banner_expand_enabled = models.BooleanField(default=False, verbose_name='Autoriser l’agrandissement du Banner')
+    banner_normal_height = models.PositiveIntegerField(default=150, verbose_name='Hauteur normale du Banner')
+    banner_expanded_height = models.PositiveIntegerField(default=220, verbose_name='Hauteur agrandie du Banner')
+    banner_visible_to_admins = models.BooleanField(default=True, verbose_name='Afficher la bannière aux administrateurs')
+    principal_banner_visible = models.BooleanField(default=True, verbose_name='Afficher la bannière à l’administrateur principal')
+    mobile_footer_support_enabled = models.BooleanField(
+        default=True,
+        verbose_name='⭐ FC - Afficher le footer mobile/tablette et la carte Support SDI'
+    )
     enable_role_management = models.BooleanField(default=False, verbose_name="Activer la gestion des rôles et permissions")
     enable_financial_audit = models.BooleanField(default=False, verbose_name="Activer la traçabilité financière")
     enable_alerts = models.BooleanField(default=False, verbose_name="Activer le système d'alertes intelligentes")
     enable_rollback = models.BooleanField(default=False, verbose_name="Activer le système de rollback")
     enable_dispute_management = models.BooleanField(default=False, verbose_name="Activer la gestion des litiges")
     enable_cybersecurity = models.BooleanField(default=False, verbose_name="Activer la surveillance cybersécurité")
+    tikane_withdrawals_enabled = models.BooleanField(
+        default=True,
+        verbose_name='Autoriser les nouveaux retraits Ti Kanè',
+    )
+    agent_wallet_withdrawals_enabled = models.BooleanField(
+        default=True,
+        verbose_name='Autoriser les nouveaux retraits des commissions agent',
+    )
+    personal_withdrawals_enabled = models.BooleanField(
+        default=True,
+        verbose_name='Autoriser les nouveaux retraits personnels',
+    )
     emergency_lockdown = models.BooleanField(default=False, verbose_name="Mode verrouillage d'urgence")
     microsdicash_account_name = models.CharField(
         max_length=255,
@@ -2937,6 +3220,7 @@ class SiteConfiguration(models.Model):
         ('main', 'Logo Principal'),
         ('favicon', 'Favicon'),
         ('footer', 'Logo Footer'),
+        ('support_card', 'Carte Support SDI'),
     ]
     
     config_type = models.CharField(
@@ -2947,7 +3231,9 @@ class SiteConfiguration(models.Model):
     )
     image = models.ImageField(
         upload_to='site_config/%Y/%m/',
-        verbose_name='Image/Logo'
+        verbose_name='Image/Logo',
+        blank=True,
+        null=True
     )
     alt_text = models.CharField(
         max_length=255,
@@ -2963,6 +3249,20 @@ class SiteConfiguration(models.Model):
         default=60,
         help_text='Hauteur en pixels',
         blank=True
+    )
+    is_active = models.BooleanField(
+        default=True,
+        verbose_name='Carte active'
+    )
+    whatsapp_link = models.URLField(
+        blank=True,
+        default='',
+        verbose_name='Lien WhatsApp',
+        max_length=500
+    )
+    screen_size_control_enabled = models.BooleanField(
+        default=False,
+        verbose_name='Taille écran + / - activée'
     )
     updated_at = models.DateTimeField(auto_now=True)
     updated_by = models.ForeignKey(

@@ -1,0 +1,27 @@
+{% extends 'marketplace/base.html' %}
+
+{% block content %}
+<main class="site-banner-activation" aria-labelledby="site-banner-activation-title">
+  <section class="site-banner-activation-panel">
+    <h1 id="site-banner-activation-title">ACTIVATION BANNIÈRE</h1>
+    <p class="site-banner-activation-status {% if banner_enabled %}is-enabled{% else %}is-disabled{% endif %}">
+      {% if banner_enabled %}🟢 BANNIÈRE ACTIVÉE{% else %}🔴 BANNIÈRE DÉSACTIVÉE{% endif %}
+    </p>
+    <p>Ce réglage contrôle l’ensemble du système de bannière pour tous les visiteurs.</p>
+    <form method="post" action="{% url 'site_banner_activation_toggle' %}">
+      {% csrf_token %}
+      <button type="submit">{% if banner_enabled %}Désactiver la bannière{% else %}Activer la bannière{% endif %}</button>
+    </form>
+  </section>
+</main>
+<style>
+  .site-banner-activation { max-width: 760px; margin: 48px auto; padding: 0 16px; }
+  .site-banner-activation-panel { padding: 32px; border: 1px solid #dbe4ef; border-radius: 12px; background: #fff; box-shadow: 0 12px 30px rgba(15, 23, 42, .08); }
+  .site-banner-activation h1 { margin: 0 0 20px; color: #0f172a; }
+  .site-banner-activation-status { margin: 0 0 16px; font-size: 1.25rem; font-weight: 800; }
+  .site-banner-activation-status.is-enabled { color: #15803d; }
+  .site-banner-activation-status.is-disabled { color: #b91c1c; }
+  .site-banner-activation button { border: 0; border-radius: 8px; padding: 11px 16px; color: #fff; background: #b91c1c; cursor: pointer; font-weight: 700; }
+  .site-banner-activation-status.is-disabled + p + form button { background: #15803d; }
+</style>
+{% endblock %}

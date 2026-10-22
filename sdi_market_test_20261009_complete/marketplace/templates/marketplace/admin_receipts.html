@@ -1,0 +1,129 @@
+{% extends 'marketplace/base.html' %}
+{% block content %}
+<div class="card" style="max-width: 1200px; margin: auto;">
+    <h2>Gestion des reçus MonCash</h2>
+    <p>Vérifiez et traitez les reçus MonCash téléversés par les utilisateurs.</p>
+
+    <!-- Filtres -->
+    <div style="margin-bottom: 20px;">
+        <form method="get" style="display: inline-block; margin-right: 20px;">
+            <label for="status_filter">Filtrer par statut:</label>
+            <select name="status" id="status_filter" onchange="this.form.submit()">
+                <option value="">Tous les statuts</option>
+                {% for status_value, status_label in status_choices %}
+                    <option value="{{ status_value }}" {% if current_filter == status_value %}selected{% endif %}>
+                        {{ status_label }}
+                    </option>
+                {% endfor %}
+            </select>
+        </form>
+        <span style="color: #666;">Total: {{ receipts|length }} reçu(s)</span>
+    </div>
+
+    <!-- Liste des reçus -->
+    <div style="display: grid; gap: 15px;">
+        {% for receipt in receipts %}
+        <div class="fintech-card" style="border-left: 4px solid {% if receipt.status == 'pending' %}#f59e0b{% elif receipt.status == 'approved' %}#10b981{% else %}#ef4444{% endif %}">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 20px;">
+                <div style="flex: 1;">
+                    <h4 style="margin: 0 0 10px 0;">
+                        {{ receipt.user.username }}
+                        <span class="fintech-badge {% if receipt.status == 'pending' %}status-disabled{% elif receipt.status == 'approved' %}status-active{% else %}status-blocked{% endif %}">
+                            {{ receipt.get_status_display }}
+                        </span>
+                    </h4>
+                    <p style="margin: 5px 0; color: #666;">
+                        <strong>Utilisateur:</strong> {{ receipt.user.first_name }} {{ receipt.user.last_name }}<br>
+                        <strong>Email:</strong> {{ receipt.user.email }}<br>
+                        <strong>Téléversé le:</strong> {{ receipt.uploaded_at|date:"d/m/Y H:i" }}
+                    </p>
+                    {% if receipt.processed_at %}
+                    <p style="margin: 5px 0; color: #666;">
+                        <strong>Traité le:</strong> {{ receipt.processed_at|date:"d/m/Y H:i" }}<br>
+                        <strong>Par:</strong> {{ receipt.processed_by.username }}
+                    </p>
+                    {% endif %}
+                    {% if receipt.admin_notes %}
+                    <div style="margin-top: 10px; padding: 10px; background: #f8f9fa; border-radius: 5px;">
+                        <strong>Notes administrateur:</strong><br>
+                        {{ receipt.admin_notes }}
+                    </div>
+                    {% endif %}
+                </div>
+                <div style="text-align: center;">
+                    <a href="{{ receipt.receipt_image.url }}" target="_blank" style="display: inline-block; margin-bottom: 10px;">
+                        <img src="{{ receipt.receipt_image.url }}" alt="Reçu" style="max-width: 200px; max-height: 150px; border: 1px solid #ddd; border-radius: 5px;">
+                    </a>
+                    <br>
+                    <a href="{{ receipt.receipt_image.url }}" target="_blank" class="fintech-btn btn-secondary" style="padding: 5px 10px; font-size: 0.9rem;">Voir en grand</a>
+                </div>
+            </div>
+
+            {% if receipt.status == 'pending' %}
+            <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #eee;">
+                <form method="post" action="{% url 'process_receipt' receipt.id %}" style="display: inline-block; margin-right: 10px;">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="approve">
+                    <label for="notes_approve_{{ receipt.id }}">Notes (optionnel):</label>
+                    <input type="text" name="notes" id="notes_approve_{{ receipt.id }}" placeholder="Notes d'approbation" style="margin-right: 10px; padding: 5px;">
+                    <button type="submit" class="fintech-btn btn-success" style="padding: 8px 15px;">Approuver</button>
+                </form>
+
+                <form method="post" action="{% url 'process_receipt' receipt.id %}" style="display: inline-block;">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="reject">
+                    <label for="notes_reject_{{ receipt.id }}">Notes (requis):</label>
+                    <input type="text" name="notes" id="notes_reject_{{ receipt.id }}" placeholder="Raison du rejet" required style="margin-right: 10px; padding: 5px;">
+                    <button type="submit" class="fintech-btn btn-secondary" style="padding: 8px 15px; background: #ef4444;">Rejeter</button>
+                </form>
+            </div>
+            {% endif %}
+        </div>
+        {% empty %}
+        <div class="fintech-card">
+            <p style="text-align: center; color: #666; margin: 20px 0;">Aucun reçu trouvé.</p>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<style>
+.fintech-card {
+    background: white;
+    border-radius: 18px;
+    box-shadow: 0 16px 40px rgba(15, 23, 42, 0.08);
+    border: 1px solid rgba(148, 163, 184, 0.16);
+    padding: 20px;
+    margin-bottom: 15px;
+}
+.fintech-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    padding: 0.4rem 0.8rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+.status-active { background:#d1fae5; color:#166534; }
+.status-blocked { background:#fee2e2; color:#b91c1c; }
+.status-disabled { background:#e2e8f0; color:#334155; }
+.fintech-btn {
+    border:none;
+    border-radius: 12px;
+    padding: 12px 22px;
+    font-weight: 700;
+    transition: transform 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+    cursor: pointer;
+    text-decoration: none;
+    display: inline-block;
+}
+.fintech-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 12px 24px rgba(15, 23, 42, 0.12);
+}
+.btn-primary { background:#2563eb; color:white; }
+.btn-secondary { background:#64748b; color:white; }
+.btn-success { background:#22c55e; color:white; }
+</style>
+{% endblock %}

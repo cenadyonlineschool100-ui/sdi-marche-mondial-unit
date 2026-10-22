@@ -1,0 +1,198 @@
+{% extends 'marketplace/base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row">
+        <div class="col-12">
+            <h1>🎨 Gestion des Logos du Site</h1>
+            <p class="text-muted">Seul l'admin principal peut modifier les logos et gérer les permissions d'accès.</p>
+        </div>
+    </div>
+
+    <!-- Messages -->
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    <!-- Gestion des Logos -->
+    <div class="row mt-5">
+        <div class="col-lg-8">
+            <div class="card shadow">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">📁 Logos du Site</h5>
+                </div>
+                <div class="card-body">
+                    {% if logos %}
+                        <div class="row">
+                            {% for logo in logos %}
+                                <div class="col-md-6 mb-4">
+                                    <div class="card h-100">
+                                        <div class="card-body">
+                                            <h6 class="card-title">{{ logo.get_config_type_display }}</h6>
+                                            
+                                            {% if logo.image %}
+                                                <div class="mb-3" style="border: 1px solid #ddd; padding: 10px; border-radius: 5px; text-align: center;">
+                                                    <img src="{{ logo.image.url }}" alt="{{ logo.alt_text }}" style="max-height: 100px; max-width: 100%;">
+                                                </div>
+                                            {% else %}
+                                                <div class="mb-3 p-3 bg-light text-center text-muted" style="border-radius: 5px;">
+                                                    Aucune image uploadée
+                                                </div>
+                                            {% endif %}
+
+                                            <form method="POST" action="{% url 'update_logo' logo.id %}" enctype="multipart/form-data" class="form-sm">
+                                                {% csrf_token %}
+                                                
+                                                <div class="form-group">
+                                                    <label for="image_{{ logo.id }}">Image</label>
+                                                    <input type="file" class="form-control-sm" id="image_{{ logo.id }}" name="image" accept="image/*">
+                                                </div>
+
+                                                <div class="form-group">
+                                                    <label for="alt_{{ logo.id }}">Texte alternatif</label>
+                                                    <input type="text" class="form-control-sm" id="alt_{{ logo.id }}" name="alt_text" value="{{ logo.alt_text }}">
+                                                </div>
+
+                                                <div class="row">
+                                                    <div class="col-6">
+                                                        <div class="form-group">
+                                                            <label for="width_{{ logo.id }}">Largeur (px)</label>
+                                                            <input type="number" class="form-control-sm" id="width_{{ logo.id }}" name="width" value="{{ logo.width }}" min="10">
+                                                        </div>
+                                                    </div>
+                                                    <div class="col-6">
+                                                        <div class="form-group">
+                                                            <label for="height_{{ logo.id }}">Hauteur (px)</label>
+                                                            <input type="number" class="form-control-sm" id="height_{{ logo.id }}" name="height" value="{{ logo.height }}" min="10">
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                <button type="submit" class="btn btn-sm btn-primary w-100">
+                                                    ✅ Mettre à jour
+                                                </button>
+                                            </form>
+                                        </div>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <p class="text-muted">Aucun logo configuré.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Gestion des Permissions -->
+        <div class="col-lg-4">
+            <div class="card shadow">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0">🔐 Permissions d'Accès</h5>
+                </div>
+                <div class="card-body">
+                    <h6 class="mb-3">👥 Utilisateurs Autorisés</h6>
+                    {% if permissions %}
+                        <div class="list-group mb-3">
+                            {% for perm in permissions %}
+                                <div class="list-group-item">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <strong>{{ perm.user.username }}</strong>
+                                            <div class="small text-muted">{{ perm.user.email }}</div>
+                                            <div class="small">Accordé par: {{ perm.granted_by.username }}</div>
+                                            <div class="small">{{ perm.granted_at|date:"d/m/Y H:i" }}</div>
+                                        </div>
+                                        <form method="POST" action="{% url 'revoke_logo_permission' perm.user.id %}" style="display:inline;">
+                                            {% csrf_token %}
+                                            <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Retirer la permission ?')">
+                                                ✖️
+                                            </button>
+                                        </form>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <p class="text-muted small">Aucun utilisateur autorisé pour le moment.</p>
+                    {% endif %}
+
+                    <hr>
+
+                    <h6 class="mb-3">➕ Accorder l'Accès</h6>
+                    {% if all_users %}
+                        <form>
+                            <select class="form-control form-control-sm mb-2" id="user-select">
+                                <option value="">-- Sélectionner un utilisateur --</option>
+                                {% for user in all_users %}
+                                    <option value="{{ user.id }}" data-username="{{ user.username }}">
+                                        {{ user.username }} ({{ user.email }})
+                                    </option>
+                                {% endfor %}
+                            </select>
+                        </form>
+
+                        <form method="POST" action="" id="grant-form" style="display:none;">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-sm btn-success w-100">
+                                ✅ Accorder l'Accès
+                            </button>
+                        </form>
+
+                        <script>
+                            document.getElementById('user-select').addEventListener('change', function() {
+                                if (this.value) {
+                                    const form = document.getElementById('grant-form');
+                                    form.action = '/admin/logos/grant-permission/' + this.value + '/';
+                                    form.style.display = 'block';
+                                }
+                            });
+                        </script>
+                    {% else %}
+                        <p class="text-muted small">Aucun utilisateur disponible.</p>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Informations -->
+            <div class="card shadow mt-3">
+                <div class="card-header bg-info text-white">
+                    <h6 class="mb-0">ℹ️ Informations</h6>
+                </div>
+                <div class="card-body small">
+                    <ul>
+                        <li>Seul l'admin principal peut accorder/révoquer les permissions</li>
+                        <li>Les utilisateurs autorisés peuvent modifier les logos</li>
+                        <li>Les modifications sont tracées automatiquement</li>
+                        <li>Les logos supportent JPG, PNG, GIF, WebP</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .form-sm .form-control-sm {
+        font-size: 0.85rem;
+        padding: 0.4rem 0.5rem;
+    }
+
+    .card {
+        border: none;
+        border-radius: 10px;
+    }
+
+    .card-header {
+        border-radius: 10px 10px 0 0;
+    }
+</style>
+{% endblock %}

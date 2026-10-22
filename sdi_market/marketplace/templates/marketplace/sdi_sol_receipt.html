@@ -270,7 +270,7 @@
                 </div>
                 <div class="receipt-detail">
                     <span class="receipt-detail-label">Position:</span>
-                    <span class="receipt-detail-value">#{{ payment.member.position }}</span>
+                    <span class="receipt-detail-value">#{{ payment.member.group_position|default:payment.member.position }}</span>
                 </div>
                 <div class="receipt-detail">
                     <span class="receipt-detail-label">Inscrit le:</span>
@@ -290,7 +290,7 @@
                 </div>
                 <div class="receipt-detail">
                     <span class="receipt-detail-label">Date de paiement:</span>
-                    <span class="receipt-detail-value">{{ payment.paid_at|date:"d/m/Y H:i" }}</span>
+                    <span class="receipt-detail-value">{% if payment.paid_at %}{{ payment.paid_at|date:"d/m/Y H:i" }}{% else %}Soumis le {{ payment.created_at|date:"d/m/Y H:i" }}{% endif %}</span>
                 </div>
             </div>
         </div>
@@ -298,7 +298,7 @@
         <!-- Total -->
         <div class="receipt-total">
             <div class="total-item">
-                <div class="total-label">Montant payé</div>
+                <div class="total-label">{% if payment.paid_at %}Montant payé{% else %}Montant soumis{% endif %}</div>
                 <div class="total-amount">{{ payment.amount }} {{ payment.currency }}</div>
             </div>
             <div class="total-item">
@@ -323,12 +323,15 @@
                 <div class="status-description">
                     Ce paiement a été effectué après la date d'échéance. Veuillez effectuer les paiements futurs à temps pour maintenir votre position.
                 </div>
+            {% elif payment.status == 'rejected' %}
+                <div class="status-title pending">❌ Paiement refusé</div>
+                <div class="status-description">Ce paiement n’a pas été approuvé. Contactez l’administration du Sol SDI pour plus d’informations.</div>
             {% else %}
                 <div class="status-title pending">
-                    ⏳ Paiement en attente
+                    ⏳ En attente de validation
                 </div>
                 <div class="status-description">
-                    Ce paiement est en cours de traitement et sera confirmé bientôt.
+                    Votre demande est enregistrée, mais elle ne sera comptabilisée qu’après validation par l’administrateur principal.
                 </div>
             {% endif %}
         </div>
@@ -338,7 +341,7 @@
             <h3>ℹ️ Informations supplémentaires</h3>
             <div class="receipt-detail">
                 <span class="receipt-detail-label">Contexte du paiement:</span>
-                <span class="receipt-detail-value">Paiement SDI Sol reçu et déposé sur le compte principal.</span>
+                <span class="receipt-detail-value">Demande enregistrée pour le suivi du Sol SDI. Ce reçu ne confirme pas un transfert d’argent réel.</span>
             </div>
             <div class="receipt-detail">
                 <span class="receipt-detail-label">Référence:</span>

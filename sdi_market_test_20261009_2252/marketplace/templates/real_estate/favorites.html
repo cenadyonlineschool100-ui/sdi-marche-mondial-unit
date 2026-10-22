@@ -1,0 +1,128 @@
+{% extends "marketplace/base.html" %}
+
+{% block title %}Mes Favoris - Immobilier - SDI Store{% endblock %}
+
+{% block content %}
+<div class="container" style="max-width: 1200px; margin: 40px auto; padding: 20px;">
+    <div class="section-header">
+        <h1 style="color: var(--primary-dark); margin-bottom: 10px;">❤️ Mes propriétés favorites</h1>
+        <p style="color: var(--text-secondary); font-size: 1rem;">Explorez les propriétés que vous avez sauvegardées</p>
+    </div>
+
+    {% if page_obj %}
+        <div class="properties-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 20px; margin-bottom: 40px;">
+            {% for property in page_obj %}
+                <div class="property-card" style="background: var(--bg-light); border: 1px solid var(--border-color); border-radius: 12px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.08); transition: transform 0.3s, box-shadow 0.3s;">
+                    <div class="card-image" style="position: relative; width: 100%; height: 200px; overflow: hidden; background: linear-gradient(135deg, #667eea, #764ba2);">
+                        {% if property.images.first %}
+                            <img src="{{ property.images.first.image.url }}" alt="{{ property.title }}" style="width: 100%; height: 100%; object-fit: cover;">
+                        {% else %}
+                            <div style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; color: white; font-size: 3rem;">
+                                🏠
+                            </div>
+                        {% endif %}
+                        <span class="property-badge" style="position: absolute; top: 10px; right: 10px; background: {% if property.listing_type == 'location' %}#4CAF50{% else %}#FF9800{% endif %}; color: white; padding: 6px 12px; border-radius: 20px; font-size: 0.85rem; font-weight: 600;">
+                            {% if property.listing_type == 'location' %}📅 Location{% else %}💰 Vente{% endif %}
+                        </span>
+                    </div>
+
+                    <div class="card-content" style="padding: 15px;">
+                        <h3 style="font-size: 1rem; color: var(--primary-dark); margin-bottom: 8px; font-weight: 600;">{{ property.title }}</h3>
+                        <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 10px;">📍 {{ property.city }}, {{ property.neighborhood }}</p>
+                        
+                        <div class="property-details" style="display: flex; gap: 12px; margin-bottom: 15px; font-size: 0.85rem; color: var(--text-secondary);">
+                            {% if property.bedrooms > 0 %}
+                                <span>🛏️ {{ property.bedrooms }} ch</span>
+                            {% endif %}
+                            {% if property.bathrooms > 0 %}
+                                <span>🚿 {{ property.bathrooms }} sdb</span>
+                            {% endif %}
+                            {% if property.total_area > 0 %}
+                                <span>📐 {{ property.total_area }} m²</span>
+                            {% endif %}
+                        </div>
+
+                        <div class="property-price" style="font-size: 1.2rem; font-weight: 700; color: var(--primary); margin-bottom: 15px;">
+                            {{ property.price|floatformat:2 }} {{ property.currency }}
+                        </div>
+
+                        <div class="card-actions" style="display: flex; gap: 8px;">
+                            <a href="{% url 'real_estate:detail' property.id %}" class="btn-view" style="flex: 1; padding: 10px; text-align: center; background: linear-gradient(135deg, #667eea, #764ba2); color: white; border-radius: 6px; text-decoration: none; font-weight: 600; transition: transform 0.3s;">
+                                Voir
+                            </a>
+                            <button class="btn-favorite" data-toggle-url="{% url 'real_estate:toggle_favorite' property.id %}" style="padding: 10px 15px; background: #ff6b6b; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; transition: transform 0.3s;">
+                                ❤️
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+
+        <!-- Pagination -->
+        {% if page_obj.has_other_pages %}
+            <div class="pagination" style="display: flex; justify-content: center; gap: 10px; margin-top: 30px;">
+                {% if page_obj.has_previous %}
+                    <a href="?page=1" style="padding: 8px 12px; border-radius: 6px; background: var(--bg-secondary); text-decoration: none; color: var(--text-primary);">« Première</a>
+                    <a href="?page={{ page_obj.previous_page_number }}" style="padding: 8px 12px; border-radius: 6px; background: var(--bg-secondary); text-decoration: none; color: var(--text-primary);">‹ Précédente</a>
+                {% endif %}
+
+                <span style="padding: 8px 12px;">Page {{ page_obj.number }} sur {{ page_obj.paginator.num_pages }}</span>
+
+                {% if page_obj.has_next %}
+                    <a href="?page={{ page_obj.next_page_number }}" style="padding: 8px 12px; border-radius: 6px; background: var(--bg-secondary); text-decoration: none; color: var(--text-primary);">Suivante ›</a>
+                    <a href="?page={{ page_obj.paginator.num_pages }}" style="padding: 8px 12px; border-radius: 6px; background: var(--bg-secondary); text-decoration: none; color: var(--text-primary);">Dernière »</a>
+                {% endif %}
+            </div>
+        {% endif %}
+    {% else %}
+        <div class="empty-state" style="text-align: center; padding: 60px 20px; background: var(--bg-light); border-radius: 12px; border: 1px dashed var(--border-color);">
+            <div style="font-size: 4rem; margin-bottom: 20px;">💔</div>
+            <h2 style="color: var(--primary-dark); margin-bottom: 10px;">Aucune propriété favorite</h2>
+            <p style="color: var(--text-secondary); margin-bottom: 20px;">Vous n'avez pas encore ajouté de propriété à vos favoris.</p>
+            <a href="{% url 'real_estate:home' %}" style="display: inline-block; padding: 12px 30px; background: linear-gradient(135deg, #667eea, #764ba2); color: white; border-radius: 6px; text-decoration: none; font-weight: 600;">
+                Parcourir les annonces
+            </a>
+        </div>
+    {% endif %}
+</div>
+
+<script>
+document.querySelectorAll('.btn-favorite').forEach(btn => {
+    btn.addEventListener('click', function() {
+        const toggleUrl = this.dataset.toggleUrl;
+        if (!toggleUrl) return;
+        fetch(toggleUrl, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': getCookie('csrftoken'),
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({})
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                window.location.reload();
+            }
+        })
+        .catch(e => console.error('Error:', e));
+    });
+});
+
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+</script>
+{% endblock %}

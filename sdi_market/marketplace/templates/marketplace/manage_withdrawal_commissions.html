@@ -135,7 +135,7 @@
     <div class="row">
         <div class="col-12">
             <h2>💰 Gestion des Commissions de Retrait</h2>
-            <p class="text-muted">Administre les tranches, la part système et la part agent pour les retraits HTG.</p>
+            <p class="text-muted">Administre les retraits personnels, ainsi que les frais par devise et leur répartition entre le système et l’agent.</p>
             {% if messages %}
             <div class="alert-container">
                 {% for message in messages %}
@@ -150,7 +150,47 @@
         <div class="col-lg-8">
             <div class="card mb-4">
                 <div class="card-header bg-primary text-white">
-                    <h5 class="mb-0">Tranches de Commission Retrait HTG</h5>
+                    <h5 class="mb-0">Contrôle des retraits personnels</h5>
+                </div>
+                <div class="card-body">
+                    <p>
+                        État :
+                        <strong>{% if personal_withdrawals_enabled %}ON{% else %}OFF{% endif %}</strong>.
+                        OFF bloque les nouvelles demandes personnelles sans modifier les soldes ni les demandes déjà créées.
+                    </p>
+                    <form method="post">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="set_personal_withdrawals">
+                        <input type="hidden" name="enabled" value="{% if personal_withdrawals_enabled %}off{% else %}on{% endif %}">
+                        <button type="submit" class="btn {% if personal_withdrawals_enabled %}btn-outline-danger{% else %}btn-success{% endif %}">
+                            {% if personal_withdrawals_enabled %}Désactiver les nouveaux retraits personnels{% else %}Autoriser les retraits personnels{% endif %}
+                        </button>
+                    </form>
+                </div>
+            </div>
+            <div class="card mb-4">
+                <div class="card-header bg-secondary text-white">
+                    <h5 class="mb-0">Contrôle des retraits Ti Kanè</h5>
+                </div>
+                <div class="card-body">
+                    <p>
+                        État :
+                        <strong>{% if tikane_withdrawals_enabled %}ON{% else %}OFF{% endif %}</strong>.
+                        OFF bloque les nouvelles demandes de retrait sans toucher aux soldes, dépôts ou demandes déjà débitées.
+                    </p>
+                    <form method="post">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="set_tikane_withdrawals">
+                        <input type="hidden" name="enabled" value="{% if tikane_withdrawals_enabled %}off{% else %}on{% endif %}">
+                        <button type="submit" class="btn {% if tikane_withdrawals_enabled %}btn-outline-danger{% else %}btn-success{% endif %}">
+                            {% if tikane_withdrawals_enabled %}Désactiver les nouveaux retraits Ti Kanè{% else %}Activer les retraits Ti Kanè{% endif %}
+                        </button>
+                    </form>
+                </div>
+            </div>
+            <div class="card mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">Tranches de commission par devise</h5>
                 </div>
                 <div class="card-body">
                     {% if withdrawal_configs %}
@@ -158,6 +198,7 @@
                         <table class="table table-hover table-bordered withdrawal-commission-table">
                             <thead>
                                 <tr>
+                                    <th>Devise</th>
                                     <th>Description</th>
                                     <th>Min</th>
                                     <th>Max</th>
@@ -173,6 +214,14 @@
                                 <tr>
                                     <form method="post" class="d-flex flex-wrap align-items-center">
                                         {% csrf_token %}
+                                        <td>
+                                            <select name="currency" class="form-select form-select-sm">
+                                                <option value="USD" {% if tier.currency == 'USD' %}selected{% endif %}>USD</option>
+                                                <option value="HTG" {% if tier.currency == 'HTG' %}selected{% endif %}>HTG</option>
+                                                <option value="DOP" {% if tier.currency == 'DOP' %}selected{% endif %}>DOP</option>
+                                                <option value="EUR" {% if tier.currency == 'EUR' %}selected{% endif %}>EUR</option>
+                                            </select>
+                                        </td>
                                         <td>
                                             <input type="text" name="description" value="{{ tier.description }}" class="form-control form-control-sm" />
                                         </td>
@@ -216,6 +265,15 @@
                             <input type="hidden" name="action" value="update" />
                             <input type="hidden" name="tier_id" value="{{ tier.id }}" />
                             <h6>Commission {{ forloop.counter }} · {{ tier.description|default:'Tranche de retrait' }}</h6>
+                            <div class="withdrawal-tier-field">
+                                <label for="mobile-currency-{{ tier.id }}">Devise</label>
+                                <select id="mobile-currency-{{ tier.id }}" name="currency">
+                                    <option value="USD" {% if tier.currency == 'USD' %}selected{% endif %}>USD</option>
+                                    <option value="HTG" {% if tier.currency == 'HTG' %}selected{% endif %}>HTG</option>
+                                    <option value="DOP" {% if tier.currency == 'DOP' %}selected{% endif %}>DOP</option>
+                                    <option value="EUR" {% if tier.currency == 'EUR' %}selected{% endif %}>EUR</option>
+                                </select>
+                            </div>
                             <div class="withdrawal-tier-field">
                                 <label for="mobile-description-{{ tier.id }}">Description</label>
                                 <input id="mobile-description-{{ tier.id }}" type="text" name="description" value="{{ tier.description }}" />
@@ -269,6 +327,15 @@
                         {% csrf_token %}
                         <input type="hidden" name="action" value="add" />
                         <div class="row g-3">
+                            <div class="col-md-4">
+                                <label class="form-label">Devise</label>
+                                <select name="currency" class="form-select" required>
+                                    <option value="USD">USD</option>
+                                    <option value="HTG" selected>HTG</option>
+                                    <option value="DOP">DOP</option>
+                                    <option value="EUR">EUR</option>
+                                </select>
+                            </div>
                             <div class="col-md-6">
                                 <label class="form-label">Montant min</label>
                                 <input type="number" step="0.01" name="min_amount" class="form-control" required value="0.00" />

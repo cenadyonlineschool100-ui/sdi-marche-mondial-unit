@@ -1,0 +1,728 @@
+{% extends 'marketplace/base.html' %}
+{% load static %}
+
+{% block title %}🚚 Tableau de Bord Livreur - SDI Store{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="row">
+        <!-- Sidebar -->
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-truck"></i> {{ driver.user.get_full_name }}
+                    </h5>
+                    <small>{{ driver.identifier }}</small>
+                </div>
+                <div class="card-body">
+                    <div class="text-center mb-3">
+                        <div class="h4 text-success">{{ driver.total_deliveries }}</div>
+                        <small class="text-muted">Livraisons totales</small>
+                    </div>
+                    <div class="text-center mb-3">
+                        <div class="h4 text-primary">{{ driver.get_success_rate|floatformat:1 }}%</div>
+                        <small class="text-muted">Taux de réussite</small>
+                    </div>
+                    <div class="text-center mb-3">
+                        <span class="badge bg-{{ driver.is_available|yesno:'success,danger' }}">
+                            {{ driver.is_available|yesno:'Disponible,Occupé' }}
+                        </span>
+                    </div>
+                    <div class="text-center">
+                        <small class="text-muted">Position actuelle</small>
+                        <div id="current-location" class="fw-bold">N/A</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Livraisons actives -->
+            <div class="card mt-3">
+                <div class="card-header">
+                    <h6 class="mb-0">📦 Livraisons Actives</h6>
+                </div>
+                <div class="card-body" id="active-deliveries-list">
+                    {% for delivery in active_deliveries %}
+                    <div class="delivery-item mb-2 p-2 border rounded" data-delivery-id="{{ delivery.id }}">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <strong>#{{ delivery.order.id }}</strong>
+                                <br>
+                                <small class="text-muted">{{ delivery.order.buyer.get_full_name }}</small>
+                            </div>
+                            <span class="badge {% if delivery.status == 'assigned' %}bg-secondary{% elif delivery.status == 'picked_up' %}bg-info{% elif delivery.status == 'in_transit' %}bg-primary{% elif delivery.status == 'arrived' %}bg-warning{% elif delivery.status == 'delivered' %}bg-success{% else %}bg-danger{% endif %}">
+                                {{ delivery.get_status_display }}
+                            </span>
+                        </div>
+                        <small class="text-muted">{{ delivery.order.delivery_address|truncatechars:30 }}</small>
+                    </div>
+                    {% empty %}
+                    <p class="text-muted text-center">Aucune livraison active</p>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="col-md-9">
+            <!-- Header -->
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2>🗺️ Suivi GPS Temps Réel</h2>
+                <div>
+                    <button class="btn btn-success" id="start-tracking" onclick="startLocationTracking()">
+                        <i class="fas fa-play"></i> Démarrer Tracking
+                    </button>
+                    <button class="btn btn-danger" id="stop-tracking" onclick="stopLocationTracking()" style="display:none;">
+                        <i class="fas fa-stop"></i> Arrêter
+                    </button>
+                </div>
+            </div>
+
+            <!-- Position actuelle du livreur -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">📍 Ma Position Actuelle</h5>
+                </div>
+                <div class="card-body">
+                    <form id="location-form" method="post">
+                        {% csrf_token %}
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="id_driver_address_details" class="form-label">Adresse actuelle détaillée</label>
+                                    <textarea class="form-control" id="id_driver_address_details" name="driver_address_details"
+                                              rows="2" placeholder="Décrivez votre position actuelle (ex: Près du café central, parking du supermarché...)"></textarea>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">Sélectionnez votre position sur la carte</label>
+                                    <div id="location-map" style="height: 200px; width: 100%; border: 1px solid #ddd; border-radius: 8px;"></div>
+                                    <small class="form-text text-muted">
+                                        Cliquez sur la carte pour définir votre position actuelle
+                                    </small>
+                                </div>
+                                <button type="button" class="btn btn-outline-primary" onclick="getCurrentLocation()">
+                                    <i class="fas fa-crosshairs"></i> Utiliser ma position GPS
+                                </button>
+                            </div>
+                        </div>
+                        <!-- Champs cachés pour les coordonnées -->
+                        <input type="hidden" id="id_driver_lat" name="driver_lat">
+                        <input type="hidden" id="id_driver_lng" name="driver_lng">
+                        <div class="d-grid">
+                            <button type="submit" class="btn btn-primary" id="update-location-btn" disabled>
+                                <i class="fas fa-save"></i> Mettre à jour ma position
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Map Container -->
+            <div class="card mb-4">
+                <div class="card-body">
+                    <div id="map" style="height: 500px; width: 100%; border-radius: 8px;"></div>
+                </div>
+            </div>
+
+            <!-- Delivery Controls -->
+            {% if active_deliveries %}
+            <div class="row">
+                {% for delivery in active_deliveries %}
+                <div class="col-md-6 mb-4">
+                    <div class="card">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <h6 class="mb-0">Commande #{{ delivery.order.id }}</h6>
+                            <span class="badge {% if delivery.status == 'assigned' %}bg-secondary{% elif delivery.status == 'picked_up' %}bg-info{% elif delivery.status == 'in_transit' %}bg-primary{% elif delivery.status == 'arrived' %}bg-warning{% elif delivery.status == 'delivered' %}bg-success{% else %}bg-danger{% endif %}">{{ delivery.get_status_display }}</span>
+                        </div>
+                        <div class="card-body">
+                            <div class="mb-2">
+                                <strong>Client:</strong> {{ delivery.order.buyer.get_full_name }}
+                            </div>
+                            <div class="mb-2">
+                                <strong>Adresse:</strong> {{ delivery.order.delivery_address }}
+                            </div>
+                            <div class="mb-3">
+                                <strong>Montant:</strong> {{ delivery.order.total_amount }}€
+                            </div>
+
+                            <!-- Action Buttons -->
+                            <div class="btn-group-vertical w-100">
+                                {% if delivery.status == 'assigned' %}
+                                <button class="btn btn-warning mb-2" onclick="updateDeliveryStatus({{ delivery.id }}, 'picked_up')">
+                                    <i class="fas fa-box"></i> Récupéré chez le vendeur
+                                </button>
+                                {% elif delivery.status == 'picked_up' %}
+                                <button class="btn btn-primary mb-2" onclick="updateDeliveryStatus({{ delivery.id }}, 'in_transit')">
+                                    <i class="fas fa-route"></i> En route vers le client
+                                </button>
+                                {% elif delivery.status == 'in_transit' %}
+                                <button class="btn btn-info mb-2" onclick="updateDeliveryStatus({{ delivery.id }}, 'arrived')">
+                                    <i class="fas fa-map-marker-alt"></i> Arrivé chez le client
+                                </button>
+                                {% endif %}
+                                {% if delivery.status == 'arrived' or delivery.status == 'in_transit' %}
+                                <button class="btn btn-success" onclick="updateDeliveryStatus({{ delivery.id }}, 'delivered')">
+                                    <i class="fas fa-check"></i> Livraison terminée
+                                </button>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="card">
+                <div class="card-body text-center">
+                    <i class="fas fa-truck fa-3x text-muted mb-3"></i>
+                    <h4>Aucune livraison active</h4>
+                    <p class="text-muted">Vous serez notifié quand une nouvelle livraison vous sera assignée.</p>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Recent Deliveries -->
+            <div class="card mt-4">
+                <div class="card-header">
+                    <h5 class="mb-0">📋 Livraisons Récentes</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Client</th>
+                                    <th>Statut</th>
+                                    <th>Date</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for delivery in recent_deliveries %}
+                                <tr>
+                                    <td>#{{ delivery.order.id }}</td>
+                                    <td>{{ delivery.order.buyer.get_full_name }}</td>
+                                    <td>
+                                        <span class="badge {% if delivery.status == 'assigned' %}bg-secondary{% elif delivery.status == 'picked_up' %}bg-info{% elif delivery.status == 'in_transit' %}bg-primary{% elif delivery.status == 'arrived' %}bg-warning{% elif delivery.status == 'delivered' %}bg-success{% else %}bg-danger{% endif %}">
+                                            {{ delivery.get_status_display }}
+                                        </span>
+                                    </td>
+                                    <td>{{ delivery.delivered_at|date:"d/m H:i" }}</td>
+                                    <td>
+                                        <button class="btn btn-sm btn-outline-info" onclick="viewDeliveryDetails({{ delivery.id }})">
+                                            <i class="fas fa-eye"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- WebSocket Status -->
+<div class="position-fixed bottom-0 end-0 p-3" style="z-index: 1050;">
+    <div id="ws-status" class="toast align-items-center text-white bg-secondary border-0" role="alert">
+        <div class="d-flex">
+            <div class="toast-body">
+                <i class="fas fa-wifi"></i> Connexion temps réel: <span id="ws-status-text">Déconnecté</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Audio notifications -->
+<audio id="notification-sound" preload="auto">
+    <source src="{% static 'sounds/notification.mp3' %}" type="audio/mpeg">
+    <source src="{% static 'sounds/notification.wav' %}" type="audio/wav">
+</audio>
+
+<script src="https://maps.googleapis.com/maps/api/js?key={{ google_maps_api_key }}&libraries=geometry,places"></script>
+<script>
+// Variables globales
+let map;
+let driverMarker;
+let sellerMarkers = [];
+let buyerMarkers = [];
+let directionsService;
+let directionsRenderer;
+let watchId = null;
+let websocket = null;
+
+// Initialisation
+document.addEventListener('DOMContentLoaded', function() {
+    initMap();
+    initWebSocket();
+    setupLocationTracking();
+});
+
+function initMap() {
+    // Centre initial (Port-au-Prince, Haiti)
+    const initialLocation = { lat: 18.5944, lng: -72.3074 };
+
+    map = new google.maps.Map(document.getElementById('map'), {
+        zoom: 12,
+        center: initialLocation,
+        styles: [
+            {
+                featureType: 'poi',
+                stylers: [{ visibility: 'off' }]
+            }
+        ]
+    });
+
+    directionsService = new google.maps.DirectionsService();
+    directionsRenderer = new google.maps.DirectionsRenderer({
+        map: map,
+        suppressMarkers: true,
+        polylineOptions: {
+            strokeColor: '#4285F4',
+            strokeWeight: 5
+        }
+    });
+
+    // Marqueur du livreur
+    driverMarker = new google.maps.Marker({
+        position: initialLocation,
+        map: map,
+        title: 'Votre position',
+        icon: {
+            url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`
+                <svg width="40" height="40" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg">
+                    <circle cx="20" cy="20" r="18" fill="#4285F4" stroke="white" stroke-width="3"/>
+                    <path d="M20 8 L28 16 L24 16 L24 24 L16 24 L16 16 L12 16 Z" fill="white"/>
+                </svg>
+            `),
+            scaledSize: new google.maps.Size(40, 40)
+        }
+    });
+
+    // Charger les livraisons actives
+    loadActiveDeliveries();
+}
+
+function initWebSocket() {
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = `${protocol}//${window.location.host}/ws/driver/{{ driver.id }}/`;
+
+    websocket = new WebSocket(wsUrl);
+
+    websocket.onopen = function(event) {
+        updateWsStatus('Connecté', 'success');
+        console.log('WebSocket connecté');
+    };
+
+    websocket.onmessage = function(event) {
+        const data = JSON.parse(event.data);
+        handleWebSocketMessage(data);
+    };
+
+    websocket.onclose = function(event) {
+        updateWsStatus('Déconnecté', 'danger');
+        console.log('WebSocket déconnecté');
+        // Reconnexion automatique après 5 secondes
+        setTimeout(initWebSocket, 5000);
+    };
+
+    websocket.onerror = function(error) {
+        console.error('Erreur WebSocket:', error);
+        updateWsStatus('Erreur', 'warning');
+    };
+}
+
+function handleWebSocketMessage(data) {
+    if (data.type === 'instruction') {
+        showNotification(data.instruction, 'info');
+        playNotificationSound();
+    } else if (data.type === 'new_delivery') {
+        showNotification('Nouvelle livraison assignée!', 'success');
+        playNotificationSound();
+        loadActiveDeliveries();
+    }
+}
+
+function updateWsStatus(status, colorClass) {
+    const statusEl = document.getElementById('ws-status');
+    const textEl = document.getElementById('ws-status-text');
+
+    statusEl.className = `toast align-items-center text-white bg-${colorClass} border-0`;
+    textEl.textContent = status;
+
+    // Afficher le toast
+    const toast = new bootstrap.Toast(statusEl);
+    toast.show();
+}
+
+function setupLocationTracking() {
+    if ('geolocation' in navigator) {
+        document.getElementById('start-tracking').style.display = 'inline-block';
+        document.getElementById('stop-tracking').style.display = 'none';
+    } else {
+        document.getElementById('start-tracking').disabled = true;
+        document.getElementById('start-tracking').textContent = 'Géolocalisation non supportée';
+    }
+}
+
+function startLocationTracking() {
+    if ('geolocation' in navigator) {
+        const options = {
+            enableHighAccuracy: true,
+            timeout: 10000,
+            maximumAge: 30000
+        };
+
+        watchId = navigator.geolocation.watchPosition(
+            updateLocation,
+            handleLocationError,
+            options
+        );
+
+        document.getElementById('start-tracking').style.display = 'none';
+        document.getElementById('stop-tracking').style.display = 'inline-block';
+        showNotification('Suivi GPS activé', 'success');
+    }
+}
+
+function stopLocationTracking() {
+    if (watchId !== null) {
+        navigator.geolocation.clearWatch(watchId);
+        watchId = null;
+        document.getElementById('start-tracking').style.display = 'inline-block';
+        document.getElementById('stop-tracking').style.display = 'none';
+        showNotification('Suivi GPS arrêté', 'warning');
+    }
+}
+
+function updateLocation(position) {
+    const lat = position.coords.latitude;
+    const lng = position.coords.longitude;
+
+    // Mettre à jour le marqueur
+    const newPos = { lat: lat, lng: lng };
+    driverMarker.setPosition(newPos);
+    map.panTo(newPos);
+
+    // Envoyer via WebSocket
+    if (websocket && websocket.readyState === WebSocket.OPEN) {
+        websocket.send(JSON.stringify({
+            type: 'location_update',
+            latitude: lat,
+            longitude: lng,
+            location_name: `Position actuelle`
+        }));
+    }
+
+    // Mettre à jour l'interface
+    document.getElementById('current-location').textContent = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+
+    // Rafraîchir les livraisons et le trajet en cours
+    loadActiveDeliveries();
+}
+
+function handleLocationError(error) {
+    let message = 'Erreur de géolocalisation';
+    switch(error.code) {
+        case error.PERMISSION_DENIED:
+            message = 'Permission de géolocalisation refusée';
+            break;
+        case error.POSITION_UNAVAILABLE:
+            message = 'Position indisponible';
+            break;
+        case error.TIMEOUT:
+            message = 'Timeout de géolocalisation';
+            break;
+    }
+    showNotification(message, 'danger');
+}
+
+function loadActiveDeliveries() {
+    fetch('/api/delivery-assignments/?employee={{ driver.id }}&status=assigned,picked_up,in_transit')
+        .then(response => response.json())
+        .then(data => {
+            updateMapWithDeliveries(data.results);
+        })
+        .catch(error => console.error('Erreur chargement livraisons:', error));
+}
+
+function updateMapWithDeliveries(deliveries) {
+    // Supprimer les anciens marqueurs
+    sellerMarkers.forEach(marker => marker.setMap(null));
+    buyerMarkers.forEach(marker => marker.setMap(null));
+    sellerMarkers = [];
+    buyerMarkers = [];
+
+    deliveries.forEach(delivery => {
+        // Marqueur vendeur
+        if (delivery.seller_lat && delivery.seller_lng) {
+            const sellerMarker = new google.maps.Marker({
+                position: { lat: delivery.seller_lat, lng: delivery.seller_lng },
+                map: map,
+                title: 'Vendeur',
+                icon: {
+                    url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`
+                        <svg width="30" height="30" viewBox="0 0 30 30" xmlns="http://www.w3.org/2000/svg">
+                            <circle cx="15" cy="15" r="13" fill="#28a745" stroke="white" stroke-width="2"/>
+                            <text x="15" y="20" text-anchor="middle" fill="white" font-size="16" font-weight="bold">V</text>
+                        </svg>
+                    `),
+                    scaledSize: new google.maps.Size(30, 30)
+                }
+            });
+            sellerMarkers.push(sellerMarker);
+        }
+
+        // Marqueur client
+        if (delivery.buyer_lat && delivery.buyer_lng) {
+            const buyerMarker = new google.maps.Marker({
+                position: { lat: delivery.buyer_lat, lng: delivery.buyer_lng },
+                map: map,
+                title: 'Client',
+                icon: {
+                    url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`
+                        <svg width="30" height="30" viewBox="0 0 30 30" xmlns="http://www.w3.org/2000/svg">
+                            <circle cx="15" cy="15" r="13" fill="#dc3545" stroke="white" stroke-width="2"/>
+                            <text x="15" y="20" text-anchor="middle" fill="white" font-size="16" font-weight="bold">C</text>
+                        </svg>
+                    `),
+                    scaledSize: new google.maps.Size(30, 30)
+                }
+            });
+            buyerMarkers.push(buyerMarker);
+        }
+    });
+
+    if (deliveries.length > 0) {
+        const delivery = deliveries[0];
+        if (delivery.seller_lat && delivery.seller_lng && delivery.buyer_lat && delivery.buyer_lng) {
+            renderDeliveryRoute(delivery);
+        }
+    }
+}
+
+function renderDeliveryRoute(delivery) {
+    const origin = driverMarker.getPosition() ? driverMarker.getPosition().toJSON() : null;
+    const seller = { lat: delivery.seller_lat, lng: delivery.seller_lng };
+    const buyer = { lat: delivery.buyer_lat, lng: delivery.buyer_lng };
+
+    if (!origin) {
+        return;
+    }
+
+    const request = {
+        origin: origin,
+        destination: buyer,
+        waypoints: [
+            {
+                location: seller,
+                stopover: true
+            }
+        ],
+        travelMode: google.maps.TravelMode.DRIVING,
+        provideRouteAlternatives: false,
+    };
+
+    directionsService.route(request, function(response, status) {
+        if (status === google.maps.DirectionsStatus.OK || status === 'OK') {
+            directionsRenderer.setDirections(response);
+        } else {
+            console.warn('Impossible de tracer le trajet:', status);
+        }
+    });
+}
+
+function updateDeliveryStatus(assignmentId, newStatus) {
+    fetch(`/api/delivery-api/update-status/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCsrfToken()
+        },
+        body: JSON.stringify({
+            assignment_id: assignmentId,
+            status: newStatus
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            showNotification(`Statut mis à jour: ${newStatus}`, 'success');
+            playNotificationSound();
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            showNotification('Erreur lors de la mise à jour', 'danger');
+        }
+    })
+    .catch(error => {
+        console.error('Erreur:', error);
+        showNotification('Erreur réseau', 'danger');
+    });
+}
+
+function playNotificationSound() {
+    const audio = document.getElementById('notification-sound');
+    audio.play().catch(e => console.log('Audio non joué:', e));
+}
+
+function showNotification(message, type) {
+    // Utiliser Bootstrap toast ou alert
+    const alertHtml = `
+        <div class="alert alert-${type} alert-dismissible fade show position-fixed"
+             style="top: 20px; right: 20px; z-index: 9999; min-width: 300px;">
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    `;
+    document.body.insertAdjacentHTML('beforeend', alertHtml);
+
+    // Auto-remove after 5 seconds
+    setTimeout(() => {
+        const alerts = document.querySelectorAll('.alert');
+        alerts.forEach(alert => alert.remove());
+    }, 5000);
+}
+
+function getCsrfToken() {
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]');
+    return csrfToken ? csrfToken.value : '';
+}
+
+function viewDeliveryDetails(assignmentId) {
+    // Ouvrir un modal avec les détails
+    window.open(`/api/delivery-api/${assignmentId}/`, '_blank');
+}
+
+// ====================
+// Carte de localisation du livreur
+// ====================
+let locationMap;
+let locationMarker;
+let locationGeocoder;
+
+function initLocationMap() {
+    // Centre sur Port-au-Prince par défaut
+    const defaultLocation = { lat: 18.5944, lng: -72.3074 };
+
+    locationMap = new google.maps.Map(document.getElementById('location-map'), {
+        zoom: 13,
+        center: defaultLocation,
+        mapTypeControl: false,
+        streetViewControl: false,
+        fullscreenControl: false
+    });
+
+    locationGeocoder = new google.maps.Geocoder();
+
+    // Marqueur déplaçable
+    locationMarker = new google.maps.Marker({
+        position: defaultLocation,
+        map: locationMap,
+        draggable: true,
+        title: 'Votre position actuelle'
+    });
+
+    // Événement clic sur la carte
+    locationMap.addListener('click', function(event) {
+        placeLocationMarker(event.latLng);
+        reverseGeocodeLocation(event.latLng);
+    });
+
+    // Événement drag du marqueur
+    locationMarker.addListener('dragend', function(event) {
+        reverseGeocodeLocation(event.latLng);
+    });
+}
+
+function placeLocationMarker(location) {
+    locationMarker.setPosition(location);
+    document.getElementById('id_driver_lat').value = location.lat();
+    document.getElementById('id_driver_lng').value = location.lng();
+    document.getElementById('update-location-btn').disabled = false;
+}
+
+function reverseGeocodeLocation(latLng) {
+    locationGeocoder.geocode({ 'location': latLng }, function(results, status) {
+        if (status === 'OK' && results[0]) {
+            const address = results[0].formatted_address;
+            document.getElementById('id_driver_address_details').value = address;
+        }
+    });
+}
+
+function getCurrentLocation() {
+    if ('geolocation' in navigator) {
+        navigator.geolocation.getCurrentPosition(function(position) {
+            const pos = {
+                lat: position.coords.latitude,
+                lng: position.coords.longitude
+            };
+            locationMap.setCenter(pos);
+            placeLocationMarker(pos);
+            reverseGeocodeLocation(pos);
+            showNotification('Position GPS récupérée', 'success');
+        }, function(error) {
+            let message = 'Erreur de géolocalisation';
+            switch(error.code) {
+                case error.PERMISSION_DENIED:
+                    message = 'Permission refusée. Autorisez la géolocalisation.';
+                    break;
+                case error.POSITION_UNAVAILABLE:
+                    message = 'Position indisponible';
+                    break;
+                case error.TIMEOUT:
+                    message = 'Timeout de géolocalisation';
+                    break;
+            }
+            showNotification(message, 'danger');
+        }, {
+            enableHighAccuracy: true,
+            timeout: 10000,
+            maximumAge: 300000 // 5 minutes
+        });
+    } else {
+        showNotification('Géolocalisation non supportée par ce navigateur', 'warning');
+    }
+}
+
+// Initialiser la carte de localisation quand le DOM est chargé
+document.addEventListener('DOMContentLoaded', function() {
+    if (document.getElementById('location-map')) {
+        initLocationMap();
+    }
+});
+</script>
+
+<style>
+.card {
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    border: none;
+}
+
+.delivery-item {
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.delivery-item:hover {
+    background-color: #f8f9fa;
+}
+
+.btn-group-vertical .btn {
+    margin-bottom: 0.5rem;
+}
+
+#map {
+    border: 2px solid #dee2e6;
+}
+
+.toast {
+    min-width: 250px;
+}
+</style>
+{% endblock %}

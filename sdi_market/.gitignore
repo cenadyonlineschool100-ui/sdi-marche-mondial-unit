@@ -1,2 +1,42 @@
+.env
+.env.*
+!.env.example
 
-.env.production
+# Django / Python
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Base de donn�es locale
+*.sqlite3
+*.sqlite3-journal
+*.sqlite3.backup*
+*.db
+
+# Environnement virtuel
+venv/
+.venv/
+env/
+
+# Logs
+*.log
+
+# Fichiers temporaires
+*.tmp
+*.bak
+
+# IDE
+.vscode/
+.idea/
+
+# PythonAnywhere / d�ploiement local
+.pythonanywhere_config.env
+
+# Fichiers statiques g�n�r�s
+staticfiles/
+
+# Playwright / tests g�n�r�s
+test-results/
+playwright-report/
+playwright_diagnostic_debug.py
+SDI_STORE_1_pyanywhere.zip

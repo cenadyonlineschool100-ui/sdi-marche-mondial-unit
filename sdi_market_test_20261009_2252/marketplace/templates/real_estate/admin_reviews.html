@@ -1,0 +1,45 @@
+{% extends "marketplace/base.html" %}
+
+{% block title %}Signalements et Avis - Admin Immobilier{% endblock %}
+
+{% block content %}
+<div class="container" style="max-width: 1100px; margin: 40px auto; padding: 20px;">
+    <div class="section-header">
+        <h1 style="color: var(--primary-dark); margin-bottom: 10px;">🚩 Signalements et avis</h1>
+        <p style="color: var(--text-secondary); font-size: 1rem;">Valider, modérer et gérer les avis non approuvés.</p>
+    </div>
+
+    {% if reviews %}
+        <div style="display: grid; gap: 15px;">
+            {% for review in reviews %}
+                <div style="background: var(--bg-light); border: 1px solid var(--border-color); border-radius: 12px; padding: 20px;">
+                    <div style="display: flex; justify-content: space-between; align-items: start; gap: 15px; flex-wrap: wrap;">
+                        <div style="flex: 1; min-width: 300px;">
+                            <h3 style="margin: 0 0 8px 0;">{{ review.title }}</h3>
+                            <p style="margin: 0 0 8px 0; color: var(--text-secondary);">Utilisateur: {{ review.user.get_full_name|default:review.user.username }}</p>
+                            <p style="margin: 0 0 10px 0; color: var(--text-secondary);">Propriété: {{ review.property.title|truncatewords:10 }}</p>
+                            <p style="margin: 0 0 10px 0;">{{ review.description }}</p>
+                            <p style="margin: 0; color: var(--text-secondary);">Type: {{ review.get_review_type_display }} • Note: {{ review.rating }}/5</p>
+                        </div>
+                        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                            <form method="post" action="{% url 'real_estate:approve_review' review.id %}">
+                                {% csrf_token %}
+                                <button type="submit" style="padding: 10px 18px; background:#43a047; color:white; border:none; border-radius:8px; cursor:pointer;">Approuver</button>
+                            </form>
+                            <form method="post" action="{% url 'real_estate:reject_review' review.id %}">
+                                {% csrf_token %}
+                                <button type="submit" style="padding: 10px 18px; background:#ef5350; color:white; border:none; border-radius:8px; cursor:pointer;">Rejeter</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div style="text-align: center; padding: 50px; background: var(--bg-light); border-radius: 12px; border: 1px dashed var(--border-color);">
+            <h2 style="color: var(--primary-dark); margin-bottom: 15px;">Aucun avis en attente</h2>
+            <p style="color: var(--text-secondary);">Toutes les avis ont été traités ou il n'y a pas de signalement.</p>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

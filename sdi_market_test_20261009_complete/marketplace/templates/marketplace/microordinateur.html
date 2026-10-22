@@ -1,0 +1,352 @@
+{% extends 'marketplace/base.html' %}
+{% load static %}
+
+{% block title %}SDI MicroOrdinateur{% endblock %}
+
+{% block content %}
+<style>
+    .microordinateur-page {
+        width: 100%;
+        max-width: 1180px;
+        margin: 40px auto;
+        padding: 0 20px;
+        box-sizing: border-box;
+        overflow-wrap: anywhere;
+    }
+    .microordinateur-page *,
+    .microordinateur-page *::before,
+    .microordinateur-page *::after {
+        box-sizing: border-box;
+    }
+    .microordinateur-hero {
+        display: grid;
+        grid-template-columns: 1.1fr 0.9fr;
+        gap: 40px;
+        align-items: center;
+        margin-bottom: 45px;
+        min-width: 0;
+    }
+    .microordinateur-hero > div {
+        min-width: 0;
+        max-width: 100%;
+    }
+    .microordinateur-hero h1 {
+        font-size: clamp(2rem, 5vw, 4rem);
+        line-height: 1.1;
+        margin: 0 0 20px;
+        color: #0f2d5c;
+        overflow-wrap: anywhere;
+    }
+    .microordinateur-hero p {
+        font-size: 1.05rem;
+        color: #42526e;
+        width: 100%;
+        max-width: 620px;
+        line-height: 1.65;
+        margin-bottom: 25px;
+        overflow-wrap: anywhere;
+    }
+    .microordinateur-buttons {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 14px;
+        align-items: stretch;
+        min-width: 0;
+    }
+    .microordinateur-buttons a {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        gap: 8px;
+        padding: 15px 24px;
+        min-height: 54px;
+        border-radius: 999px;
+        font-weight: 800;
+        letter-spacing: 0.02em;
+        line-height: 1.2;
+        text-decoration: none;
+        white-space: normal;
+        max-width: 100%;
+        box-sizing: border-box;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    .microordinateur-label {
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+        color: #1d4ed8;
+        font-weight: 700;
+        line-height: 1.45;
+        margin: 0 0 20px;
+    }
+    .microordinateur-buttons a:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 18px 40px rgba(14, 78, 166, 0.12);
+    }
+    .btn-premium {
+        background: linear-gradient(135deg, #1d4ed8, #3b82f6);
+        color: white;
+    }
+    .btn-free {
+        background: white;
+        border: 1px solid #93c5fd;
+        color: #1d4ed8;
+    }
+    .microordinateur-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(280px, 1fr));
+        gap: 24px;
+        margin-bottom: 40px;
+    }
+    .feature-card {
+        background: rgba(255,255,255,0.96);
+        border: 1px solid rgba(14, 78, 166, 0.12);
+        border-radius: 24px;
+        padding: 26px;
+        transition: transform 0.25s ease, box-shadow 0.25s ease;
+    }
+    .feature-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 20px 40px rgba(14, 78, 166, 0.09);
+    }
+    .feature-card h2 {
+        margin-top: 0;
+        color: #0f172a;
+        font-size: 1.5rem;
+    }
+    .feature-card p {
+        color: #475569;
+        line-height: 1.8;
+        margin: 14px 0 0;
+    }
+    .feature-card ul {
+        margin: 18px 0 0 20px;
+        padding: 0;
+        color: #475569;
+    }
+    .feature-card li {
+        margin-bottom: 10px;
+        list-style: disc;
+    }
+    .microordinateur-intro {
+        width: 100%;
+        min-width: 0;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 24px;
+        justify-content: center;
+    }
+    .microordinateur-illustration {
+        width: 100%;
+        min-width: 0;
+        max-width: 550px;
+        height: 360px;
+        border-radius: 32px;
+        background: linear-gradient(135deg, rgba(14, 165, 233, 0.08), rgba(59, 130, 246, 0.12));
+        box-shadow: 0 24px 80px rgba(49, 130, 206, 0.15);
+        position: relative;
+        overflow: hidden;
+    }
+    .microordinateur-illustration::before {
+        content: '';
+        position: absolute;
+        inset: 24px;
+        background: radial-gradient(circle at top left, rgba(59, 130, 246, 0.24), transparent 35%),
+                    radial-gradient(circle at bottom right, rgba(16, 185, 129, 0.18), transparent 28%);
+        border-radius: 26px;
+    }
+    .microordinateur-illustration::after {
+        content: 'SDI MICROORDINATEUR';
+        position: absolute;
+        inset: auto 36px 28px;
+        color: rgba(15, 23, 42, 0.5);
+        font-size: 0.95rem;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+    }
+    .section-title {
+        color: #0f172a;
+        font-size: 2rem;
+        margin-bottom: 20px;
+    }
+    .grid-3 {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(220px, 1fr));
+        gap: 20px;
+    }
+    .grid-3 .feature-card {
+        padding: 22px;
+        min-height: 220px;
+    }
+    .highlight-box {
+        background: linear-gradient(135deg, rgba(14,78,166,0.08), rgba(59,130,246,0.08));
+        border-left: 4px solid #3b82f6;
+        border-radius: 18px;
+        padding: 22px;
+        color: #1e293b;
+        margin-bottom: 30px;
+    }
+    .highlight-box strong {
+        display: block;
+        margin-bottom: 10px;
+    }
+    @media (max-width: 950px) {
+        .microordinateur-hero {
+            grid-template-columns: 1fr;
+        }
+        .microordinateur-grid,
+        .grid-3 {
+            grid-template-columns: 1fr;
+        }
+        .microordinateur-hero {
+            gap: 28px;
+        }
+    }
+    @media (max-width: 480px) {
+        .microordinateur-page {
+            margin: 24px auto;
+            padding: 0 20px;
+        }
+        .microordinateur-hero {
+            gap: 24px;
+            margin-bottom: 30px;
+            width: 100%;
+        }
+        .microordinateur-hero h1 {
+            font-size: clamp(1.95rem, 9vw, 2.7rem);
+            line-height: 1.12;
+            margin-bottom: 16px;
+        }
+        .microordinateur-hero p {
+            font-size: 1rem;
+            margin-bottom: 20px;
+        }
+        .microordinateur-label {
+            font-size: 0.78rem;
+            letter-spacing: 0.08em;
+            margin-bottom: 14px;
+        }
+        .microordinateur-buttons {
+            flex-direction: column;
+            width: 100%;
+        }
+        .microordinateur-buttons a {
+            width: 100%;
+            max-width: 100%;
+            padding: 14px 18px;
+            font-size: 0.95rem;
+            min-height: 50px;
+        }
+        .microordinateur-intro {
+            gap: 0;
+        }
+        .microordinateur-illustration {
+            height: 220px;
+            border-radius: 20px;
+        }
+        .feature-card {
+            padding: 20px;
+            border-radius: 16px;
+        }
+    }
+</style>
+
+<div class="microordinateur-page">
+    <section class="microordinateur-hero">
+        <div>
+            <p class="microordinateur-label">Bienvenue dans votre Micro-Ordinateur SDI</p>
+            <h1>Travaillez depuis n'importe quel appareil, comme sur un vrai ordinateur.</h1>
+            <p>SDI MicroOrdinateur vous permet d'accéder à un bureau virtuel sécurisé et moderne depuis votre téléphone, tablette ou ordinateur. Tout ce dont vous avez besoin, c'est d'une connexion Internet.</p>
+            <div class="microordinateur-buttons">
+                <a href="#premium" class="btn-premium">💳 PAYER ICI</a>
+                <a href="#free" class="btn-free">🎁 CLIQUEZ ICI - GRATUIT</a>
+            </div>
+        </div>
+        <div class="microordinateur-intro">
+            <div class="microordinateur-illustration" aria-hidden="true"></div>
+        </div>
+    </section>
+
+    <section class="feature-card">
+        <h2>🖥️ Interface d'accueil</h2>
+        <p>Accédez à un environnement de travail proche d'un véritable ordinateur dans votre navigateur. Une interface moderne, responsive et pensée pour tous les écrans.</p>
+        <ul>
+            <li>Écran d'ordinateur virtuel intuitif</li>
+            <li>Clavier virtuel moderne et responsive</li>
+            <li>Souris virtuelle affichée à côté du clavier</li>
+            <li>Bureau avec applications accessibles</li>
+        </ul>
+    </section>
+
+    <section class="microordinateur-grid">
+        <div class="feature-card">
+            <h2>Connexion à distance sécurisée</h2>
+            <p>Se connecter à un ordinateur distant n'a jamais été aussi simple. La technologie Remote Desktop garantit un affichage fluide et un contrôle total à distance.</p>
+            <ul>
+                <li>Connexion sécurisée</li>
+                <li>Affichage en temps réel</li>
+                <li>Clavier et souris virtuels</li>
+                <li>Compatible Android, iPhone, tablette et ordinateur</li>
+            </ul>
+        </div>
+        <div class="feature-card">
+            <h2>Applications disponibles</h2>
+            <ul>
+                <li>Microsoft Word</li>
+                <li>Microsoft Excel</li>
+                <li>Microsoft PowerPoint</li>
+                <li>Lecteur PDF</li>
+                <li>Navigateur web</li>
+                <li>Outils bureautiques</li>
+            </ul>
+            <p>Les fonctions avancées peuvent varier selon le type d'abonnement.</p>
+        </div>
+        <div class="feature-card">
+            <h2>Bibliothèque multimédia</h2>
+            <p>Consultez les contenus autorisés disponibles sur votre système sans modification possible.</p>
+            <ul>
+                <li>Films</li>
+                <li>Séries</li>
+                <li>Documents</li>
+            </ul>
+        </div>
+    </section>
+
+    <section class="highlight-box" id="premium">
+        <strong>Accès premium</strong>
+        Profitez des fonctionnalités avancées, d'un environnement plus puissant et d'un support prioritaire. Activez votre abonnement pour obtenir l'expérience la plus complète.
+    </section>
+
+    <section class="highlight-box" id="free">
+        <strong>Mode gratuit</strong>
+        Utilisez les fonctionnalités gratuites disponibles sur la plateforme pour découvrir l'expérience SDI MicroOrdinateur sans engagement.
+    </section>
+
+    <section class="grid-3">
+        <div class="feature-card">
+            <h2>Gestion des accès</h2>
+            <p>Administrateurs et managers peuvent créer des ordinateurs virtuels, gérer les utilisateurs et contrôler les ressources de manière sécurisée.</p>
+            <ul>
+                <li>Création de comptes</li>
+                <li>Gestion des abonnements</li>
+                <li>Activation et désactivation</li>
+                <li>Contrôle des ressources</li>
+            </ul>
+        </div>
+        <div class="feature-card">
+            <h2>Sécurité renforcée</h2>
+            <p>La plateforme protège vos données, assure une connexion sécurisée et sauvegarde automatiquement votre travail.</p>
+            <ul>
+                <li>Connexion chiffrée</li>
+                <li>Protection des données</li>
+                <li>Sauvegardes automatiques</li>
+                <li>Accès administrateur contrôlé</li>
+            </ul>
+        </div>
+        <div class="feature-card">
+            <h2>Objectif du projet</h2>
+            <p>Permettre à chaque utilisateur d'accéder à un ordinateur virtuel depuis n'importe quel appareil, sans avoir besoin d'un appareil physique puissant.</p>
+        </div>
+    </section>
+</div>
+{% endblock %}

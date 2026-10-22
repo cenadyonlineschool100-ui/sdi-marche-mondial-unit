@@ -349,7 +349,7 @@
                             Non défini
                         {% endif %}
                     </p>
-                    <p style="margin:10px 0 0 0;">Solde actuel : {{ tikane_account.balance|default:'0.00' }}</p>
+                    <p style="margin:10px 0 0 0;">Solde actuel : {{ tikane_account.balance|default:'0.00' }} {{ tikane_account.currency|default:'Devise inconnue' }}</p>
                 </div>
                 <div style="margin-top:18px; padding:18px; border-radius:20px; background: #ffffff; border:1px solid rgba(148,163,184,0.18);">
                     <h2 style="margin:0 0 8px 0;">Suivi des paiements journaliers</h2>

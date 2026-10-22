@@ -1,0 +1,442 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}🏠 Maison à Louer - SDI Immobilier{% endblock %}
+
+{% block content %}
+<style>
+.real-estate-hero {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 60px 20px;
+    text-align: center;
+    border-radius: 10px;
+    margin-bottom: 40px;
+}
+
+.real-estate-hero h1 {
+    font-size: 2.5rem;
+    margin-bottom: 10px;
+    font-weight: 700;
+}
+
+.real-estate-hero p {
+    font-size: 1.2rem;
+    opacity: 0.9;
+}
+
+.categories-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 16px;
+    margin-bottom: 28px;
+}
+
+.category-card {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 12px;
+    padding: 18px 14px;
+    text-align: center;
+    color: white;
+    cursor: pointer;
+    transition: transform 0.3s ease;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 0;
+}
+
+.category-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 20px rgba(0,0,0,0.16);
+}
+
+.category-card-icon {
+    font-size: clamp(2rem, 4vw, 2.8rem);
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 0;
+}
+
+.category-card-title {
+    font-size: clamp(1rem, 2vw, 1.2rem);
+    font-weight: 700;
+    line-height: 1.25;
+    margin: 0;
+    max-width: 100%;
+    word-break: break-word;
+}
+
+.category-card-count {
+    font-size: 0.8rem;
+    opacity: 0.82;
+    margin: 0;
+    line-height: 1.35;
+}
+
+.search-section {
+    background: white;
+    padding: 30px;
+    border-radius: 12px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+    margin-bottom: 40px;
+}
+
+.search-section h3 {
+    margin-bottom: 20px;
+    color: #333;
+}
+
+.search-form {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 15px;
+}
+
+.search-form input,
+.search-form select {
+    padding: 12px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    font-size: 0.95rem;
+}
+
+.search-form button {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 12px 30px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 600;
+}
+
+.properties-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: 25px;
+    margin-bottom: 40px;
+}
+
+.property-card {
+    background: white;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.property-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+}
+
+.property-image {
+    width: 100%;
+    height: 200px;
+    object-fit: cover;
+    position: relative;
+}
+
+.property-favorite-btn {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: rgba(255,255,255,0.9);
+    border: none;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 1.3rem;
+}
+
+.property-favorite-btn.favorited {
+    color: #ff4757;
+}
+
+.property-content {
+    padding: 20px;
+}
+
+.property-title {
+    font-size: 1.2rem;
+    font-weight: 600;
+    margin-bottom: 8px;
+    color: #333;
+}
+
+.property-location {
+    font-size: 0.9rem;
+    color: #999;
+    margin-bottom: 12px;
+}
+
+.property-features {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 15px;
+    font-size: 0.85rem;
+}
+
+.property-feature {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.property-price {
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: #667eea;
+    margin-bottom: 15px;
+}
+
+.property-btn {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 10px 15px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    width: 100%;
+    font-weight: 600;
+}
+
+.no-properties {
+    text-align: center;
+    padding: 22px 16px;
+    color: #999;
+    margin: 8px 0 12px;
+}
+
+.action-buttons {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 10px;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    margin-bottom: 30px;
+}
+
+.btn-primary, .btn-secondary {
+    padding: 12px 16px;
+    border: none;
+    border-radius: 10px;
+    font-weight: 700;
+    cursor: pointer;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    line-height: 1.35;
+    min-height: 46px;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    box-sizing: border-box;
+    white-space: normal;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.btn-primary {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+}
+
+.btn-secondary {
+    background: white;
+    border: 2px solid #667eea;
+    color: #667eea;
+}
+
+.btn-primary:hover, .btn-secondary:hover {
+    transform: translateY(-1px);
+}
+
+.btn-secondary:hover {
+    background: #f5f5f5;
+}
+
+@media (max-width: 640px) {
+    .categories-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+    }
+
+    .category-card {
+        padding: 16px 10px;
+    }
+
+    .category-card-title {
+        max-width: 100%;
+    }
+}
+
+@media (max-width: 420px) {
+    .categories-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .category-card {
+        padding: 14px 12px;
+    }
+
+    .category-card-icon {
+        font-size: 2.1rem;
+    }
+}
+
+@media (min-width: 641px) and (max-width: 1024px) {
+    .categories-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .action-buttons {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+</style>
+
+<div class="container" style="max-width: 1200px; margin: 0 auto; padding: 20px;">
+    <!-- Hero Section -->
+    <div class="real-estate-hero">
+        <h1>🏠 Bienvenue dans Maison à Louer SDI</h1>
+        <p>Trouvez facilement la maison, l'appartement, le terrain ou le local commercial qui correspond à vos besoins.</p>
+    </div>
+
+    <!-- Search Section -->
+    <div class="search-section">
+        <h3>🔍 Recherche Avancée</h3>
+        <form method="get" action="{% url 'real_estate:listing' %}" class="search-form">
+            <input type="text" name="city" placeholder="Ville" value="{{ filters.city }}">
+            <input type="text" name="neighborhood" placeholder="Quartier" value="{{ filters.neighborhood }}">
+            <select name="property_type">
+                <option value="">Tous les types</option>
+                <option value="maison" {% if filters.property_type == 'maison' %}selected{% endif %}>Maison</option>
+                <option value="appartement" {% if filters.property_type == 'appartement' %}selected{% endif %}>Appartement</option>
+                <option value="terrain" {% if filters.property_type == 'terrain' %}selected{% endif %}>Terrain</option>
+                <option value="local_commercial" {% if filters.property_type == 'local_commercial' %}selected{% endif %}>Local commercial</option>
+            </select>
+            <input type="number" name="price_min" placeholder="Prix min" value="{{ filters.price_min }}">
+            <input type="number" name="price_max" placeholder="Prix max" value="{{ filters.price_max }}">
+            <button type="submit">Rechercher</button>
+        </form>
+    </div>
+
+    <!-- Categories -->
+    <h2 style="margin-bottom: 20px;">📂 Catégories</h2>
+    <div class="categories-grid">
+        <div class="category-card" onclick="window.location='{% url 'real_estate:listing' %}?property_type=maison'">
+            <div class="category-card-icon">🏠</div>
+            <div class="category-card-title">Maisons</div>
+            <div class="category-card-count">{{ categories.maisons }} annonces</div>
+        </div>
+        <div class="category-card" onclick="window.location='{% url 'real_estate:listing' %}?property_type=appartement'">
+            <div class="category-card-icon">🏢</div>
+            <div class="category-card-title">Appartements</div>
+            <div class="category-card-count">{{ categories.appartements }} annonces</div>
+        </div>
+        <div class="category-card" onclick="window.location='{% url 'real_estate:listing' %}?property_type=terrain'">
+            <div class="category-card-icon">🌳</div>
+            <div class="category-card-title">Terrains</div>
+            <div class="category-card-count">{{ categories.terrains }} annonces</div>
+        </div>
+        <div class="category-card" onclick="window.location='{% url 'real_estate:listing' %}?property_type=local_commercial'">
+            <div class="category-card-icon">🏪</div>
+            <div class="category-card-title">Locaux commerciaux</div>
+            <div class="category-card-count">{{ categories.commerciaux }} annonces</div>
+        </div>
+    </div>
+
+    <!-- Action Buttons -->
+    <div class="action-buttons">
+        <a href="{% url 'real_estate:listing' %}" class="btn-primary">Voir toutes les propriétés</a>
+        <a href="{% url 'real_estate:create' %}" class="btn-primary">Publier une annonce</a>
+        {% if request.user.is_authenticated and not is_real_estate_member and not has_pending_request %}
+            <a href="{% url 'real_estate:become_member' %}" class="btn-primary">Demander à devenir membre immobilier</a>
+        {% elif request.user.is_authenticated and not is_real_estate_member and has_pending_request %}
+            <a href="{% url 'real_estate:home' %}" class="btn-secondary">Demande d'adhésion en cours</a>
+        {% endif %}
+        <a href="{% url 'real_estate:my_properties' %}" class="btn-secondary">Mes propriétés</a>
+        <a href="{% url 'real_estate:favorites' %}" class="btn-secondary">Mes favoris</a>
+        <a href="{% url 'real_estate:messages' %}" class="btn-secondary">Mes messages</a>
+    </div>
+
+    <!-- Latest Properties -->
+    <h2 style="margin-bottom: 20px;">✨ Annonces Récentes</h2>
+    <div class="properties-grid">
+        {% for property in page_obj %}
+            <div class="property-card">
+                {% if property.images.all.first %}
+                    <div style="position: relative;">
+                        <img src="{{ property.images.all.first.image.url }}" alt="{{ property.title }}" class="property-image">
+                        <button class="property-favorite-btn" onclick="toggleFavorite({{ property.id }})">
+                            {% if property.id in favorite_ids %}❤️{% else %}🤍{% endif %}
+                        </button>
+                    </div>
+                {% else %}
+                    <div style="width:100%;height:200px;background:#eee;display:flex;align-items:center;justify-content:center;">
+                        <span style="color:#999;">Pas d'image</span>
+                    </div>
+                {% endif %}
+                <div class="property-content">
+                    <div class="property-title">{{ property.title }}</div>
+                    <div class="property-location">📍 {{ property.city }}{% if property.neighborhood %}, {{ property.neighborhood }}{% endif %}</div>
+                    <div class="property-features">
+                        <div class="property-feature">🛏️ {{ property.bedrooms }} ch.</div>
+                        <div class="property-feature">🚿 {{ property.bathrooms }} SDB</div>
+                        <div class="property-feature">📐 {{ property.total_area }}m²</div>
+                    </div>
+                    <div class="property-price">{{ property.price|floatformat:0 }} {{ property.currency }}</div>
+                    <a href="{% url 'real_estate:detail' property.id %}" class="property-btn">Voir détails</a>
+                </div>
+            </div>
+        {% empty %}
+            <div class="no-properties">Aucune propriété disponible pour le moment.</div>
+        {% endfor %}
+    </div>
+
+    <!-- Pagination -->
+    {% if page_obj.has_other_pages %}
+        <nav style="text-align:center; margin-top:40px;">
+            {% if page_obj.has_previous %}
+                <a href="?page=1">Première</a>
+                <a href="?page={{ page_obj.previous_page_number }}">Précédente</a>
+            {% endif %}
+            <span>Page {{ page_obj.number }} sur {{ page_obj.paginator.num_pages }}</span>
+            {% if page_obj.has_next %}
+                <a href="?page={{ page_obj.next_page_number }}">Suivante</a>
+                <a href="?page={{ page_obj.paginator.num_pages }}">Dernière</a>
+            {% endif %}
+        </nav>
+    {% endif %}
+</div>
+
+<script>
+function toggleFavorite(propertyId) {
+    fetch(`/immobilier/favorite/${propertyId}/toggle/`, {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            location.reload();
+        }
+    });
+}
+</script>
+{% endblock %}

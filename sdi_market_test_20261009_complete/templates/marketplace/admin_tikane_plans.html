@@ -1,0 +1,399 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Gestion des Plans d'Épargne Ti Kanè{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-5 mb-5">
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h2>Plans d'Épargne Ti Kanè</h2>
+                    <p class="text-muted">Gérer les plans d'épargne disponibles pour les clients Ti Kanè</p>
+                </div>
+                <button class="btn btn-primary" data-toggle="modal" data-target="#newPlanModal">
+                    <i class="fas fa-plus"></i> Ajouter un nouveau plan
+                </button>
+            </div>
+        </div>
+    </div>
+
+    {% if messages %}
+    <div class="row mb-3">
+        <div class="col-md-12">
+            {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Liste des Plans -->
+    <div class="row mb-5">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0"><i class="fas fa-list"></i> Plans Disponibles ({{ plans.count }})</h5>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="bg-light">
+                            <tr>
+                                <th>Nom</th>
+                                <th>Durée</th>
+                                <th>Commission Fixe</th>
+                                <th>Commission Variable (%)</th>
+                                <th>Bonus de Rendement (%)</th>
+                                <th>Statut</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for plan in plans %}
+                            <tr>
+                                <td>
+                                    <strong>{{ plan.name }}</strong>
+                                    {% if plan.description %}
+                                    <br>
+                                    <small class="text-muted">{{ plan.description|truncatewords:10 }}</small>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <span class="badge badge-primary">{{ plan.get_duration_days_display }}</span>
+                                </td>
+                                <td>${{ plan.commission_fixed|floatformat:2 }}</td>
+                                <td>{{ plan.commission_variable|floatformat:2 }}%</td>
+                                <td>
+                                    <span class="badge badge-success">{{ plan.bonus_rate|floatformat:2 }}%</span>
+                                </td>
+                                <td>
+                                    {% if plan.active %}
+                                    <span class="badge badge-success"><i class="fas fa-check"></i> Actif</span>
+                                    {% else %}
+                                    <span class="badge badge-danger"><i class="fas fa-times"></i> Inactif</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <a href="?plan_id={{ plan.id }}" class="btn btn-sm btn-warning" title="Éditer">
+                                        <i class="fas fa-edit"></i> Éditer
+                                    </a>
+                                    <button class="btn btn-sm btn-danger" onclick="confirmDelete({{ plan.id }}, '{{ plan.name }}')" title="Supprimer">
+                                        <i class="fas fa-trash"></i> Supprimer
+                                    </button>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="7" class="text-center text-muted py-4">
+                                    <i class="fas fa-inbox"></i> Aucun plan créé. 
+                                    <a href="#" data-toggle="modal" data-target="#newPlanModal">Créer le premier plan</a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Formulaire d'Édition (si plan sélectionné) -->
+    {% if editing_plan %}
+    <div class="row mb-5">
+        <div class="col-md-8">
+            <div class="card border-warning">
+                <div class="card-header bg-warning text-dark">
+                    <h5 class="mb-0"><i class="fas fa-edit"></i> Éditer : {{ editing_plan.name }}</h5>
+                </div>
+                <div class="card-body">
+                    <form method="post" class="needs-validation">
+                        {% csrf_token %}
+                        <input type="hidden" name="plan_id" value="{{ editing_plan.id }}">
+                        
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ form.name.id_for_label }}"><strong>Nom du Plan</strong></label>
+                                {{ form.name }}
+                                {% if form.name.errors %}
+                                <small class="form-text text-danger">{{ form.name.errors }}</small>
+                                {% endif %}
+                            </div>
+                            
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ form.duration_days.id_for_label }}"><strong>Durée</strong></label>
+                                {{ form.duration_days }}
+                                {% if form.duration_days.errors %}
+                                <small class="form-text text-danger">{{ form.duration_days.errors }}</small>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-4 mb-3">
+                                <label for="{{ form.commission_fixed.id_for_label }}"><strong>Commission Fixe ($)</strong></label>
+                                {{ form.commission_fixed }}
+                                {% if form.commission_fixed.errors %}
+                                <small class="form-text text-danger">{{ form.commission_fixed.errors }}</small>
+                                {% endif %}
+                            </div>
+                            
+                            <div class="col-md-4 mb-3">
+                                <label for="{{ form.commission_variable.id_for_label }}"><strong>Commission Variable (%)</strong></label>
+                                {{ form.commission_variable }}
+                                {% if form.commission_variable.errors %}
+                                <small class="form-text text-danger">{{ form.commission_variable.errors }}</small>
+                                {% endif %}
+                            </div>
+                            
+                            <div class="col-md-4 mb-3">
+                                <label for="{{ form.bonus_rate.id_for_label }}"><strong>Bonus de Rendement (%)</strong></label>
+                                {{ form.bonus_rate }}
+                                {% if form.bonus_rate.errors %}
+                                <small class="form-text text-danger">{{ form.bonus_rate.errors }}</small>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="{{ form.description.id_for_label }}"><strong>Description</strong></label>
+                            {{ form.description }}
+                            {% if form.description.errors %}
+                            <small class="form-text text-danger">{{ form.description.errors }}</small>
+                            {% endif %}
+                        </div>
+
+                        <div class="form-check mb-3">
+                            {{ form.active }}
+                            <label class="form-check-label" for="{{ form.active.id_for_label }}">
+                                <strong>Plan actif</strong>
+                            </label>
+                        </div>
+
+                        <div class="btn-group" role="group">
+                            <button type="submit" name="action" value="update" class="btn btn-success">
+                                <i class="fas fa-save"></i> Enregistrer les modifications
+                            </button>
+                            <a href="{% url 'admin_tikane_plans' %}" class="btn btn-secondary">
+                                <i class="fas fa-times"></i> Annuler
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card bg-light">
+                <div class="card-header bg-secondary text-white">
+                    <h6 class="mb-0"><i class="fas fa-info-circle"></i> Détails du Plan</h6>
+                </div>
+                <div class="card-body">
+                    <dl class="row">
+                        <dt class="col-sm-6">Créé le:</dt>
+                        <dd class="col-sm-6">{{ editing_plan.created_at|date:"d/m/Y H:i" }}</dd>
+                        
+                        <dt class="col-sm-6">Mis à jour:</dt>
+                        <dd class="col-sm-6">{{ editing_plan.updated_at|date:"d/m/Y H:i" }}</dd>
+                        
+                        <dt class="col-sm-6">Demandes:</dt>
+                        <dd class="col-sm-6">{{ editing_plan.access_requests.count }}</dd>
+                        
+                        <dt class="col-sm-6">Comptes actifs:</dt>
+                        <dd class="col-sm-6">{{ editing_plan.accounts.active.count }}</dd>
+                    </dl>
+                    
+                    <button type="button" class="btn btn-danger btn-block mt-3" onclick="confirmDelete({{ editing_plan.id }}, '{{ editing_plan.name }}')">
+                        <i class="fas fa-trash"></i> Supprimer ce plan
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Modal: Ajouter un nouveau plan -->
+<div class="modal fade" id="newPlanModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title"><i class="fas fa-plus"></i> Ajouter un Nouveau Plan d'Épargne</h5>
+                <button type="button" class="close text-white" data-dismiss="modal">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <form method="post" id="newPlanForm">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="{{ form.name.id_for_label }}"><strong>Nom du Plan</strong> <span class="text-danger">*</span></label>
+                            {{ form.name }}
+                            {% if form.name.errors %}
+                            <small class="form-text text-danger">{{ form.name.errors }}</small>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="col-md-6 mb-3">
+                            <label for="{{ form.duration_days.id_for_label }}"><strong>Durée</strong> <span class="text-danger">*</span></label>
+                            {{ form.duration_days }}
+                            {% if form.duration_days.errors %}
+                            <small class="form-text text-danger">{{ form.duration_days.errors }}</small>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label for="{{ form.commission_fixed.id_for_label }}"><strong>Commission Fixe ($)</strong></label>
+                            {{ form.commission_fixed }}
+                            {% if form.commission_fixed.errors %}
+                            <small class="form-text text-danger">{{ form.commission_fixed.errors }}</small>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="col-md-4 mb-3">
+                            <label for="{{ form.commission_variable.id_for_label }}"><strong>Commission Variable (%)</strong></label>
+                            {{ form.commission_variable }}
+                            {% if form.commission_variable.errors %}
+                            <small class="form-text text-danger">{{ form.commission_variable.errors }}</small>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="col-md-4 mb-3">
+                            <label for="{{ form.bonus_rate.id_for_label }}"><strong>Bonus de Rendement (%)</strong></label>
+                            {{ form.bonus_rate }}
+                            {% if form.bonus_rate.errors %}
+                            <small class="form-text text-danger">{{ form.bonus_rate.errors }}</small>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="{{ form.description.id_for_label }}"><strong>Description</strong></label>
+                        {{ form.description }}
+                        {% if form.description.errors %}
+                        <small class="form-text text-danger">{{ form.description.errors }}</small>
+                        {% endif %}
+                    </div>
+
+                    <div class="form-check">
+                        {{ form.active }}
+                        <label class="form-check-label" for="{{ form.active.id_for_label }}">
+                            <strong>Plan actif</strong>
+                        </label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">
+                        <i class="fas fa-times"></i> Annuler
+                    </button>
+                    <button type="submit" name="action" value="create" class="btn btn-primary">
+                        <i class="fas fa-save"></i> Créer le plan
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Confirmer la suppression -->
+<div class="modal fade" id="deletePlanModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title"><i class="fas fa-trash"></i> Supprimer le Plan</h5>
+                <button type="button" class="close text-white" data-dismiss="modal">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <form method="post" id="deletePlanForm">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="delete">
+                <input type="hidden" id="deletePlanId" name="plan_id" value="">
+                <div class="modal-body">
+                    <div class="alert alert-warning" role="alert">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <strong>Attention!</strong> Cette action est irréversible.
+                    </div>
+                    <p>Êtes-vous certain de vouloir supprimer le plan <strong><span id="deletePlanName"></span></strong>?</p>
+                    <p class="text-muted"><small>Tous les accès et comptes associés à ce plan seront affectés.</small></p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">
+                        <i class="fas fa-times"></i> Annuler
+                    </button>
+                    <button type="submit" class="btn btn-danger">
+                        <i class="fas fa-trash"></i> Confirmer la suppression
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+function confirmDelete(planId, planName) {
+    document.getElementById('deletePlanId').value = planId;
+    document.getElementById('deletePlanName').textContent = planName;
+    $('#deletePlanModal').modal('show');
+}
+
+// Populate modal with existing form if not editing
+{% if not editing_plan and form %}
+document.addEventListener('DOMContentLoaded', function() {
+    const modal = document.getElementById('newPlanModal');
+    if (modal) {
+        // Bind form to modal on open
+        $('#newPlanModal').on('show.bs.modal', function() {
+            document.getElementById('newPlanForm').innerHTML = document.getElementById('newPlanForm').innerHTML;
+        });
+    }
+});
+{% endif %}
+</script>
+
+<style>
+.table-hover tbody tr:hover {
+    background-color: rgba(0, 123, 255, 0.05);
+}
+
+.badge {
+    padding: 0.5rem 0.75rem;
+}
+
+.btn-group .btn {
+    margin-right: 0.25rem;
+}
+
+.card {
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    border: 1px solid #dee2e6;
+}
+
+.modal-header {
+    border-bottom: 2px solid rgba(0, 0, 0, 0.1);
+}
+
+.form-control, .form-check-input {
+    border-radius: 0.25rem;
+}
+
+input[type="text"].form-control,
+input[type="number"].form-control,
+select.form-control,
+textarea.form-control {
+    border: 1px solid #ced4da;
+}
+
+textarea.form-control {
+    min-height: 80px;
+}
+</style>
+{% endblock %}

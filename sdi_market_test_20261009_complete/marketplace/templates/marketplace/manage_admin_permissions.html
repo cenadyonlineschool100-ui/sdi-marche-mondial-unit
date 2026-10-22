@@ -1,0 +1,243 @@
+{% extends "marketplace/base.html" %}
+
+{% block title %}
+    Gestion des Permissions Admin
+{% endblock %}
+
+{% block content %}
+<div class="content-container" style="max-width: 1000px; margin: 0 auto; padding: 20px;">
+    <h1>🔐 Gestion des Permissions Administrateur</h1>
+    <p>Accordez ou retirez l'accès aux différentes sections admin pour les administrateurs.</p>
+
+    {% if messages %}
+        <div style="margin-bottom: 20px;">
+            {% for message in messages %}
+                <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    <div class="permissions-section">
+        <h2>📋 Administrateurs</h2>
+        <p style="color: #666; margin-bottom: 20px;">
+            Cliquez sur les boutons pour accorder ou retirer les permissions aux administrateurs.
+        </p>
+
+        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(400px, 1fr)); gap: 20px;">
+            {% for admin in admins %}
+                <div style="border: 1px solid #ddd; border-radius: 8px; padding: 20px; background: #f9f9f9;">
+                    <div style="margin-bottom: 15px;">
+                        <h3 style="margin: 0 0 5px 0; font-size: 1.1rem;">
+                            {{ admin.user.get_full_name|default:admin.user.username }}
+                            {% if admin.is_super %}
+                                <span style="background: #ffc107; color: #000; padding: 2px 8px; border-radius: 4px; font-size: 0.85rem; margin-left: 10px;">Super Admin</span>
+                            {% endif %}
+                        </h3>
+                        <p style="margin: 0; color: #666; font-size: 0.9rem;">
+                            @{{ admin.user.username }}
+                        </p>
+                        {% if admin.user.email %}
+                            <p style="margin: 5px 0 0 0; color: #999; font-size: 0.9rem;">
+                                {{ admin.user.email }}
+                            </p>
+                        {% endif %}
+                    </div>
+
+                    <div style="border-top: 1px solid #e0e0e0; padding-top: 15px; margin-top: 15px;">
+                        <div style="margin-bottom: 12px;">
+                            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+                                <strong>👑 Pouvoir Admin Principal</strong>
+                                {% if admin.has_principal %}
+                                    <span style="color: #28a745; font-weight: bold;">✓ Actif</span>
+                                {% else %}
+                                    <span style="color: #dc3545; font-weight: bold;">✗ Inactif</span>
+                                {% endif %}
+                            </div>
+                            <form method="post" action="{% url 'toggle_principal_power' admin.user.id %}" style="display: inline;">
+                                {% csrf_token %}
+                                {% if admin.has_principal %}
+                                    <button type="submit" class="btn btn-sm btn-danger">Retirer pouvoir</button>
+                                {% else %}
+                                    <button type="submit" class="btn btn-sm btn-success">Accorder pouvoir</button>
+                                {% endif %}
+                            </form>
+                        </div>
+                        <div style="margin-bottom: 12px;">
+                            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+                                <strong>💰 Commission Retrait</strong>
+                                {% if admin.has_withdrawal %}
+                                    <span style="color: #28a745; font-weight: bold;">✓ Actif</span>
+                                {% else %}
+                                    <span style="color: #dc3545; font-weight: bold;">✗ Inactif</span>
+                                {% endif %}
+                            </div>
+                            <form method="post" action="{% url 'toggle_admin_permission' admin.user.id 'manage_withdrawal_commissions' %}" style="display: inline;">
+                                {% csrf_token %}
+                                {% if admin.has_withdrawal %}
+                                    <button type="submit" class="btn btn-sm btn-danger">Retirer accès</button>
+                                {% else %}
+                                    <button type="submit" class="btn btn-sm btn-success">Accorder accès</button>
+                                {% endif %}
+                            </form>
+                        </div>
+
+                        <div style="margin-bottom: 12px;">
+                            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+                                <strong>💳 Commission Dépôt</strong>
+                                {% if admin.has_deposit %}
+                                    <span style="color: #28a745; font-weight: bold;">✓ Actif</span>
+                                {% else %}
+                                    <span style="color: #dc3545; font-weight: bold;">✗ Inactif</span>
+                                {% endif %}
+                            </div>
+                            <form method="post" action="{% url 'toggle_admin_permission' admin.user.id 'manage_deposit_commissions' %}" style="display: inline;">
+                                {% csrf_token %}
+                                {% if admin.has_deposit %}
+                                    <button type="submit" class="btn btn-sm btn-danger">Retirer accès</button>
+                                {% else %}
+                                    <button type="submit" class="btn btn-sm btn-success">Accorder accès</button>
+                                {% endif %}
+                            </form>
+                        </div>
+
+                        <div style="margin-bottom: 12px;">
+                            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+                                <strong>💄 Studio Beauté</strong>
+                                {% if admin.has_beauty_studio %}
+                                    <span style="color: #28a745; font-weight: bold;">✓ Actif</span>
+                                {% else %}
+                                    <span style="color: #dc3545; font-weight: bold;">✗ Inactif</span>
+                                {% endif %}
+                            </div>
+                            <form method="post" action="{% url 'toggle_admin_permission' admin.user.id 'manage_beauty_studio_requests' %}" style="display: inline;">
+                                {% csrf_token %}
+                                {% if admin.has_beauty_studio %}
+                                    <button type="submit" class="btn btn-sm btn-danger">Retirer accès</button>
+                                {% else %}
+                                    <button type="submit" class="btn btn-sm btn-success">Accorder accès</button>
+                                {% endif %}
+                            </form>
+                        </div>
+
+                        {% if not admin.is_super %}
+                            <div style="margin-bottom: 0;">
+                                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+                                    <strong>🔑 Gestion Permissions</strong>
+                                    {% if admin.has_admin %}
+                                        <span style="color: #28a745; font-weight: bold;">✓ Actif</span>
+                                    {% else %}
+                                        <span style="color: #dc3545; font-weight: bold;">✗ Inactif</span>
+                                    {% endif %}
+                                </div>
+                                <form method="post" action="{% url 'toggle_admin_permission' admin.user.id 'manage_admin_permissions' %}" style="display: inline;">
+                                    {% csrf_token %}
+                                    {% if admin.has_admin %}
+                                        <button type="submit" class="btn btn-sm btn-danger">Retirer accès</button>
+                                    {% else %}
+                                        <button type="submit" class="btn btn-sm btn-success">Accorder accès</button>
+                                    {% endif %}
+                                </form>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            {% empty %}
+                <p>Aucun administrateur trouvé.</p>
+            {% endfor %}
+        </div>
+    </div>
+
+    <div style="margin-top: 40px; padding: 20px; background: #f0f8ff; border-radius: 8px; border-left: 4px solid #0066cc;">
+        <h3>📌 Informations</h3>
+        <ul style="margin: 10px 0; padding-left: 20px;">
+            <li><strong>Commission Retrait :</strong> Accès à la page "Commission Retrait" pour gérer les frais de retrait HTG.</li>
+            <li><strong>Commission Dépôt :</strong> Accès à la page "Commission Dépôt Agent" pour gérer les commissions de dépôt.</li>
+            <li><strong>Studio Beauté :</strong> Accès à la page de validation des demandes de studios de beauté.</li>
+            <li><strong>Gestion Permissions :</strong> Accès à cette page pour modifier les permissions des autres administrateurs.</li>
+            <li><strong>Super Admin :</strong> A accès à tous les droits automatiquement.</li>
+        </ul>
+    </div>
+
+    <div style="margin-top: 20px;">
+        <a href="{% url 'manage_agent_commissions' %}" class="btn btn-secondary">← Retour aux Commissions</a>
+    </div>
+</div>
+
+<style>
+    .content-container {
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+
+    .alert {
+        border-radius: 8px;
+        border: none;
+        padding: 12px 20px;
+    }
+
+    .alert-success {
+        background: #d4edda;
+        color: #155724;
+    }
+
+    .alert-error {
+        background: #f8d7da;
+        color: #721c24;
+    }
+
+    .btn {
+        padding: 8px 16px;
+        border-radius: 4px;
+        border: none;
+        cursor: pointer;
+        font-weight: 500;
+        font-size: 0.9rem;
+        transition: all 0.3s ease;
+    }
+
+    .btn-success {
+        background: #28a745;
+        color: white;
+    }
+
+    .btn-success:hover {
+        background: #218838;
+    }
+
+    .btn-danger {
+        background: #dc3545;
+        color: white;
+    }
+
+    .btn-danger:hover {
+        background: #c82333;
+    }
+
+    .btn-secondary {
+        background: #6c757d;
+        color: white;
+        text-decoration: none;
+    }
+
+    .btn-secondary:hover {
+        background: #5a6268;
+    }
+
+    .btn-sm {
+        padding: 6px 12px;
+        font-size: 0.85rem;
+    }
+
+    .permissions-section {
+        margin-top: 30px;
+    }
+
+    .permissions-section h2 {
+        margin-bottom: 15px;
+        color: #333;
+        font-size: 1.5rem;
+    }
+</style>
+{% endblock %}

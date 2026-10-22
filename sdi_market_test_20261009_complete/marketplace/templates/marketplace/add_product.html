@@ -1,0 +1,325 @@
+{% extends 'marketplace/base.html' %}
+{% block content %}
+<div class="card" style="max-width: 800px; margin: auto;">
+    <h2>🛍️ Ajouter un produit</h2>
+    <p class="text-muted">Entrez le nom du produit pour générer automatiquement une image pertinente</p>
+
+    <form method="post" enctype="multipart/form-data" id="productForm">
+        {% csrf_token %}
+
+        <!-- Nom du produit avec génération automatique -->
+        <div class="form-group">
+            {{ form.name.label_tag }}
+            {{ form.name }}
+            <div style="color:#b00020; font-size:.95rem;">{{ form.name.errors }}</div>
+            <small class="form-text text-muted">Tapez le nom et une image sera générée automatiquement</small>
+        </div>
+
+        <!-- Aperçu de l'image auto-générée -->
+        <div class="form-group" id="imagePreview" style="display: none;">
+            <label>Aperçu de l'image générée :</label>
+            <div class="image-preview-container">
+                <img id="generatedImage" src="" alt="Image générée" style="max-width: 300px; max-height: 200px; border: 1px solid #ddd; border-radius: 5px;">
+                <div class="image-actions mt-2">
+                    <button type="button" class="btn btn-outline-primary btn-sm" id="regenerateBtn">
+                        🔄 Nouvelle image
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Champ image caché (rempli automatiquement) -->
+        <div class="form-group" style="display: none;">
+            {{ form.image.label_tag }}
+            {{ form.image }}
+            {{ form.image.errors }}
+        </div>
+
+        <!-- Option pour remplacer par une image personnalisée -->
+        <div class="form-group">
+            <label for="{{ form.custom_image.id_for_label }}">
+                📤 Ou uploadez votre propre image (optionnel)
+            </label>
+            {{ form.custom_image }}
+            <div style="color:#b00020; font-size:.95rem;">{{ form.custom_image.errors }}</div>
+            <small class="form-text text-muted">Si vous uploadez une image, elle remplacera l'image auto-générée</small>
+        </div>
+
+        <!-- Autres champs -->
+        <div class="form-group">
+            {{ form.description.label_tag }}
+            {{ form.description }}
+            <div style="color:#b00020; font-size:.95rem;">{{ form.description.errors }}</div>
+        </div>
+
+        <div class="form-group">
+            {{ form.price_input_currency.label_tag }}
+            {{ form.price_input_currency }}
+            <div style="color:#b00020; font-size:.95rem;">{{ form.price_input_currency.errors }}</div>
+            <small class="form-text text-muted">Choisissez la devise dans laquelle vous voulez afficher le prix (HTG, DOP, EUR, USD).</small>
+        </div>
+
+        <div class="form-group">
+            {{ form.price_in_currency.label_tag }}
+            {{ form.price_in_currency }}
+            <div style="color:#b00020; font-size:.95rem;">{{ form.price_in_currency.errors }}</div>
+            <small class="form-text text-muted">Entrez le prix dans la devise sélectionnée. Le système convertit automatiquement ce montant en USD en interne.</small>
+        </div>
+
+        <div class="form-group">
+            {{ form.quantity.label_tag }}
+            {{ form.quantity }}
+            <div style="color:#b00020; font-size:.95rem;">{{ form.quantity.errors }}</div>
+        </div>
+
+        <!-- Dimensions du produit -->
+        <div class="form-group">
+            <h4 style="margin-top: 1.5rem; margin-bottom: 0.5rem;">📏 Dimensions du produit (optionnel)</h4>
+        </div>
+
+        <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+            <div class="form-group">
+                {{ form.largeur.label_tag }}
+                {{ form.largeur }}
+                <div style="color:#b00020; font-size:.95rem;">{{ form.largeur.errors }}</div>
+                <small class="form-text text-muted">Largeur en cm</small>
+            </div>
+
+            <div class="form-group">
+                {{ form.hauteur.label_tag }}
+                {{ form.hauteur }}
+                <div style="color:#b00020; font-size:.95rem;">{{ form.hauteur.errors }}</div>
+                <small class="form-text text-muted">Hauteur en cm</small>
+            </div>
+        </div>
+
+        <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+            <div class="form-group">
+                {{ form.longueur.label_tag }}
+                {{ form.longueur }}
+                <div style="color:#b00020; font-size:.95rem;">{{ form.longueur.errors }}</div>
+                <small class="form-text text-muted">Longueur en cm</small>
+            </div>
+
+            <div class="form-group">
+                {{ form.poids.label_tag }}
+                {{ form.poids }}
+                <div style="color:#b00020; font-size:.95rem;">{{ form.poids.errors }}</div>
+                <small class="form-text text-muted">Poids en kg</small>
+            </div>
+        </div>
+
+        <div class="form-group">
+            {{ form.category.label_tag }}
+            {{ form.category }}
+            <div style="color:#b00020; font-size:.95rem;">{{ form.category.errors }}</div>
+        </div>
+
+        <!-- Images multiples (galerie) -->
+        <div class="form-group">
+            {{ form.images.label_tag }}
+            {{ form.images }}
+            <div style="color:#b00020; font-size:.95rem;">{{ form.images.errors }}</div>
+            <small class="form-text text-muted">{{ form.images.help_text }}</small>
+        </div>
+
+        <button type="submit" class="button">✅ Ajouter le produit</button>
+    </form>
+</div>
+
+
+
+<style>
+.image-preview-container {
+    text-align: center;
+    padding: 15px;
+    background: #f8f9fa;
+    border-radius: 8px;
+    margin: 10px 0;
+}
+
+.image-actions {
+    margin-top: 10px;
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+}
+
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 10px 16px;
+    border-radius: 999px;
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: transform .2s ease, box-shadow .2s ease;
+    font-weight: 600;
+    text-decoration: none;
+    background: #ffffff;
+    color: #1d4ed8;
+}
+
+.btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 12px 24px rgba(29,78,216,.12);
+}
+
+.btn-outline-primary {
+    border-color: #1d4ed8;
+    color: #1d4ed8;
+}
+
+.btn-outline-secondary {
+    border-color: #64748b;
+    color: #475569;
+}
+
+.btn-close {
+    border: none;
+    background: transparent;
+    font-size: 1.4rem;
+    line-height: 1;
+    cursor: pointer;
+    color: #475569;
+}
+
+.custom-modal {
+    position: fixed;
+    inset: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    background: rgba(15,23,42,.45);
+    z-index: 9999;
+    padding: 24px;
+}
+
+.custom-modal.show {
+    display: flex;
+}
+
+.custom-modal-dialog {
+    width: min(900px, 100%);
+    max-height: 90vh;
+    overflow: hidden;
+}
+
+.custom-modal-content {
+    background: #ffffff;
+    border-radius: 24px;
+    overflow: hidden;
+    box-shadow: 0 24px 70px rgba(15,23,42,.18);
+    display: grid;
+    gap: 0;
+}
+
+.custom-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px 22px;
+    border-bottom: 1px solid rgba(148,163,184,.14);
+}
+
+.custom-modal-body {
+    padding: 20px;
+    overflow-y: auto;
+    max-height: 70vh;
+}
+
+
+.custom-modal-content {
+    background: white;
+    border-radius: 8px;
+    max-height: 70vh;
+}
+
+.loading {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    border: 3px solid #f3f3f3;
+    border-top: 3px solid #3498db;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+</style>
+
+<script>
+// Fonction pour générer une image automatiquement
+function generateImage(productName) {
+    if (!productName || productName.length < 2) return;
+
+    const previewDiv = document.getElementById('imagePreview');
+    const img = document.getElementById('generatedImage');
+    const imageInput = document.getElementById('id_image');
+
+    // Afficher un indicateur de chargement
+    img.src = '';
+    img.alt = 'Génération en cours...';
+    img.style.display = 'none';
+
+    const loading = document.createElement('div');
+    loading.className = 'loading';
+    loading.style.display = 'inline-block';
+    previewDiv.querySelector('.image-preview-container').prepend(loading);
+
+    fetch(`/api/generate-image/?name=${encodeURIComponent(productName)}`)
+        .then(response => response.json())
+        .then(data => {
+            loading.remove();
+            if (data.image_url) {
+                img.src = data.image_url;
+                img.alt = `Image pour ${productName}`;
+                img.style.display = 'block';
+                imageInput.value = data.image_url;
+                previewDiv.style.display = 'block';
+            } else {
+                console.error('Erreur génération image:', data.error);
+                img.alt = 'Erreur de génération';
+            }
+        })
+        .catch(error => {
+            loading.remove();
+            console.error('Erreur:', error);
+            img.alt = 'Erreur de génération';
+        });
+}
+
+// Événements
+document.addEventListener('DOMContentLoaded', function() {
+    const nameInput = document.getElementById('id_name');
+    const regenerateBtn = document.getElementById('regenerateBtn');
+    const customImageInput = document.getElementById('id_custom_image');
+
+    // Générer automatiquement quand on tape le nom
+    let timeout;
+    nameInput.addEventListener('input', function() {
+        clearTimeout(timeout);
+        timeout = setTimeout(() => {
+            generateImage(this.value);
+        }, 1000); // Attendre 1 seconde après que l'utilisateur arrête de taper
+    });
+
+    // Bouton régénérer
+    regenerateBtn.addEventListener('click', function() {
+        generateImage(nameInput.value);
+    });
+
+    // Désactiver le champ image si une image custom est uploadée
+    customImageInput.addEventListener('change', function() {
+        const imageInput = document.getElementById('id_image');
+        if (this.files && this.files[0]) {
+            imageInput.value = ''; // Vider l'URL auto-générée
+            document.getElementById('imagePreview').style.display = 'none';
+        }
+    });
+});
+</script>
+{% endblock %}

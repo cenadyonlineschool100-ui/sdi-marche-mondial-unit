@@ -1,0 +1,30 @@
+{% extends "marketplace/base.html" %}
+
+{% block title %}Demandes d'adhésion immobilier{% endblock %}
+
+{% block content %}
+<div class="container" style="max-width:900px;margin:40px auto;padding:20px;">
+    <h1>Demandes d'adhésion Immobilier</h1>
+    <table style="width:100%;border-collapse:collapse;">
+        <thead>
+            <tr><th>Utilisateur</th><th>Téléphone</th><th>Message</th><th>Status</th><th>Actions</th></tr>
+        </thead>
+        <tbody>
+            {% for req in requests %}
+            <tr style="border-top:1px solid #eee;">
+                <td>{{ req.user.username }}<br>{{ req.full_name }}</td>
+                <td>{{ req.phone }}</td>
+                <td>{{ req.message|linebreaksbr }}</td>
+                <td>{{ req.get_status_display }}</td>
+                <td>
+                    <form action="{% url 'real_estate:approve_membership_request' req.id %}" method="post" style="display:inline">{% csrf_token %}<button class="button">Approuver</button></form>
+                    <form action="{% url 'real_estate:reject_membership_request' req.id %}" method="post" style="display:inline;margin-left:8px">{% csrf_token %}<button class="button secondary">Rejeter</button></form>
+                </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="5">Aucune demande.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

@@ -1,0 +1,92 @@
+{% extends 'marketplace/base.html' %}
+
+{% block title %}Devoirs - {{ course.title }}{% endblock %}
+
+{% block content %}
+<section class="section-header">
+    <h2>Devoirs du cours</h2>
+    <p>Suivez vos travaux, leurs dates de rendu et leur statut.</p>
+</section>
+
+<div class="learning-grid" style="margin-top:24px;">
+    <div class="learning-card" style="flex:1; min-width:320px;">
+        <h3>{{ course.title }}</h3>
+        <p>Vous pouvez consulter le détail de chaque devoir et préparer vos livrables.</p>
+    </div>
+    <div class="learning-card" style="flex:1; min-width:320px;">
+        <h3>Actions</h3>
+        <ul class="feature-list">
+            <li><strong>Voir le cours :</strong> <a href="{% url 'course_detail' course.id %}">Retour au détail du cours</a></li>
+            <li><strong>Rejoindre une session :</strong> <a href="{% url 'live_webrtc' course.id %}">WebRTC démo</a></li>
+            <li><strong>Rejoindre via Jitsi :</strong> <a href="{% url 'live_jitsi' course.id %}">Salle Jitsi</a></li>
+        </ul>
+    </div>
+</div>
+
+{% if messages %}
+    <div style="margin-top:20px;">
+        {% for message in messages %}
+            <div class="alert {% if message.tags %}{{ message.tags }}{% endif %}">{{ message }}</div>
+        {% endfor %}
+    </div>
+{% endif %}
+
+<div class="learning-grid" style="margin-top:24px; gap:24px;">
+    <div class="learning-card" style="flex:1; min-width:320px;">
+        <h3>Soumettre un devoir</h3>
+        <form method="post" enctype="multipart/form-data">
+            {% csrf_token %}
+            <div class="form-group">
+                {{ form.assignment_title.label_tag }}
+                {{ form.assignment_title }}
+                {% if form.assignment_title.errors %}
+                    <p class="field-error">{{ form.assignment_title.errors }}</p>
+                {% endif %}
+            </div>
+            <div class="form-group">
+                {{ form.comments.label_tag }}
+                {{ form.comments }}
+                {% if form.comments.errors %}
+                    <p class="field-error">{{ form.comments.errors }}</p>
+                {% endif %}
+            </div>
+            <div class="form-group">
+                {{ form.submission_file.label_tag }}
+                {{ form.submission_file }}
+                {% if form.submission_file.errors %}
+                    <p class="field-error">{{ form.submission_file.errors }}</p>
+                {% endif %}
+            </div>
+            <button type="submit" class="button">Envoyer le devoir</button>
+        </form>
+    </div>
+    <div class="learning-card" style="flex:1; min-width:320px;">
+        <h3>Historique des soumissions</h3>
+        {% if submissions %}
+            <ul class="feature-list">
+                {% for submission in submissions %}
+                    <li>
+                        <strong>{{ submission.assignment.title }}</strong><br>
+                        Soumis le {{ submission.submitted_at }}<br>
+                        <a href="{{ submission.file.url }}" target="_blank">Télécharger le fichier</a>
+                        {% if submission.comments %}<br><em>{{ submission.comments }}</em>{% endif %}
+                    </li>
+                {% endfor %}
+            </ul>
+        {% else %}
+            <p>Aucune soumission enregistrée pour le moment.</p>
+        {% endif %}
+        <p><strong>Progression actuelle :</strong> {{ course.progress }}%</p>
+    </div>
+</div>
+
+<div class="learning-grid" style="margin-top:24px;">
+    {% for a in course.assignments %}
+        <article class="learning-card">
+            <h3>{{ a.title }}</h3>
+            <p><strong>Date de rendu :</strong> {% if a.due_date %}{{ a.due_date|date:"d/m/Y" }}{% else %}À définir{% endif %}</p>
+            <p><strong>Statut :</strong> {{ a.display_status }}</p>            <p><a href="#" class="button">Voir le devoir</a></p>
+        </article>
+    {% endfor %}
+</div>
+{% endblock %}

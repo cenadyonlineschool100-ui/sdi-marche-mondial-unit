@@ -1,0 +1,331 @@
+{% extends 'marketplace/base.html' %}
+{% block content %}
+<style>
+    .commission-page,
+    .commission-page * {
+        box-sizing: border-box;
+    }
+    .commission-container {
+        width: 100%;
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 16px 20px 40px;
+    }
+    .commission-card {
+        width: 100%;
+        background: white;
+        border-radius: 20px;
+        box-shadow: 0 10px 30px rgba(15, 23, 42, 0.07);
+        border: 1px solid #dbeafe;
+        padding: clamp(20px, 4vw, 32px);
+        margin-bottom: 1.5rem;
+    }
+    .commission-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 16px;
+        flex-wrap: wrap;
+        margin-bottom: 28px;
+    }
+    .commission-title {
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+        min-width: 0;
+        font-size: clamp(1.8rem, 5vw, 2.5rem);
+        line-height: 1.1;
+        font-weight: 700;
+        color: #0f2d5c;
+    }
+    .commission-title > span:first-child {
+        display: grid;
+        flex: 0 0 44px;
+        width: 44px;
+        height: 44px;
+        place-items: center;
+        border-radius: 12px;
+        background: #dbeafe;
+        font-size: 1.35rem;
+    }
+    .commission-title > span:last-child {
+        min-width: 0;
+        overflow-wrap: anywhere;
+    }
+    .commission-subtitle {
+        margin: 12px 0 0;
+        color: #475569;
+        line-height: 1.55;
+    }
+    .commission-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 999px;
+        padding: 0.75rem 1.25rem;
+        font-size: 0.9rem;
+        font-weight: 700;
+        background: #d1fae5;
+        color: #166534;
+    }
+    .balance-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 16px;
+        margin-bottom: 24px;
+    }
+    .balance-item {
+        background: #f8fafc;
+        padding: 20px;
+        border-radius: 12px;
+        border: 1px solid #e2e8f0;
+        text-align: center;
+    }
+    .balance-value {
+        font-size: 1.75rem;
+        font-weight: 800;
+        color: #0f172a;
+        margin: 0;
+    }
+    .balance-label {
+        color: #64748b;
+        font-size: 0.9rem;
+        margin-top: 8px;
+    }
+    .history-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.95rem;
+    }
+    .history-table thead {
+        background: #f8fafc;
+    }
+    .history-table th {
+        padding: 12px;
+        text-align: left;
+        border-bottom: 2px solid #e2e8f0;
+        font-weight: 600;
+        color: #334155;
+    }
+    .history-table td {
+        padding: 12px;
+        border-bottom: 1px solid #e2e8f0;
+        color: #475569;
+    }
+    .history-table tbody tr:hover {
+        background: #f8fafc;
+    }
+    .info-panel {
+        background: linear-gradient(135deg, rgba(56, 189, 248, 0.12), rgba(79, 70, 229, 0.08));
+        border: 1px solid rgba(59, 130, 246, 0.14);
+        border-radius: 12px;
+        padding: 16px;
+        margin-bottom: 24px;
+    }
+    .info-panel h5 {
+        margin: 0 0 12px 0;
+        color: #0f172a;
+        font-weight: 600;
+    }
+    .info-panel p {
+        margin: 8px 0;
+        color: #475569;
+        font-size: 0.95rem;
+    }
+    .btn-back {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 16px;
+        background: #fff;
+        color: #334155;
+        border: 1px solid #cbd5e1;
+        text-decoration: none;
+        border-radius: 8px;
+        font-weight: 600;
+        transition: background 0.2s ease;
+    }
+    .btn-back:hover {
+        background: #f8fafc;
+        border-color: #94a3b8;
+    }
+    .btn-back:focus-visible {
+        outline: 3px solid rgba(37, 99, 235, .24);
+        outline-offset: 2px;
+    }
+    .commission-info-heading {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin: 0 0 14px;
+        color: #0f172a;
+        font-size: 1.1rem;
+    }
+    .commission-info-panel {
+        background: #f8fbff;
+        border: 1px solid #bfdbfe;
+        border-radius: 14px;
+        padding: 18px;
+        margin-bottom: 28px;
+    }
+    .commission-info-panel p {
+        line-height: 1.6;
+    }
+    .commission-info-panel ul {
+        display: grid;
+        gap: 8px;
+        margin: 14px 0;
+        padding-left: 20px;
+        color: #334155;
+        line-height: 1.55;
+    }
+    .commission-rule {
+        margin-top: 16px !important;
+        padding: 14px 16px;
+        border-left: 3px solid #2563eb;
+        border-radius: 10px;
+        background: #fff;
+        color: #334155;
+    }
+    .commission-status {
+        margin: 10px 0 0 !important;
+        color: #334155;
+        line-height: 1.55;
+    }
+    .commission-status.is-active,
+    .commission-status.is-eligible {
+        color: #166534;
+    }
+    .commission-status.is-disabled {
+        color: #b91c1c;
+    }
+    .commission-status.is-ineligible {
+        color: #92400e;
+    }
+    @media (max-width: 600px) {
+        .commission-container {
+            padding: 10px 16px 32px;
+        }
+        .commission-card {
+            padding: 20px 16px;
+            border-radius: 16px;
+        }
+        .commission-header {
+            gap: 18px;
+            margin-bottom: 22px;
+        }
+        .commission-title {
+            gap: 10px;
+            font-size: clamp(1.7rem, 9vw, 2.25rem);
+        }
+        .commission-title > span:first-child {
+            flex-basis: 40px;
+            width: 40px;
+            height: 40px;
+        }
+        .commission-header > div:first-child,
+        .btn-back {
+            width: 100%;
+        }
+        .btn-back {
+            justify-content: center;
+        }
+        .balance-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+
+<div class="commission-container commission-page">
+    <div class="commission-card">
+        <div class="commission-header">
+            <div>
+                <div class="commission-title">
+                    <span>💰</span>
+                    <span>Commission Peuple</span>
+                </div>
+                <p class="commission-subtitle">Gérez vos revenus de Commission Peuple</p>
+            </div>
+            <a href="{% url 'profile' %}" class="btn-back">← Retour au profil</a>
+        </div>
+
+        <div class="info-panel commission-info-panel">
+            <h5 class="commission-info-heading">ℹ️ À propos de Commission Peuple</h5>
+            <p>Commission Peuple est un système de rémunération pour les utilisateurs actifs.</p>
+            <p>Vous pouvez gagner des commissions en :</p>
+            <ul>
+                <li>Effectuant des achats sur la plateforme</li>
+                <li>Vendant des produits dans votre boutique</li>
+                <li>Participant à l'écosystème SDI Market</li>
+            </ul>
+            <p class="commission-rule"><strong>Règle principale</strong><br>L'éligibilité est calculée automatiquement par la plateforme et ne peut pas être modifiée depuis votre profil.</p>
+            {% if peuple_rule_active %}
+            <p class="commission-status is-active"><strong>Statut :</strong> La catégorie <em>Commission Peuple</em> est active.</p>
+            {% else %}
+            <p class="commission-status is-disabled"><strong>Attention :</strong> La distribution de Commission Peuple est actuellement désactivée côté système.</p>
+            {% endif %}
+            {% if is_eligible_for_peuple %}
+            <p class="commission-status is-eligible"><strong>Éligibilité :</strong> Vous êtes éligible à la Commission Peuple.</p>
+            {% else %}
+            <p class="commission-status is-ineligible"><strong>Éligibilité :</strong> Vous n'êtes pas encore éligible. Passez une commande ou vendez un produit pour devenir éligible.</p>
+            {% endif %}
+            <p class="commission-status"><strong>Solde actuel :</strong> Les fonds sont déposés dans un portefeuille dédié Commission Peuple.</p>
+        </div>
+
+        <h4 style="color: #0f172a; margin: 24px 0 16px 0;">Soldes de Commission Peuple</h4>
+        <div class="balance-grid">
+            <div class="balance-item">
+                <p class="balance-value">{{ peuple_summary.USD|default:"0.00" }}</p>
+                <p class="balance-label">USD</p>
+            </div>
+            <div class="balance-item">
+                <p class="balance-value">{{ peuple_summary.HTG|default:"0.00" }}</p>
+                <p class="balance-label">HTG (Haitian Gourdes)</p>
+            </div>
+            <div class="balance-item">
+                <p class="balance-value">{{ peuple_summary.PESO|default:"0.00" }}</p>
+                <p class="balance-label">PESO (Pesos Dominicains)</p>
+            </div>
+            <div class="balance-item">
+                <p class="balance-value">{{ peuple_summary.EUR|default:"0.00" }}</p>
+                <p class="balance-label">EUR (Euros)</p>
+            </div>
+        </div>
+
+        {% if distribution_logs %}
+        <h4 style="color: #0f172a; margin: 24px 0 16px 0;">Historique de Distribution</h4>
+        <div style="overflow-x: auto;">
+            <table class="history-table">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Devise</th>
+                        <th>Montant</th>
+                        <th>Description</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for log in distribution_logs %}
+                    <tr>
+                        <td>{{ log.created_at|date:"d/m/Y H:i" }}</td>
+                        <td><strong>{{ log.currency }}</strong></td>
+                        <td style="color: #16a34a; font-weight: 600;">+{{ log.amount }}</td>
+                        <td>{{ log.description }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="4" style="text-align: center; color: #64748b; padding: 20px;">Aucun historique de distribution disponible</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div style="background: #f8fafc; padding: 20px; border-radius: 12px; text-align: center; color: #64748b;">
+            <p style="margin: 0;">Aucune distribution de Commission Peuple pour le moment.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+{% endblock %}

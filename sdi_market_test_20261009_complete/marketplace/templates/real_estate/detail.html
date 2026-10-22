@@ -1,0 +1,309 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ property.title }} - SDI Immobilier{% endblock %}
+
+{% block content %}
+<div class="container" style="max-width: 1200px; margin: 20px auto;">
+    <div style="display:grid;grid-template-columns:2fr 1fr;gap:25px;">
+        <!-- Main Content -->
+        <div>
+            <!-- Gallery -->
+            <div style="margin-bottom:30px;">
+                <style>
+                    .real-estate-main-image-wrapper {
+                        position: relative;
+                        overflow: hidden;
+                        border-radius: 14px;
+                        cursor: zoom-in;
+                        min-height: 380px;
+                        background: #f8f9fb;
+                    }
+                    .real-estate-main-image-wrapper img {
+                        width: 100%;
+                        height: auto;
+                        display: block;
+                        transition: transform 0.25s ease;
+                        transform-origin: center center;
+                    }
+                    .real-estate-main-image-wrapper.zoomed {
+                        cursor: zoom-out;
+                    }
+                    .real-estate-main-image-wrapper.zoomed img {
+                        transform: scale(1.85);
+                    }
+                    .real-estate-thumbnails {
+                        display: grid;
+                        grid-template-columns: repeat(4, 1fr);
+                        gap: 10px;
+                        margin-top: 10px;
+                    }
+                    .real-estate-thumbnails img {
+                        width: 100%;
+                        height: 100px;
+                        object-fit: cover;
+                        border-radius: 10px;
+                        cursor: pointer;
+                        transition: transform 0.2s ease, box-shadow 0.2s ease;
+                        border: 2px solid transparent;
+                    }
+                    .real-estate-thumbnails img:hover {
+                        transform: scale(1.03);
+                        box-shadow: 0 10px 18px rgba(0, 0, 0, 0.12);
+                    }
+                    .real-estate-thumbnails img.active {
+                        border-color: #667eea;
+                    }
+                    .image-section {
+                        margin-top: 25px;
+                    }
+                    .image-grid {
+                        display: grid;
+                        grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+                        gap: 12px;
+                    }
+                    .image-card {
+                        border-radius: 12px;
+                        overflow: hidden;
+                        background: #fff;
+                        border: 1px solid #eceeef;
+                    }
+                    .image-card img {
+                        width: 100%;
+                        height: 130px;
+                        object-fit: cover;
+                        display: block;
+                    }
+                    .image-card p {
+                        margin: 10px;
+                        font-size: 0.95rem;
+                        color: #444;
+                    }
+                </style>
+                {% if images %}
+                    <div style="margin-bottom:20px;">
+                        <div style="font-size:1rem;font-weight:700;margin-bottom:10px;color:#2d3748;">Photo générale de la maison</div>
+                        <div id="mainImageWrapper" class="real-estate-main-image-wrapper">
+                            {% if main_image %}
+                                <img id="mainImage" src="{{ main_image.image.url }}" alt="{{ property.title }}">
+                            {% else %}
+                                <img id="mainImage" src="{{ images.0.image.url }}" alt="{{ property.title }}">
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% if exterior_images %}
+                        <div class="image-section">
+                            <h4>🏡 Extérieur</h4>
+                            <div class="image-grid">
+                                {% for img in exterior_images %}
+                                    <div class="image-card"><img src="{{ img.image.url }}" alt="{{ property.title }}"><p>{{ img.get_image_type_display|default:'Extérieur' }}</p></div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    {% endif %}
+                    {% if kitchen_images or bedroom_images or bathroom_images or toilet_images or interior_images %}
+                        <div class="image-section">
+                            <h4>🏠 Intérieurs</h4>
+                            <div class="image-grid">
+                                {% for img in interior_images %}
+                                    <div class="image-card"><img src="{{ img.image.url }}" alt="{{ property.title }}"><p>{{ img.get_image_type_display|default:'Intérieur' }}</p></div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        <div class="image-section" style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+                            {% if bedroom_images %}
+                                <div>
+                                    <h4>🛏️ Chambres</h4>
+                                    <div class="image-grid">
+                                        {% for img in bedroom_images %}
+                                            <div class="image-card"><img src="{{ img.image.url }}" alt="Chambre"><p>{{ img.get_image_type_display|default:'Chambre' }}</p></div>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                            {% endif %}
+                            {% if bathroom_images %}
+                                <div>
+                                    <h4>🛁 Salles de bain</h4>
+                                    <div class="image-grid">
+                                        {% for img in bathroom_images %}
+                                            <div class="image-card"><img src="{{ img.image.url }}" alt="Salle de bain"><p>{{ img.get_image_type_display|default:'Salle de bain' }}</p></div>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                            {% endif %}
+                        </div>
+                        <div class="image-section" style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+                            {% if toilet_images %}
+                                <div>
+                                    <h4>🚽 Toilettes</h4>
+                                    <div class="image-grid">
+                                        {% for img in toilet_images %}
+                                            <div class="image-card"><img src="{{ img.image.url }}" alt="Toilettes"><p>{{ img.get_image_type_display|default:'Toilettes' }}</p></div>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                            {% endif %}
+                            {% if kitchen_images %}
+                                <div>
+                                    <h4>🍽️ Cuisine</h4>
+                                    <div class="image-grid">
+                                        {% for img in kitchen_images %}
+                                            <div class="image-card"><img src="{{ img.image.url }}" alt="Cuisine"><p>{{ img.get_image_type_display|default:'Cuisine' }}</p></div>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                            {% endif %}
+                        </div>
+                    {% endif %}
+                    {% if other_images %}
+                        <div class="image-section">
+                            <h4>🔎 Autres espaces</h4>
+                            <div class="image-grid">
+                                {% for img in other_images %}
+                                    <div class="image-card"><img src="{{ img.image.url }}" alt="Autre espace"><p>{{ img.get_image_type_display|default:'Autre' }}</p></div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    {% endif %}
+                    <div class="image-section">
+                        <h4>Galerie complète</h4>
+                        <div class="real-estate-thumbnails">
+                            {% for img in images %}
+                                <img src="{{ img.image.url }}" alt="{{ img.caption|default:property.title }}" onclick="setMainImage(this);"{% if forloop.first %} class="active"{% endif %}>
+                            {% endfor %}
+                        </div>
+                    </div>
+                {% else %}
+                    <div style="background:#eee;height:400px;display:flex;align-items:center;justify-content:center;">Pas d'image</div>
+                {% endif %}
+            </div>
+
+            <!-- Property Details -->
+            <h2>{{ property.title }}</h2>
+            <p style="color:#666;font-size:1.1rem;">📍 {{ property.address }}, {{ property.city }}, {{ property.country }}</p>
+            
+            <div style="background:#f9f9f9;padding:20px;border-radius:10px;margin:20px 0;">
+                <h3 style="margin-bottom:15px;">📋 Détails du bien</h3>
+                <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:15px;">
+                    <div><strong>Type:</strong> {{ property.get_property_type_display }}</div>
+                    <div><strong>Statut:</strong> {{ property.get_listing_type_display }}</div>
+                    <div><strong>Surface:</strong> {{ property.total_area }} m²</div>
+                    <div><strong>Chambres:</strong> {{ property.bedrooms }}</div>
+                    <div><strong>Salles de bain:</strong> {{ property.bathrooms }}</div>
+                    <div><strong>Parking:</strong> {% if property.has_parking %}✅ Oui{% else %}❌ Non{% endif %}</div>
+                    <div><strong>Jardin:</strong> {% if property.has_garden %}✅ Oui{% else %}❌ Non{% endif %}</div>
+                    <div><strong>Balcon:</strong> {% if property.has_balcony %}✅ Oui{% else %}❌ Non{% endif %}</div>
+                </div>
+            </div>
+
+            <div style="margin:20px 0;">
+                <h3>Description</h3>
+                <p>{{ property.description }}</p>
+            </div>
+
+            {% if reviews %}
+                <div style="margin:30px 0;">
+                    <h3>⭐ Avis ({{ review_count }})</h3>
+                    <div>Note moyenne: {{ avg_rating|floatformat:1 }}/5</div>
+                    {% for review in reviews %}
+                        <div style="background:#f9f9f9;padding:15px;border-radius:8px;margin:10px 0;">
+                            <strong>{{ review.user.first_name }}</strong> - ⭐ {{ review.rating }}/5<br>
+                            <small>{{ review.created_at|date:"d/m/Y" }}</small><br>
+                            {{ review.description }}
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        </div>
+
+        <!-- Sidebar -->
+        <div>
+            <!-- Price Card -->
+            <div style="background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);color:white;padding:25px;border-radius:10px;margin-bottom:20px;">
+                <div style="font-size:2rem;font-weight:700;margin-bottom:10px;">{{ property.price|floatformat:0 }} {{ property.currency }}</div>
+                {% if property.listing_type == 'location' %}
+                    <small>Par mois</small>
+                {% endif %}
+                <div style="margin-top:15px;">Publié le {{ property.published_at|date:"d/m/Y" }}</div>
+            </div>
+
+            <!-- Owner Info -->
+            <div style="background:white;padding:20px;border-radius:10px;box-shadow:0 2px 10px rgba(0,0,0,0.1);margin-bottom:20px;">
+                <h4>👤 Propriétaire</h4>
+                <div style="margin-top:15px;">
+                    <strong>{{ property.owner.first_name }} {{ property.owner.last_name }}</strong><br>
+                    📞 {{ property.owner.username }}<br>
+                    <button onclick="contactOwner({{ property.id }})" style="width:100%;padding:10px;background:#667eea;color:white;border:none;border-radius:6px;cursor:pointer;margin-top:10px;font-weight:600;">📩 Contacter</button>
+                    <a href="{% url 'real_estate:favorites' %}" style="width:100%;padding:10px;background:white;color:#667eea;border:2px solid #667eea;border-radius:6px;cursor:pointer;display:block;text-align:center;margin-top:10px;font-weight:600;text-decoration:none;">{% if is_favorite %}❌ Retirer des favoris{% else %}❤️ Ajouter aux favoris{% endif %}</a>
+                </div>
+            </div>
+
+            <!-- Message Form (if authenticated) -->
+            {% if user.is_authenticated %}
+                <div style="background:white;padding:20px;border-radius:10px;box-shadow:0 2px 10px rgba(0,0,0,0.1);">
+                    <h4>💬 Envoyer un message</h4>
+                    <form id="messageForm">
+                        {% csrf_token %}
+                        <textarea name="message" placeholder="Votre message..." style="width:100%;padding:10px;border:1px solid #ddd;border-radius:6px;resize:none;height:100px;"></textarea>
+                        <button type="submit" style="width:100%;padding:10px;background:#667eea;color:white;border:none;border-radius:6px;cursor:pointer;margin-top:10px;font-weight:600;">Envoyer</button>
+                    </form>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<script>
+const mainImageWrapper = document.getElementById('mainImageWrapper');
+const mainImage = document.getElementById('mainImage');
+
+function setMainImage(imageElement) {
+    if (!imageElement || !mainImage) return;
+    const thumbnails = document.querySelectorAll('.real-estate-thumbnails img');
+    thumbnails.forEach((thumb) => thumb.classList.remove('active'));
+    imageElement.classList.add('active');
+    mainImage.src = imageElement.src;
+    mainImageWrapper?.classList.remove('zoomed');
+}
+
+mainImageWrapper?.addEventListener('mousemove', function(event) {
+    if (!mainImage) return;
+    const rect = mainImageWrapper.getBoundingClientRect();
+    const x = ((event.clientX - rect.left) / rect.width) * 100;
+    const y = ((event.clientY - rect.top) / rect.height) * 100;
+    mainImage.style.transformOrigin = `${x}% ${y}%`;
+});
+
+mainImageWrapper?.addEventListener('mouseenter', function() {
+    if (!this.classList.contains('zoomed')) {
+        mainImage.style.transform = 'scale(1.15)';
+    }
+});
+
+mainImageWrapper?.addEventListener('mouseleave', function() {
+    if (!this.classList.contains('zoomed')) {
+        mainImage.style.transform = 'scale(1)';
+    }
+});
+
+mainImageWrapper?.addEventListener('click', function() {
+    if (!mainImage) return;
+    this.classList.toggle('zoomed');
+    if (!this.classList.contains('zoomed')) {
+        mainImage.style.transform = 'scale(1)';
+    }
+});
+
+document.getElementById('messageForm')?.addEventListener('submit', function(e) {
+    e.preventDefault();
+    const formData = new FormData(this);
+    fetch(`/immobilier/property/{{ property.id }}/contact/`, {
+        method: 'POST',
+        body: formData,
+    }).then(r => r.json()).then(data => {
+        if(data.success) alert('Message envoyé!');
+        else alert('Erreur: ' + data.message);
+    });
+});
+</script>
+{% endblock %}

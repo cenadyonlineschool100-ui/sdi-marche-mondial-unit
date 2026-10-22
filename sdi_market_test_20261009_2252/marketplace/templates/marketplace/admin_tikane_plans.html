@@ -1,0 +1,75 @@
+{% extends 'marketplace/base.html' %}
+{% block content %}
+<div class="container" style="padding: 24px 0;">
+    <div class="fintech-card" style="padding:28px;">
+        <h1 style="margin-top:0;">Plans Ti Kanè</h1>
+        <p style="color:#475569;">Créez et modifiez les plans d’épargne disponibles pour les comptes Ti Kanè Digital.</p>
+        <div style="display:grid; gap:24px;">
+            <div style="background:#f8fafc; padding:20px; border-radius:24px; border:1px solid rgba(59,130,246,0.16);">
+                <h2 style="margin-top:0;">{% if editing_plan %}Modifier le plan{% else %}Nouveau plan{% endif %}</h2>
+                <form method="post" style="display:grid; gap:16px;">
+                    {% csrf_token %}
+                    {{ form.non_field_errors }}
+                    <input type="hidden" name="plan_id" value="{% if editing_plan %}{{ editing_plan.id }}{% else %}{% endif %}">
+                    <label>Nom du plan</label>
+                    {{ form.name }}
+                    <label>Durée</label>
+                    {{ form.duration_days }}
+                    <label>Commission fixe</label>
+                    {{ form.commission_fixed }}
+                    <label>Commission variable (%)</label>
+                    {{ form.commission_variable }}
+                    <label>Bonus de rendement (%)</label>
+                    {{ form.bonus_rate }}
+                    <label>Description</label>
+                    {{ form.description }}
+                    <label>Actif</label>
+                    <div>{{ form.active }} {{ form.active.label }}</div>
+                    <div style="display:flex; gap:12px; flex-wrap:wrap;">
+                        <button type="submit" class="fintech-btn btn-primary" style="flex:1 1 auto;">Enregistrer le plan</button>
+                        {% if editing_plan %}
+                            <a href="{% url 'admin_tikane_plans' %}" class="fintech-btn btn-secondary" style="flex:1 1 auto; text-align:center;">Annuler</a>
+                        {% endif %}
+                    </div>
+                </form>
+            </div>
+            <div style="background:white; padding:24px; border-radius:24px; border:1px solid rgba(148,163,184,0.18);">
+                <h2 style="margin-top:0;">Plans existants</h2>
+                <table style="width:100%; border-collapse:collapse; margin-top:18px;">
+                    <thead>
+                        <tr style="background:#eff6ff; text-align:left; color:#0f172a;">
+                            <th style="padding:12px; border-bottom:1px solid rgba(148,163,184,0.3);">Nom</th>
+                            <th style="padding:12px; border-bottom:1px solid rgba(148,163,184,0.3);">Durée</th>
+                            <th style="padding:12px; border-bottom:1px solid rgba(148,163,184,0.3);">Commissions</th>
+                            <th style="padding:12px; border-bottom:1px solid rgba(148,163,184,0.3);">Statut</th>
+                            <th style="padding:12px; border-bottom:1px solid rgba(148,163,184,0.3);">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for plan in plans %}
+                        <tr style="border-bottom:1px solid rgba(148,163,184,0.15);">
+                            <td style="padding:14px;">{{ plan.name }}</td>
+                            <td style="padding:14px;">{{ plan.get_duration_days_display }}</td>
+                            <td style="padding:14px;">Fixe: {{ plan.commission_fixed }} &nbsp; Variable: {{ plan.commission_variable }}% &nbsp; Bonus: {{ plan.bonus_rate }}%</td>
+                            <td style="padding:14px;">{{ plan.active|yesno:'Actif,Inactif' }}</td>
+                            <td style="padding:14px; display:flex; gap:8px; flex-wrap:wrap;">
+                                <a href="?plan_id={{ plan.id }}" class="fintech-btn btn-secondary" style="padding:8px 12px;">Modifier</a>
+                                <form method="post" style="display:inline-block;">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="plan_id" value="{{ plan.id }}">
+                                    <button type="submit" name="action" value="delete" class="fintech-btn btn-danger" style="padding:8px 12px;">Supprimer</button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="5" style="padding:18px; text-align:center; color:#475569;">Aucun plan Ti Kanè défini.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

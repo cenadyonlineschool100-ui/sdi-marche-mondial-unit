@@ -1,0 +1,277 @@
+{% extends 'marketplace/base.html' %}
+{% load static %}
+
+{% block title %}Marché Mondial - Architecture Modulaire{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/module-system.css' %}">
+<style>
+    .marche-mondial-hero {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 3rem 1rem;
+        text-align: center;
+        margin-bottom: 2rem;
+        border-radius: 12px;
+    }
+
+    .marche-mondial-hero h1 {
+        font-size: 2.5rem;
+        font-weight: 700;
+        margin: 0 0 1rem 0;
+    }
+
+    .marche-mondial-hero p {
+        font-size: 1.1rem;
+        margin: 0;
+        opacity: 0.95;
+    }
+
+    .module-showcase {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1rem;
+        margin-top: 2rem;
+        margin-bottom: 3rem;
+    }
+
+    .module-card {
+        background: white;
+        padding: 1.5rem;
+        border-radius: 10px;
+        text-align: center;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        border: 2px solid transparent;
+    }
+
+    .module-card:hover {
+        border-color: #667eea;
+        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
+        transform: translateY(-4px);
+    }
+
+    .module-card-icon {
+        font-size: 2.5rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .module-card-name {
+        font-weight: 600;
+        color: #1f2937;
+        margin-bottom: 0.5rem;
+    }
+
+    .module-card-desc {
+        font-size: 0.85rem;
+        color: #6b7280;
+    }
+
+    .main-container {
+        max-width: 1400px;
+        margin: 0 auto;
+        padding: 1rem;
+    }
+
+    @media (max-width: 768px) {
+        .marche-mondial-hero h1 {
+            font-size: 1.75rem;
+        }
+
+        .module-showcase {
+            grid-template-columns: repeat(2, 1fr);
+            gap: 0.75rem;
+        }
+
+        .module-card {
+            padding: 1rem;
+        }
+
+        .module-card-icon {
+            font-size: 2rem;
+        }
+    }
+
+    @media (max-width: 480px) {
+        .marche-mondial-hero h1 {
+            font-size: 1.5rem;
+        }
+
+        .module-showcase {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="main-container">
+    <!-- Hero Section -->
+    <div class="marche-mondial-hero">
+        <h1>🌍 Marché Mondial SDI</h1>
+        <p>Architecture modulaire - Chaque service se charge à la demande</p>
+    </div>
+
+    <!-- Module Showcase (Navigation) -->
+    <div class="module-showcase" id="moduleShowcase">
+        <!-- Les modules seront affichés via JavaScript -->
+    </div>
+
+    <!-- Container principal des modules -->
+    <div class="module-container" id="modulesContainer">
+        <!-- Les modules seront chargés dynamiquement -->
+    </div>
+</div>
+
+<!-- Template pour les modules -->
+<template id="moduleTemplate">
+    <div class="module-wrapper" data-module="[module-id]">
+        <div class="module-header">
+            <div>
+                <h2>[module-name]</h2>
+                <p class="module-description">[module-description]</p>
+            </div>
+            <div class="module-icon">[module-icon]</div>
+        </div>
+
+        <div class="module-body">
+            <!-- Filtres et recherche -->
+            <div class="module-filters" id="filters-[module-id]">
+                <input type="search" 
+                       data-filter="search" 
+                       placeholder="Chercher..."
+                       class="module-search">
+                <button class="module-filter-btn" 
+                        data-module="[module-id]"
+                        data-action="filter">
+                    🔍 Filtrer
+                </button>
+            </div>
+
+            <!-- Grille d'éléments -->
+            <div class="module-items"></div>
+
+            <!-- Message de chargement -->
+            <div class="module-loading" style="display:none;">
+                Chargement des données...
+            </div>
+        </div>
+
+        <!-- Pagination -->
+        <div class="module-pagination"></div>
+
+        <!-- Statistiques -->
+        <div class="module-stats"></div>
+
+        <!-- Pied de page -->
+        <div class="module-footer">
+            <small>
+                Données chargées à la demande
+                <span class="cache-badge" style="display:none;">📦 Mise en cache</span>
+            </small>
+        </div>
+    </div>
+</template>
+
+<!-- Template pour les cartes de modules (showcase) -->
+<template id="moduleCardTemplate">
+    <div class="module-card" data-module-id="[module-id]" onclick="scrollToModule('[module-id]')">
+        <div class="module-card-icon">[module-icon]</div>
+        <div class="module-card-name">[module-name]</div>
+        <div class="module-card-desc">[module-description]</div>
+    </div>
+</template>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="{% static 'js/module-loader.js' %}"></script>
+<script>
+    /**
+     * Initialisation spécifique pour le Marché Mondial
+     */
+    document.addEventListener('DOMContentLoaded', async () => {
+        if (!window.moduleLoader) return;
+
+        // Afficher le showcase des modules
+        const modules = await window.moduleLoader.loadModuleList();
+        const showcase = document.getElementById('moduleShowcase');
+        const container = document.getElementById('modulesContainer');
+
+        if (showcase && modules.modules) {
+            modules.modules.forEach(module => {
+                // Créer la carte du module
+                const cardTemplate = document.getElementById('moduleCardTemplate');
+                const cardClone = cardTemplate.content.cloneNode(true);
+
+                cardClone.innerHTML = cardClone.innerHTML
+                    .replace('[module-id]', module.id)
+                    .replace(/\[module-name\]/g, module.name)
+                    .replace(/\[module-description\]/g, module.description)
+                    .replace(/\[module-icon\]/g, module.icon);
+
+                showcase.appendChild(cardClone);
+
+                // Créer le wrapper du module
+                const moduleTemplate = document.getElementById('moduleTemplate');
+                const moduleClone = moduleTemplate.content.cloneNode(true);
+
+                moduleClone.innerHTML = moduleClone.innerHTML
+                    .replace(/\[module-id\]/g, module.id)
+                    .replace(/\[module-name\]/g, module.name)
+                    .replace(/\[module-description\]/g, module.description)
+                    .replace(/\[module-icon\]/g, module.icon);
+
+                container.appendChild(moduleClone);
+            });
+        }
+
+        // Charger les modules visibles au scroll
+        let scrollTimeout;
+        window.addEventListener('scroll', () => {
+            clearTimeout(scrollTimeout);
+            scrollTimeout = setTimeout(() => {
+                document.querySelectorAll('[data-module]').forEach(el => {
+                    const moduleName = el.dataset.module;
+                    const hasItems = el.querySelector('.module-items').children.length > 0;
+
+                    if (!hasItems && window.moduleLoader.isElementInViewport(el)) {
+                        window.moduleLoader.loadModule(moduleName, 1);
+                        window.moduleLoader.loadModuleStats(moduleName);
+                    }
+                });
+            }, 200);
+        });
+    });
+
+    /**
+     * Scroll vers un module spécifique
+     */
+    function scrollToModule(moduleId) {
+        const element = document.querySelector(`[data-module="${moduleId}"]`);
+        if (element) {
+            element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+            // Charger le module si pas encore chargé
+            if (element.querySelector('.module-items').children.length === 0) {
+                window.moduleLoader.loadModule(moduleId, 1);
+                window.moduleLoader.loadModuleStats(moduleId);
+            }
+        }
+    }
+
+    /**
+     * Statistiques en temps réel
+     */
+    async function updateModuleStats() {
+        if (!window.moduleLoader) return;
+
+        setInterval(async () => {
+            const allStats = await window.moduleLoader.loadModuleStats();
+            console.log('Statistiques mises à jour:', allStats);
+        }, 60000); // Chaque minute
+    }
+
+    // Démarrer la mise à jour des stats
+    document.addEventListener('DOMContentLoaded', updateModuleStats);
+</script>
+{% endblock %}

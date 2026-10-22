@@ -1,0 +1,368 @@
+{% extends 'marketplace/base.html' %}
+{% load marketplace_filters %}
+{% load static %}
+
+{% block title %}Reçu Sol SDI - {{ payment.receipt_number }}{% endblock %}
+
+{% block content %}
+<style>
+    .receipt-container {
+        max-width: 900px;
+        margin: 40px auto;
+        padding: 0 20px;
+    }
+
+    .receipt-header {
+        text-align: center;
+        margin-bottom: 40px;
+    }
+
+    .receipt-header h1 {
+        color: #1d4ed8;
+        margin-bottom: 10px;
+    }
+
+    .receipt {
+        background: white;
+        border-radius: 20px;
+        border: 2px solid #e2ecff;
+        padding: 40px;
+        box-shadow: 0 10px 40px rgba(0, 22, 79, 0.12);
+        margin-bottom: 40px;
+    }
+
+    .receipt-top {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 30px;
+        margin-bottom: 30px;
+        padding-bottom: 30px;
+        border-bottom: 2px solid #e2ecff;
+    }
+
+    .receipt-section h3 {
+        color: #1d4ed8;
+        font-size: 0.95rem;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        font-weight: 700;
+        margin-bottom: 15px;
+    }
+
+    .receipt-detail {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 12px;
+        color: #5c7a9d;
+    }
+
+    .receipt-detail-label {
+        font-weight: 600;
+    }
+
+    .receipt-detail-value {
+        color: #1d4ed8;
+        font-weight: 700;
+    }
+
+    .receipt-number-box {
+        background: linear-gradient(135deg, rgba(29, 78, 216, 0.08), rgba(37, 99, 235, 0.08));
+        border-left: 4px solid #2563eb;
+        border-radius: 8px;
+        padding: 20px;
+        margin-bottom: 30px;
+        grid-column: 1 / -1;
+    }
+
+    .receipt-number {
+        font-size: 1.5rem;
+        font-weight: 800;
+        color: #1d4ed8;
+        letter-spacing: 1px;
+        font-family: 'Courier New', monospace;
+    }
+
+    .receipt-total {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 30px;
+        margin: 30px 0;
+        padding: 30px 0;
+        border-top: 2px solid #e2ecff;
+        border-bottom: 2px solid #e2ecff;
+    }
+
+    .total-item {
+        text-align: center;
+    }
+
+    .total-label {
+        color: #5c7a9d;
+        font-size: 0.95rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        font-weight: 600;
+        margin-bottom: 10px;
+    }
+
+    .total-amount {
+        font-size: 2.5rem;
+        font-weight: 800;
+        background: linear-gradient(135deg, #1d4ed8, #2563eb);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
+
+    .status-box {
+        background: linear-gradient(135deg, rgba(34, 197, 94, 0.08), rgba(34, 197, 94, 0.05));
+        border-left: 4px solid #22c55e;
+        border-radius: 8px;
+        padding: 20px;
+        margin-bottom: 30px;
+    }
+
+    .status-box.late {
+        background: linear-gradient(135deg, rgba(249, 115, 22, 0.08), rgba(249, 115, 22, 0.05));
+        border-left-color: #f59e0b;
+    }
+
+    .status-box.pending {
+        background: linear-gradient(135deg, rgba(59, 130, 246, 0.08), rgba(59, 130, 246, 0.05));
+        border-left-color: #3b82f6;
+    }
+
+    .status-title {
+        font-weight: 700;
+        font-size: 1.1rem;
+        margin-bottom: 10px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .status-title.completed {
+        color: #22c55e;
+    }
+
+    .status-title.late {
+        color: #f59e0b;
+    }
+
+    .status-title.pending {
+        color: #3b82f6;
+    }
+
+    .status-description {
+        color: #5c7a9d;
+        line-height: 1.6;
+    }
+
+    .receipt-footer {
+        text-align: center;
+        padding-top: 30px;
+        border-top: 2px solid #e2ecff;
+        color: #5c7a9d;
+    }
+
+    .receipt-footer p {
+        margin: 8px 0;
+    }
+
+    .action-buttons {
+        display: flex;
+        gap: 15px;
+        justify-content: center;
+        margin-top: 30px;
+    }
+
+    .btn {
+        padding: 12px 24px;
+        border-radius: 8px;
+        font-weight: 600;
+        border: none;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        text-decoration: none;
+        display: inline-block;
+    }
+
+    .btn-primary {
+        background: linear-gradient(135deg, #1d4ed8, #2563eb);
+        color: white;
+        box-shadow: 0 8px 24px rgba(29, 78, 216, 0.3);
+    }
+
+    .btn-primary:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 12px 32px rgba(29, 78, 216, 0.4);
+    }
+
+    .btn-secondary {
+        background: transparent;
+        color: #1d4ed8;
+        border: 2px solid #1d4ed8;
+    }
+
+    .btn-secondary:hover {
+        background: rgba(29, 78, 216, 0.05);
+    }
+
+    .print-only {
+        display: none;
+    }
+
+    @media print {
+        .action-buttons,
+        .receipt-header {
+            display: none;
+        }
+
+        .print-only {
+            display: block;
+        }
+
+        .receipt {
+            box-shadow: none;
+            border: 1px solid #ccc;
+        }
+    }
+
+    @media (max-width: 768px) {
+        .receipt-top {
+            grid-template-columns: 1fr;
+        }
+
+        .receipt-total {
+            grid-template-columns: 1fr;
+        }
+
+        .action-buttons {
+            flex-direction: column;
+        }
+
+        .receipt {
+            padding: 20px;
+        }
+    }
+</style>
+
+<div class="receipt-container">
+    <div class="receipt-header">
+        <h1>📄 Reçu de paiement Sol SDI</h1>
+        <p>Paiement effectué le {{ payment.paid_at|date:"d/m/Y" }} à {{ payment.paid_at|date:"H:i" }}</p>
+    </div>
+
+    <div class="receipt">
+        <!-- Numéro de reçu -->
+        <div class="receipt-number-box">
+            <div style="color: #5c7a9d; font-size: 0.9rem; margin-bottom: 5px;">NUMÉRO DE REÇU</div>
+            <div class="receipt-number">{{ payment.receipt_number }}</div>
+        </div>
+
+        <!-- Informations principales -->
+        <div class="receipt-top">
+            <div class="receipt-section">
+                <h3>👤 Détails du membre</h3>
+                <div class="receipt-detail">
+                    <span class="receipt-detail-label">Nom:</span>
+                    <span class="receipt-detail-value">{{ payment.member.user.get_full_name|default:payment.member.user.username }}</span>
+                </div>
+                <div class="receipt-detail">
+                    <span class="receipt-detail-label">Position:</span>
+                    <span class="receipt-detail-value">#{{ payment.member.position }}</span>
+                </div>
+                <div class="receipt-detail">
+                    <span class="receipt-detail-label">Inscrit le:</span>
+                    <span class="receipt-detail-value">{{ payment.member.joined_at|date:"d/m/Y" }}</span>
+                </div>
+            </div>
+
+            <div class="receipt-section">
+                <h3>📋 Détails du paiement</h3>
+                <div class="receipt-detail">
+                    <span class="receipt-detail-label">Montant:</span>
+                    <span class="receipt-detail-value">{{ payment.amount }} {{ payment.currency }}</span>
+                </div>
+                <div class="receipt-detail">
+                    <span class="receipt-detail-label">Frais:</span>
+                    <span class="receipt-detail-value">{{ payment.fee }} {{ payment.currency }}</span>
+                </div>
+                <div class="receipt-detail">
+                    <span class="receipt-detail-label">Date de paiement:</span>
+                    <span class="receipt-detail-value">{{ payment.paid_at|date:"d/m/Y H:i" }}</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Total -->
+        <div class="receipt-total">
+            <div class="total-item">
+                <div class="total-label">Montant payé</div>
+                <div class="total-amount">{{ payment.amount }} {{ payment.currency }}</div>
+            </div>
+            <div class="total-item">
+                <div class="total-label">Total à payer</div>
+                <div class="total-amount">{{ payment.amount }} {{ payment.currency }}</div>
+            </div>
+        </div>
+
+        <!-- Statut du paiement -->
+        <div class="status-box {% if payment.status == 'completed' %}completed{% elif payment.status == 'late' %}late{% else %}pending{% endif %}">
+            {% if payment.status == 'completed' %}
+                <div class="status-title completed">
+                    ✅ Paiement effectué à temps
+                </div>
+                <div class="status-description">
+                    Votre paiement a été reçu et enregistré. Votre statut dans le Sol SDI est à jour.
+                </div>
+            {% elif payment.status == 'late' %}
+                <div class="status-title late">
+                    ⚠️ Paiement en retard
+                </div>
+                <div class="status-description">
+                    Ce paiement a été effectué après la date d'échéance. Veuillez effectuer les paiements futurs à temps pour maintenir votre position.
+                </div>
+            {% else %}
+                <div class="status-title pending">
+                    ⏳ Paiement en attente
+                </div>
+                <div class="status-description">
+                    Ce paiement est en cours de traitement et sera confirmé bientôt.
+                </div>
+            {% endif %}
+        </div>
+
+        <!-- Informations supplémentaires -->
+        <div class="receipt-section" style="margin-bottom: 30px;">
+            <h3>ℹ️ Informations supplémentaires</h3>
+            <div class="receipt-detail">
+                <span class="receipt-detail-label">Contexte du paiement:</span>
+                <span class="receipt-detail-value">Paiement SDI Sol reçu et déposé sur le compte principal.</span>
+            </div>
+            <div class="receipt-detail">
+                <span class="receipt-detail-label">Référence:</span>
+                <span class="receipt-detail-value">SDISOL-{{ payment.member.user.id }}-{{ payment.created_at|date:"YmdHis" }}</span>
+            </div>
+        </div>
+
+        <!-- Pied de page -->
+        <div class="receipt-footer">
+            <p style="font-weight: 700; font-size: 1.1rem;">Merci pour votre participation au Sol SDI</p>
+            <p>Paiement enregistré dans le système de gestion du Sol SDI</p>
+            <p style="font-size: 0.9rem; color: #a8b8d8;">{{ payment.created_at|date:"d/m/Y H:i" }}</p>
+        </div>
+    </div>
+
+    <!-- Boutons d'action -->
+    <div class="action-buttons">
+        <a href="{% url 'sdi_sol_payments' %}" class="btn btn-secondary">
+            ← Retour aux paiements
+        </a>
+        <button onclick="window.print()" class="btn btn-primary">
+            🖨️ Imprimer le reçu
+        </button>
+    </div>
+</div>
+
+{% endblock %}

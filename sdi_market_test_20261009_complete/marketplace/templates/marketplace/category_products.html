@@ -1,0 +1,99 @@
+{% extends 'marketplace/base.html' %}
+{% block content %}
+<div class="card">
+    <div class="header-row">
+        <div>
+            <h1>📂 {{ category.name }}</h1>
+            {% if category.description %}
+                <p style="color: #666; margin: 8px 0;">{{ category.description }}</p>
+            {% endif %}
+            <p style="color: #666;">
+                <strong>{{ total_products }}</strong> produit(s) disponible(s)
+                {% if category.parent %}
+                    <br><small>Catégorie parente :
+                        {% if category.parent.slug %}
+                            <a href="{% url 'category_products' category.parent.slug %}">{{ category.parent.name }}</a>
+                        {% else %}
+                            {{ category.parent.name }}
+                        {% endif %}
+                    </small>
+                {% endif %}
+            </p>
+        </div>
+        <div>
+            <form action="{% url 'search' %}" method="get" style="display:inline-flex; gap:8px;">
+                <input type="text" name="q" placeholder="Rechercher dans {{ category.name }}" value="{{ query }}" />
+                <input type="hidden" name="category" value="{{ category.slug }}" />
+                <button type="submit" class="button">Rechercher</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Sous-catégories -->
+    {% if category.children.all %}
+    <div class="card" style="background: #f8f9fa; border: 1px solid #e9ecef;">
+        <h3>Sous-catégories</h3>
+        <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+            {% for child in category.children.all %}
+                {% if child.slug %}
+                    <a href="{% url 'category_products' child.slug %}" class="button alt" style="margin: 0;">
+                        {{ child.name }} ({{ child.get_products_count }})
+                    </a>
+                {% else %}
+                    <span class="button alt" style="margin: 0; display: inline-flex; align-items: center;">{{ child.name }} ({{ child.get_products_count }})</span>
+                {% endif %}
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Produits de la catégorie -->
+<div class="card">
+    <h2>🛒 Produits dans {{ category.name }}</h2>
+</div>
+
+<div class="grid grid-3">
+    {% for product in products %}
+    <div class="card">
+        {% if product.category %}
+            <div style="background: #e3f2fd; color: #1565c0; padding: 4px 8px; border-radius: 4px; font-size: 0.8rem; display: inline-block; margin-bottom: 8px;">
+                {{ product.category.name }}
+            </div>
+        {% endif %}
+        <h3>{{ product.name }}</h3>
+        <p>Prix HT : <strong>{{ current_currency|currency_symbol }}{{ product|format_product_price:current_currency }}</strong></p>
+        <p class="product-secondary">Boutique : {{ product.shop.name }}</p>
+        <p class="product-secondary">Quantité : {{ product.quantity }}</p>
+        {% if product.average_rating %}
+            <p class="product-secondary">Note : <strong>{{ product.average_rating|floatformat:1 }}</strong> / 5
+                {% for _ in "12345"|make_list %}
+                    <span style="color: {% if forloop.counter <= product.average_rating %}#ffc107{% else %}#ddd{% endif %};">★</span>
+                {% endfor %}
+                ({{ product.reviews_count }} avis)
+            </p>
+        {% endif %}
+        <a href="{% url 'product_detail' product.id %}" class="button" style="margin-bottom: 8px;">Voir détails</a>
+        {% if request.user.is_authenticated %}
+            <div style="display:flex; gap:8px; flex-wrap: wrap;">
+                <a href="{% url 'chat' %}?product_to_share={{ product.id }}" class="button alt">Partager</a>
+                <a href="{% url 'add_to_cart' product.id %}" class="button alt">🛒 Ajouter au panier</a>
+            </div>
+        {% else %}
+            <a href="{% url 'login' %}" class="button alt">Se connecter pour acheter</a>
+        {% endif %}
+    </div>
+    {% empty %}
+    <div class="card" style="text-align: center; background: #f9f9f9;">
+        <h3>Aucun produit trouvé</h3>
+        <p>Cette catégorie ne contient pas encore de produits.</p>
+        <a href="{% url 'home' %}" class="button">Voir tous les produits</a>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Navigation -->
+<div class="card" style="text-align: center;">
+    <a href="{% url 'home' %}" class="button">← Retour à l'accueil</a>
+</div>
+{% endblock %}

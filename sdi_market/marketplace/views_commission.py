@@ -12,12 +12,16 @@ from django.contrib.contenttypes.models import ContentType
 from decimal import Decimal
 
 from .models import (
-    User, CommissionRule, Deposit, AgentCommission, Wallet,
+    User, CommissionRule, Deposit, AgentCommission, Wallet, SystemSettings,
     DepositCommissionConfig, Transaction, CommissionConfig,
     WithdrawalCommissionTier, AdminCommissionLog, MarketplaceSettings,
     CommissionCategory, UserCommissionCategory, CommissionDistributionLog
 )
-from .business_logic import CommissionManager, get_system_admin_wallet
+from .business_logic import (
+    CommissionManager,
+    create_persistent_notification,
+    get_system_admin_wallet,
+)
 
 
 def has_commission_permission(user):
@@ -67,6 +71,22 @@ def manage_agent_commissions(request):
     if not has_commission_permission(request.user):
         messages.error(request, "Vous n'avez pas la permission de gérer les commissions.")
         return redirect('dashboard')
+
+    system_settings = SystemSettings.objects.filter(pk=1).first() or SystemSettings()
+    if request.method == 'POST' and request.POST.get('action') == 'set_agent_wallet_withdrawals':
+        enabled = request.POST.get('enabled')
+        if enabled not in {'on', 'off'}:
+            messages.error(request, 'État de contrôle des retraits agent invalide.')
+            return redirect('manage_agent_commissions')
+        system_settings, _ = SystemSettings.objects.get_or_create(pk=1)
+        system_settings.agent_wallet_withdrawals_enabled = enabled == 'on'
+        system_settings.save(update_fields=['agent_wallet_withdrawals_enabled'])
+        messages.success(
+            request,
+            'Retraits des commissions agent activés.' if enabled == 'on'
+            else 'Nouveaux retraits des commissions agent désactivés.',
+        )
+        return redirect('manage_agent_commissions')
     
     # Récupérer tous les agents
     agents = User.objects.filter(is_agent=True).order_by('username')
@@ -119,6 +139,7 @@ def manage_agent_commissions(request):
         'marketplace_settings': marketplace_settings,
         'distribution_balance': distribution_balance,
         'commission_categories': category_stats,
+        'agent_wallet_withdrawals_enabled': system_settings.agent_wallet_withdrawals_enabled,
     }
     
     return render(request, 'marketplace/manage_commissions.html', context)
@@ -213,13 +234,23 @@ def distribute_commission_pool(request):
             current_balance = getattr(wallet, peuple_field, Decimal('0')) or Decimal('0')
             setattr(wallet, peuple_field, current_balance + share)
             wallet.save(update_fields=[peuple_field])
-            CommissionDistributionLog.objects.create(
+            distribution_log = CommissionDistributionLog.objects.create(
                 admin=request.user,
                 user=user,
                 action='distribution',
                 amount=share,
                 currency=currency,
                 description=f'Distribution Commission Peuple de {share} {currency} depuis le pool de réserve.'
+            )
+            create_persistent_notification(
+                recipient=user,
+                title=f'💰 Commission reçue : {share} {currency}',
+                message='Une commission Peuple a été créditée sur votre portefeuille.',
+                notification_type='commission_received',
+                deduplication_key=(
+                    f'commission-distribution:{distribution_log.pk}:user:{user.pk}'
+                ),
+                target_url='/profile/',
             )
             distributed_records += 1
 
@@ -568,15 +599,46 @@ def view_agent_deposit_history(request, agent_id):
 
 @login_required
 def manage_withdrawal_commissions(request):
-    """Gérer les commissions de retrait (HTG)"""
+    """Gérer les retraits personnels et les commissions par devise."""
     if not request.user.is_superuser and not request.user.has_perm('marketplace.manage_withdrawal_commissions'):
         messages.error(request, "Vous n'avez pas la permission de gérer les commissions de retrait.")
         return redirect('dashboard')
 
+    system_settings = SystemSettings.objects.filter(pk=1).first() or SystemSettings()
     CommissionManager.ensure_default_withdrawal_tiers()
 
     if request.method == 'POST':
         action = request.POST.get('action')
+        if action == 'set_personal_withdrawals':
+            enabled = request.POST.get('enabled')
+            if enabled not in {'on', 'off'}:
+                messages.error(request, 'État de contrôle des retraits personnels invalide.')
+                return redirect('manage_withdrawal_commissions')
+            system_settings, _ = SystemSettings.objects.get_or_create(pk=1)
+            system_settings.personal_withdrawals_enabled = enabled == 'on'
+            system_settings.save(update_fields=['personal_withdrawals_enabled'])
+            messages.success(
+                request,
+                'Retraits personnels activés.' if enabled == 'on'
+                else 'Nouveaux retraits personnels désactivés.',
+            )
+            return redirect('manage_withdrawal_commissions')
+
+        if action == 'set_tikane_withdrawals':
+            enabled = request.POST.get('enabled')
+            if enabled not in {'on', 'off'}:
+                messages.error(request, 'État de contrôle des retraits Ti Kanè invalide.')
+                return redirect('manage_withdrawal_commissions')
+            system_settings, _ = SystemSettings.objects.get_or_create(pk=1)
+            system_settings.tikane_withdrawals_enabled = enabled == 'on'
+            system_settings.save(update_fields=['tikane_withdrawals_enabled'])
+            messages.success(
+                request,
+                'Retraits Ti Kanè activés.' if enabled == 'on'
+                else 'Nouveaux retraits Ti Kanè désactivés.',
+            )
+            return redirect('manage_withdrawal_commissions')
+
         ip_address = request.META.get('HTTP_X_FORWARDED_FOR', request.META.get('REMOTE_ADDR', ''))
         if ',' in ip_address:
             ip_address = ip_address.split(',')[0].strip()
@@ -587,6 +649,8 @@ def manage_withdrawal_commissions(request):
                 return redirect('manage_withdrawal_commissions')
             try:
                 currency = request.POST.get('currency', 'HTG').upper()
+                if currency not in {'USD', 'HTG', 'DOP', 'EUR'}:
+                    raise ValueError('Devise non prise en charge.')
                 min_amount = Decimal(request.POST.get('min_amount', '0'))
                 max_amount = Decimal(request.POST.get('max_amount', '0'))
                 total_fee = Decimal(request.POST.get('total_fee', '0'))
@@ -599,6 +663,8 @@ def manage_withdrawal_commissions(request):
                     raise ValueError('Les montants ne peuvent pas être négatifs.')
                 if min_amount >= max_amount:
                     raise ValueError('Le montant minimum doit être inférieur au montant maximum.')
+                if system_fee + agent_fee != total_fee:
+                    raise ValueError('La part système et la part agent doivent égaler les frais totaux.')
 
                 tier = WithdrawalCommissionTier.objects.create(
                     currency=currency,
@@ -616,7 +682,7 @@ def manage_withdrawal_commissions(request):
                     target_name=str(tier),
                     target_type='WithdrawalCommissionTier',
                     old_value='',
-                    new_value=f'{tier.total_fee}/{tier.system_fee}/{tier.agent_fee}',
+                    new_value=f'{tier.currency}/{tier.total_fee}/{tier.system_fee}/{tier.agent_fee}',
                     ip_address=ip_address,
                 )
                 messages.success(request, 'Nouvelle tranche de commission ajoutée avec succès.')
@@ -631,7 +697,11 @@ def manage_withdrawal_commissions(request):
             try:
                 tier_id = request.POST.get('tier_id')
                 tier = WithdrawalCommissionTier.objects.get(id=tier_id)
-                old_value = f'{tier.total_fee}/{tier.system_fee}/{tier.agent_fee}'
+                old_value = f'{tier.currency}/{tier.total_fee}/{tier.system_fee}/{tier.agent_fee}'
+                currency = request.POST.get('currency', tier.currency).upper()
+                if currency not in {'USD', 'HTG', 'DOP', 'EUR'}:
+                    raise ValueError('Devise non prise en charge.')
+                tier.currency = currency
                 tier.min_amount = Decimal(request.POST.get('min_amount', tier.min_amount))
                 tier.max_amount = Decimal(request.POST.get('max_amount', tier.max_amount))
                 tier.total_fee = Decimal(request.POST.get('total_fee', tier.total_fee))
@@ -639,6 +709,12 @@ def manage_withdrawal_commissions(request):
                 tier.agent_fee = Decimal(request.POST.get('agent_fee', tier.agent_fee))
                 tier.description = request.POST.get('description', tier.description)
                 tier.active = request.POST.get('active') == 'on'
+                if tier.min_amount < 0 or tier.max_amount < 0 or tier.total_fee < 0 or tier.system_fee < 0 or tier.agent_fee < 0:
+                    raise ValueError('Les montants ne peuvent pas être négatifs.')
+                if tier.min_amount >= tier.max_amount:
+                    raise ValueError('Le montant minimum doit être inférieur au montant maximum.')
+                if tier.system_fee + tier.agent_fee != tier.total_fee:
+                    raise ValueError('La part système et la part agent doivent égaler les frais totaux.')
                 tier.save()
                 AdminCommissionLog.objects.create(
                     admin=request.user,
@@ -646,7 +722,7 @@ def manage_withdrawal_commissions(request):
                     target_name=str(tier),
                     target_type='WithdrawalCommissionTier',
                     old_value=old_value,
-                    new_value=f'{tier.total_fee}/{tier.system_fee}/{tier.agent_fee}',
+                    new_value=f'{tier.currency}/{tier.total_fee}/{tier.system_fee}/{tier.agent_fee}',
                     ip_address=ip_address,
                 )
                 messages.success(request, 'Tranche de commission mise à jour avec succès.')
@@ -690,6 +766,8 @@ def manage_withdrawal_commissions(request):
         'withdrawal_logs': withdrawal_logs,
         'total_withdrawal_fees_configured': total_withdrawal_fees,
         'system_revenue_configured': system_revenue,
+        'tikane_withdrawals_enabled': system_settings.tikane_withdrawals_enabled,
+        'personal_withdrawals_enabled': system_settings.personal_withdrawals_enabled,
     }
     return render(request, 'marketplace/manage_withdrawal_commissions.html', context)
 

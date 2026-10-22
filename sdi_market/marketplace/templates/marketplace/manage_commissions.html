@@ -9,6 +9,30 @@
         </div>
     </div>
 
+    {% if messages %}
+    <div style="margin-bottom:16px;">
+        {% for message in messages %}
+        <div class="alert alert-{{ message.tags }}" role="alert">{{ message }}</div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <div class="fintech-panel" style="padding:20px; margin-bottom:24px;">
+        <h2 style="margin-top:0;">Retraits du portefeuille agent</h2>
+        <p>
+            État : <strong>{% if agent_wallet_withdrawals_enabled %}ON{% else %}OFF{% endif %}</strong>.
+            Ce contrôle bloque uniquement les nouveaux retraits des commissions agent; les dépôts et transferts restent inchangés.
+        </p>
+        <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="set_agent_wallet_withdrawals">
+            <input type="hidden" name="enabled" value="{% if agent_wallet_withdrawals_enabled %}off{% else %}on{% endif %}">
+            <button type="submit" class="btn-fintech {% if agent_wallet_withdrawals_enabled %}btn-outline-primary{% else %}btn-primary{% endif %}">
+                {% if agent_wallet_withdrawals_enabled %}Désactiver les retraits agent{% else %}Activer les retraits agent{% endif %}
+            </button>
+        </form>
+    </div>
+
     <div class="fintech-panel" style="padding:20px; margin-bottom:24px;">
         <h2 style="margin-bottom:12px;">Résumé</h2>
         <p>Total d'agents : {{ total_agents }}</p>

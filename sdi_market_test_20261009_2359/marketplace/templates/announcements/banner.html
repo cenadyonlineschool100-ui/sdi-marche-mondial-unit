@@ -1,0 +1,332 @@
+{% load static %}
+
+<!-- Admin Announcement Banner Component -->
+<style>
+    .admin-announcement-banner-container {
+        position: fixed;
+        top: 70px;
+        left: 0;
+        right: 0;
+        z-index: 999;
+        animation: slideDown 0.5s ease-out;
+    }
+
+    @keyframes slideDown {
+        from {
+            transform: translateY(-100%);
+            opacity: 0;
+        }
+        to {
+            transform: translateY(0);
+            opacity: 1;
+        }
+    }
+
+    .admin-announcement-banner {
+        background: linear-gradient(135deg, rgba(26, 58, 82, 0.95), rgba(0, 188, 212, 0.8));
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        border-bottom: 2px solid #00bcd4;
+        box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+        padding: 20px 30px;
+        color: #ffffff;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .admin-announcement-banner::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 3px;
+        background: linear-gradient(90deg, #00bcd4, #00acc1, #00a8d8);
+        animation: luminousScan 3s linear infinite;
+    }
+
+    @keyframes luminousScan {
+        0% {
+            box-shadow: 0 0 10px rgba(0, 188, 212, 0.8), 0 0 20px rgba(0, 172, 193, 0.6);
+        }
+        50% {
+            box-shadow: 0 0 20px rgba(0, 188, 212, 0.9), 0 0 30px rgba(0, 172, 193, 0.7);
+        }
+        100% {
+            box-shadow: 0 0 10px rgba(0, 188, 212, 0.8), 0 0 20px rgba(0, 172, 193, 0.6);
+        }
+    }
+
+    .announcement-banner-content {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 20px;
+        max-width: 100%;
+        margin: 0 auto;
+    }
+
+    .announcement-banner-message {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        gap: 15px;
+        overflow: hidden;
+    }
+
+    .announcement-banner-icon {
+        font-size: 28px;
+        flex-shrink: 0;
+        animation: bounce 2s ease-in-out infinite;
+    }
+
+    @keyframes bounce {
+        0%, 100% {
+            transform: translateY(0);
+        }
+        50% {
+            transform: translateY(-5px);
+        }
+    }
+
+    .announcement-banner-text {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .announcement-banner-title {
+        font-size: 16px;
+        font-weight: bold;
+        margin: 0;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .announcement-banner-message-text {
+        font-size: 13px;
+        opacity: 0.95;
+        margin-top: 4px;
+        line-height: 1.4;
+        max-height: 2.8em;
+        overflow: hidden;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+    }
+
+    .announcement-banner-actions {
+        display: flex;
+        gap: 10px;
+        flex-shrink: 0;
+    }
+
+    .announcement-banner-btn {
+        background: rgba(255, 255, 255, 0.2);
+        color: white;
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        padding: 8px 16px;
+        border-radius: 20px;
+        font-size: 12px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        text-decoration: none;
+        display: inline-block;
+    }
+
+    .announcement-banner-btn:hover {
+        background: rgba(255, 255, 255, 0.3);
+        border-color: rgba(255, 255, 255, 0.5);
+        transform: translateY(-2px);
+    }
+
+    .announcement-banner-close {
+        background: rgba(255, 255, 255, 0.1);
+        color: white;
+        border: none;
+        padding: 6px 12px;
+        border-radius: 50%;
+        cursor: pointer;
+        font-size: 18px;
+        transition: all 0.3s ease;
+        flex-shrink: 0;
+    }
+
+    .announcement-banner-close:hover {
+        background: rgba(255, 255, 255, 0.2);
+        transform: rotate(90deg);
+    }
+
+    /* Scrolling animation styles */
+    .announcement-banner.scrolling .announcement-banner-message-text {
+        animation: scroll-left 15s linear infinite;
+    }
+
+    @keyframes scroll-left {
+        0% {
+            transform: translateX(100%);
+        }
+        100% {
+            transform: translateX(-100%);
+        }
+    }
+
+    .announcement-banner.scrolling-fast .announcement-banner-message-text {
+        animation: scroll-left 8s linear infinite;
+    }
+
+    .announcement-banner.scrolling-slow .announcement-banner-message-text {
+        animation: scroll-left 25s linear infinite;
+    }
+
+    /* Colors customization */
+    .announcement-banner[data-bg-color] {
+        background-color: var(--bg-color);
+    }
+
+    .announcement-banner[data-text-color] {
+        color: var(--text-color);
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+        .admin-announcement-banner-container {
+            top: 60px;
+        }
+
+        .admin-announcement-banner {
+            padding: 15px 20px;
+        }
+
+        .announcement-banner-content {
+            gap: 10px;
+        }
+
+        .announcement-banner-icon {
+            font-size: 24px;
+        }
+
+        .announcement-banner-title {
+            font-size: 14px;
+        }
+
+        .announcement-banner-message-text {
+            font-size: 12px;
+            max-height: 2.4em;
+        }
+
+        .announcement-banner-actions {
+            gap: 5px;
+        }
+
+        .announcement-banner-btn {
+            padding: 6px 12px;
+            font-size: 11px;
+        }
+    }
+
+    @media (max-width: 480px) {
+        .admin-announcement-banner {
+            padding: 12px 15px;
+        }
+
+        .announcement-banner-content {
+            flex-wrap: wrap;
+        }
+
+        .announcement-banner-message {
+            flex-basis: 100%;
+        }
+
+        .announcement-banner-actions {
+            flex-basis: 100%;
+        }
+
+        .announcement-banner-btn {
+            flex: 1;
+            text-align: center;
+        }
+    }
+</style>
+
+{% if active_announcement %}
+<div class="admin-announcement-banner-container" id="announcement-banner-container">
+    <div class="admin-announcement-banner" 
+         id="announcement-banner-{{ active_announcement.id }}"
+         data-id="{{ active_announcement.id }}"
+         style="--bg-color: {{ active_announcement.background_color }}; --text-color: {{ active_announcement.text_color }}; --accent-color: {{ active_announcement.accent_color }};"
+         class="admin-announcement-banner {% if active_announcement.scroll_speed == 'fast' %}scrolling-fast{% elif active_announcement.scroll_speed == 'slow' %}scrolling-slow{% else %}scrolling{% endif %} animation-{{ active_announcement.animation_effect }}">
+        
+        <div class="announcement-banner-content">
+            <div class="announcement-banner-message">
+                <span class="announcement-banner-icon">{{ active_announcement.icon }}</span>
+                <div class="announcement-banner-text">
+                    <div class="announcement-banner-title">{{ active_announcement.title }}</div>
+                    <div class="announcement-banner-message-text">{{ active_announcement.message }}</div>
+                </div>
+            </div>
+
+            <div class="announcement-banner-actions">
+                <a href="#" class="announcement-banner-btn" onclick="recordAnnouncementClick({{ active_announcement.id }}); return false;">
+                    👁️ Voir plus
+                </a>
+                <button class="announcement-banner-close" onclick="closeAnnouncementBanner({{ active_announcement.id }})">
+                    ✕
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Record announcement view
+    function recordAnnouncementView(announcementId) {
+        fetch(`/announcements/${announcementId}/record-view/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}',
+                'Content-Type': 'application/json'
+            }
+        });
+    }
+
+    // Record announcement click
+    function recordAnnouncementClick(announcementId) {
+        fetch(`/announcements/${announcementId}/record-click/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}',
+                'Content-Type': 'application/json'
+            }
+        });
+        // Open announcement details or link here
+        alert('Merci de votre intérêt pour cette annonce!');
+    }
+
+    // Close announcement banner
+    function closeAnnouncementBanner(announcementId) {
+        const container = document.getElementById('announcement-banner-container');
+        if (container) {
+            container.style.animation = 'slideUp 0.5s ease-out forwards';
+            setTimeout(() => {
+                container.remove();
+            }, 500);
+        }
+    }
+
+    // Record view on banner display
+    window.addEventListener('load', function() {
+        recordAnnouncementView({{ active_announcement.id }});
+    });
+</script>
+
+<style>
+    @keyframes slideUp {
+        to {
+            transform: translateY(-100%);
+            opacity: 0;
+        }
+    }
+</style>
+{% endif %}

@@ -268,9 +268,19 @@
     <div class="member-info">
         <h3>👤 Informations de votre compte</h3>
         <div class="info-grid">
+            {% if member.plan_name %}
             <div class="info-item">
-                <span class="info-label">Position</span>
-                <span class="info-value">#{{ member.position }}</span>
+                <span class="info-label">Plan SDI Sol</span>
+                <span class="info-value">{{ member.plan_name }} · {{ member.plan_duration_days }} jours</span>
+            </div>
+            <div class="info-item">
+                <span class="info-label">Départ du plan</span>
+                <span class="info-value">{{ member.plan_start_date|date:"d/m/Y" }}</span>
+            </div>
+            {% endif %}
+            <div class="info-item">
+                <span class="info-label">Place dans le groupe</span>
+                <span class="info-value">#{{ member.group_position }}</span>
             </div>
             <div class="info-item">
                 <span class="info-label">Statut</span>
@@ -300,23 +310,35 @@
         <h2>💳 Effectuer un paiement</h2>
         <form method="post" action="{% url 'sdi_sol_make_payment' %}" id="paymentForm">
             {% csrf_token %}
+            <input type="hidden" name="member_id" value="{{ member.pk }}">
             
             <div class="form-group">
                 <label for="currency">Devise</label>
                 <select id="currency" name="currency" required>
-                    <option value="USD">USD - Dollars américains (${{ settings.contribution_amount_usd }})</option>
-                    <option value="HTG">HTG - Gourdes haïtiennes ({{ settings.contribution_amount_htg|floatformat:0 }} HTG)</option>
+                    {% if member.plan_duration_days %}
+                        {% if member.plan_amount_usd %}<option value="USD" data-amount="{{ member.plan_amount_usd }}">USD - ${{ member.plan_amount_usd }}</option>{% endif %}
+                        {% if member.plan_amount_htg %}<option value="HTG" data-amount="{{ member.plan_amount_htg }}">HTG - {{ member.plan_amount_htg|floatformat:0 }} HTG</option>{% endif %}
+                    {% else %}
+                        <option value="USD">USD - Dollars américains (${{ settings.contribution_amount_usd }})</option>
+                        <option value="HTG">HTG - Gourdes haïtiennes ({{ settings.contribution_amount_htg|floatformat:0 }} HTG)</option>
+                    {% endif %}
                 </select>
             </div>
 
             <div class="form-group">
                 <label for="amount">Montant</label>
                 <input type="number" id="amount" name="amount" step="0.01" 
-                    min="{{ settings.contribution_amount_usd }}" required
+                    min="{% if member.plan_duration_days %}{{ member.plan_amount_usd|default:member.plan_amount_htg }}{% else %}{{ settings.contribution_amount_usd }}{% endif %}" required
+                    {% if member.plan_duration_days %}value="{% if member.plan_amount_usd %}{{ member.plan_amount_usd }}{% else %}{{ member.plan_amount_htg }}{% endif %}" readonly{% endif %}
                     placeholder="Entrez le montant">
                 <small style="color: #5c7a9d; display: block; margin-top: 5px;">
-                    Montant minimum: ${{ settings.contribution_amount_usd }} USD ou {{ settings.contribution_amount_htg|floatformat:0 }} HTG
+                    {% if member.plan_duration_days %}Montant fixe selon votre plan.{% else %}Montant minimum: ${{ settings.contribution_amount_usd }} USD ou {{ settings.contribution_amount_htg|floatformat:0 }} HTG{% endif %}
                 </small>
+            </div>
+
+            <div class="form-group">
+                <label for="payment-notes">Référence de transaction ou note pour l’admin</label>
+                <textarea id="payment-notes" name="notes" maxlength="2000" rows="3"></textarea>
             </div>
 
             <button type="submit" class="submit-button">
@@ -349,7 +371,9 @@
                             {% if payment.status == 'completed' %}
                                 ✅ Effectué
                             {% elif payment.status == 'pending' %}
-                                ⏳ En attente
+                                ⏳ En attente de validation
+                            {% elif payment.status == 'rejected' %}
+                                ❌ Refusé
                             {% else %}
                                 ⚠️ En retard
                             {% endif %}
@@ -373,6 +397,14 @@
     // Mettre à jour le montant minimum en fonction de la devise
     document.getElementById('currency').addEventListener('change', function() {
         const amountField = document.getElementById('amount');
+        const planAmount = this.options[this.selectedIndex].dataset.amount;
+        if (planAmount) {
+            amountField.min = planAmount;
+            amountField.value = planAmount;
+            amountField.readOnly = true;
+            return;
+        }
+        amountField.readOnly = false;
         if (this.value === 'USD') {
             amountField.min = '{{ settings.contribution_amount_usd }}';
             amountField.placeholder = 'Montant minimum: ${{ settings.contribution_amount_usd }}';

@@ -1,17 +1,17 @@
 from django.contrib import admin
 from django.urls import path, include, re_path
-from app_installer import views as app_installer_views
 from django.conf import settings
 from django.conf.urls.static import static
 from django.views.static import serve
 from marketplace.views import admin_add_money, admin_add_agent, manage_delivery_assignments
+from .request_error_handler import handler500 as custom_handler500
 from django.urls import include as dj_include
 
+handler500 = custom_handler500
+
 urlpatterns = [
-    path('service-worker.js', app_installer_views.service_worker, name='service_worker_root'),
     path('', include('marketplace.urls')),
     path('beauty-studios/', include('beauty.urls')),
-    path('installer/', include('app_installer.urls')),
     path('admin/add-money/', admin_add_money, name='admin_add_money'),
     path('admin/add-agent/', admin_add_agent, name='admin_add_agent'),
     path('admin/manage-delivery-assignments/', manage_delivery_assignments, name='admin_manage_delivery_assignments'),

@@ -1,0 +1,27 @@
+{% extends 'marketplace/base.html' %}
+{% block content %}
+<div class="card" style="max-width:760px; margin:48px auto;">
+    <h1>⭐ AGR</h1>
+    <p>Contrôlez l’agrandissement vertical du Banner pour les visiteurs.</p>
+    <form method="post">
+        {% csrf_token %}
+        <div class="form-check" style="margin-bottom:18px;">
+            {{ form.banner_expand_enabled }}
+            <label class="form-check-label" for="{{ form.banner_expand_enabled.id_for_label }}">{{ form.banner_expand_enabled.label }}</label>
+        </div>
+        <div style="display:grid; gap:16px; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr));">
+            <div>
+                <label for="{{ form.banner_normal_height.id_for_label }}">Hauteur normale (px)</label>
+                {{ form.banner_normal_height }}
+                {{ form.banner_normal_height.errors }}
+            </div>
+            <div>
+                <label for="{{ form.banner_expanded_height.id_for_label }}">Hauteur agrandie (px)</label>
+                {{ form.banner_expanded_height }}
+                {{ form.banner_expanded_height.errors }}
+            </div>
+        </div>
+        <button type="submit" class="button" style="margin-top:20px;">Enregistrer</button>
+    </form>
+</div>
+{% endblock %}

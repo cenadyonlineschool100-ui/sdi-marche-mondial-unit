@@ -1,0 +1,20 @@
+{% extends 'marketplace/base.html' %}
+{% block content %}
+<div class="card" style="max-width: 600px; margin: auto;">
+    <h2>Inscription</h2>
+    <p style="margin-bottom: 16px; color: #334155; white-space: pre-line;">Mettre ta photo carte d'identité ou passeport</p>
+    <form method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+        {{ form.non_field_errors }}
+        {% for field in form.visible_fields %}
+            <div class="form-group">
+                {{ field.label_tag }}
+                {{ field }}
+                <div style="color:#b00020; font-size:.95rem;">{{ field.errors }}</div>
+            </div>
+        {% endfor %}
+        <button type="submit" class="button">S'inscrire</button>
+    </form>
+    <p style="margin-top: 14px;">Déjà un compte ? <a class="small-link" href="{% url 'login' %}">Connexion</a></p>
+</div>
+{% endblock %}

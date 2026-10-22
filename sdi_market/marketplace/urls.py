@@ -21,7 +21,7 @@ from .views import (
     generate_product_image_api, get_image_suggestions_api,  # APIs génération d'images
     driver_dashboard, my_shop, manage_delivery_assignments, assign_order_to_driver, reassign_delivery_order,
     system_control_panel, refresh_exchange_rates, security_dashboard_api, view_user_password,  # Contrôle système - Gestion mots de passe et sécurité
-    site_banner_dashboard, site_banner_toggle, site_banner_delete, site_banner_image_add, site_banner_image_delete, site_banner_image_crop, site_banner_crop, site_banner_permission, site_banner_access, site_banner_impression, site_banner_click, site_banner_purchase,
+    site_banner_activation, site_banner_activation_toggle, site_banner_expand_settings, site_banner_dashboard, site_gp_dashboard, site_banner_autoplay_toggle, site_banner_product_toggle, site_banner_toggle, site_banner_delete, site_banner_image_add, site_banner_image_delete, site_banner_image_crop, site_banner_crop, site_banner_permission, site_banner_access, site_banner_impression, site_banner_click, site_banner_purchase,
     # Notifications persistantes
     get_persistent_notifications_api, mark_persistent_notification_read_api, check_notifications_sound_api,
     persistent_notifications_page, mark_all_persistent_notifications_read_api,
@@ -29,7 +29,8 @@ from .views import (
     confirm_delivery_buyer, confirm_delivery_driver,
     withdraw_funds, upload_receipt, upload_identity, save_recharge_message, upload_selfie, view_receipts, process_receipt, view_withdrawal_receipt,
     transfer_receipts, view_transfer_receipt,
-    sdi_sol_page, sdi_sol_join, sdi_sol_payments, sdi_sol_make_payment, sdi_sol_payment_receipt, sdi_sol_admin, sdi_sol_admin_remove_member, sdi_sol_admin_approve_member,
+    sdi_sol_page, sdi_sol_join, sdi_sol_payments, sdi_sol_make_payment, sdi_sol_payment_receipt, sdi_sol_admin, sdi_sol_admin_remove_member, sdi_sol_admin_approve_member, sdi_sol_admin_reject_member,
+    sdi_sol_admin_save_plan, sdi_sol_admin_approve_payment, sdi_sol_admin_reject_payment,
     tikane_access, formations_en_ligne, live_room_webrtc, live_room_jitsi, admin_tikane_requests, admin_tikane_plans,
     demo_page, microordinateur, manage_projet,
 )
@@ -58,7 +59,7 @@ from .views_commission import (
     commission_peuple_configuration_adm
 )
 from .views_admin_permissions import (
-    manage_admin_permissions, toggle_admin_permission, grant_withdrawal_access, revoke_withdrawal_access,
+    manage_admin_permissions, manage_support_whatsapp_link, toggle_admin_permission, grant_withdrawal_access, revoke_withdrawal_access,
     toggle_principal_power,
 )
 from .views_agent_withdrawal import (
@@ -74,6 +75,9 @@ from .api_views import (
 )
 from .modules_manager import (
     get_module_list, load_module_data, get_module_stats, invalidate_module_cache
+)
+from .views_web_push import (
+    web_push_vapid_key, web_push_subscriptions, web_push_csrf_token, service_worker,
 )
 
 router = DefaultRouter()
@@ -157,8 +161,14 @@ urlpatterns = [
     path('admin/optimize-performance', optimize_performance),
     path('my-shop/', my_shop, name='my_shop'),
     path('dashboard/', dashboard, name='dashboard'),
+    path('admin/banniere/activation/', site_banner_activation, name='site_banner_activation'),
+    path('admin/banniere/activation/toggle/', site_banner_activation_toggle, name='site_banner_activation_toggle'),
+    path('admin/banniere/agrandissement/', site_banner_expand_settings, name='site_banner_expand_settings'),
     path('admin/banniere/', site_banner_dashboard, name='site_banner_dashboard'),
+    path('admin/gp/', site_gp_dashboard, name='site_gp_dashboard'),
     path('admin/banniere/<int:banner_id>/toggle/', site_banner_toggle, name='site_banner_toggle'),
+    path('admin/banniere/<int:banner_id>/autoplay/toggle/', site_banner_autoplay_toggle, name='site_banner_autoplay_toggle'),
+    path('admin/banniere/product/<int:product_id>/toggle/', site_banner_product_toggle, name='site_banner_product_toggle'),
     path('admin/banniere/<int:banner_id>/delete/', site_banner_delete, name='site_banner_delete'),
     path('admin/banniere/<int:banner_id>/images/add/', site_banner_image_add, name='site_banner_image_add'),
     path('admin/banniere/images/<int:image_id>/delete/', site_banner_image_delete, name='site_banner_image_delete'),
@@ -175,7 +185,12 @@ urlpatterns = [
     path('sdi-sol/payment/make/', sdi_sol_make_payment, name='sdi_sol_make_payment'),
     path('sdi-sol/payment/receipt/<str:receipt_id>/', sdi_sol_payment_receipt, name='sdi_sol_payment_receipt'),
     path('sdi-sol/admin/', sdi_sol_admin, name='sdi_sol_admin'),
+    path('sdi-sol/admin/plans/save/', sdi_sol_admin_save_plan, name='sdi_sol_admin_save_plan'),
+    path('sdi-sol/admin/plans/<int:plan_id>/save/', sdi_sol_admin_save_plan, name='sdi_sol_admin_update_plan'),
+    path('sdi-sol/admin/payments/<int:payment_id>/approve/', sdi_sol_admin_approve_payment, name='sdi_sol_admin_approve_payment'),
+    path('sdi-sol/admin/payments/<int:payment_id>/reject/', sdi_sol_admin_reject_payment, name='sdi_sol_admin_reject_payment'),
     path('sdi-sol/admin/approve-member/<int:member_id>/', sdi_sol_admin_approve_member, name='sdi_sol_admin_approve_member'),
+    path('sdi-sol/admin/reject-member/<int:member_id>/', sdi_sol_admin_reject_member, name='sdi_sol_admin_reject_member'),
     path('sdi-sol/admin/remove-member/<int:member_id>/', sdi_sol_admin_remove_member, name='sdi_sol_admin_remove_member'),
     path('agent/deposit/', agent_deposit_view, name='agent_deposit'),
     path('agent/deposit/confirmation/<int:deposit_id>/', deposit_confirmation, name='deposit_confirmation'),
@@ -246,6 +261,10 @@ urlpatterns = [
     path('api/notifications/sound/', check_notifications_sound_api, name='check_notifications_sound_api'),
     path('api/notifications/mark-all-read/', mark_all_persistent_notifications_read_api, name='mark_all_persistent_notifications_read_api'),
     path('notifications/', persistent_notifications_page, name='persistent_notifications_page'),
+    path('service-worker.js', service_worker, name='service_worker'),
+    path('api/web-push/vapid-public-key/', web_push_vapid_key, name='web_push_vapid_key'),
+    path('api/web-push/subscriptions/', web_push_subscriptions, name='web_push_subscriptions'),
+    path('api/web-push/csrf-token/', web_push_csrf_token, name='web_push_csrf_token'),
     # Confirmations de livraison
     path('order/<int:order_id>/confirm-delivery-buyer/', confirm_delivery_buyer, name='confirm_delivery_buyer'),
     path('delivery/<int:assignment_id>/confirm-delivery-driver/', confirm_delivery_driver, name='confirm_delivery_driver'),
@@ -274,6 +293,7 @@ urlpatterns = [
     path('commission-peuple/', view_peuple_commission, name='view_peuple_commission'),
     # Gestion des permissions administrateur
     path('admin/permissions/', manage_admin_permissions, name='manage_admin_permissions'),
+    path('admin/support-whatsapp/', manage_support_whatsapp_link, name='manage_support_whatsapp_link'),
     path('admin/permissions/toggle/<int:user_id>/<str:permission_codename>/', toggle_admin_permission, name='toggle_admin_permission'),
     path('admin/permissions/grant-withdrawal/<int:user_id>/', grant_withdrawal_access, name='grant_withdrawal_access'),
     path('admin/permissions/revoke-withdrawal/<int:user_id>/', revoke_withdrawal_access, name='revoke_withdrawal_access'),

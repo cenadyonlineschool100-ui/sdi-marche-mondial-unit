@@ -1,6 +1,7 @@
 from decimal import Decimal
 from io import BytesIO
 import os
+import re
 from PIL import Image
 
 from django import forms
@@ -8,9 +9,30 @@ from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import UploadedFile, SimpleUploadedFile
-from .models import BeautyAppointment, BeautyStudioRequest, BeautyStudioService, Product, ProductReview, SystemSettings, ProductImage, ChatMessage, PrivateMessage, Profile, Order, AdminAnnouncement, TiKaneAccessRequest, TiKanePlan, TechnicianProfile, SiteBanner, SiteBannerImage, Shop
+from .models import BeautyAppointment, BeautyStudioRequest, BeautyStudioService, Product, ProductReview, SystemSettings, ProductImage, ChatMessage, PrivateMessage, Profile, Order, AdminAnnouncement, TiKaneAccessRequest, TiKanePlan, TechnicianProfile, SiteBanner, SiteBannerImage, Shop, PriorityGroup
 
 User = get_user_model()
+
+
+def normalize_phone_number(value):
+    """Normalize phone numbers to a consistent international format."""
+    if value is None:
+        return ''
+
+    digits = re.sub(r'\D', '', str(value).strip())
+    if not digits:
+        return ''
+
+    if digits.startswith('509'):
+        return '+' + digits
+    if digits.startswith('0') and len(digits) == 9:
+        return '+509' + digits[1:]
+    if digits.startswith('9') and len(digits) in (8, 9):
+        return '+509' + digits
+    if len(digits) == 8:
+        return '+509' + digits
+    return '+' + digits if digits.isdigit() else ''
+
 
 class MultipleFileInput(forms.ClearableFileInput):
     """Widget personnalisé pour les uploads multiples"""
@@ -176,7 +198,8 @@ class SignUpForm(UserCreationForm):
         # Empêcher l'inscription si même combinaison email + téléphone existe
         if email and phone:
             User = get_user_model()
-            if User.objects.filter(email__iexact=email, profile__phone=phone).exists():
+            normalized_phone = normalize_phone_number(phone)
+            if User.objects.filter(email__iexact=email, profile__phone=normalized_phone).exists():
                 raise ValidationError('Un compte existe déjà avec cette adresse Gmail et ce numéro de téléphone.')
 
         identity_document = cleaned.get('identity_document')
@@ -191,7 +214,7 @@ class SiteBannerForm(forms.ModelForm):
         model = SiteBanner
         fields = [
             'product', 'title', 'subtitle', 'button_text', 'image',
-            'is_active', 'display_order', 'start_date', 'end_date', 'display_mode', 'autoplay_seconds', 'scope', 'shops', 'access_mode', 'access_price'
+            'is_active', 'display_order', 'start_date', 'end_date', 'display_mode', 'autoplay_seconds', 'autoplay_enabled', 'scope', 'shops', 'access_mode', 'access_price'
         ]
         widgets = {
             'product': forms.Select(attrs={'class': 'form-control'}),
@@ -205,6 +228,7 @@ class SiteBannerForm(forms.ModelForm):
             'end_date': forms.DateTimeInput(attrs={'class': 'form-control', 'type': 'datetime-local'}),
             'display_mode': forms.Select(attrs={'class': 'form-control'}),
             'autoplay_seconds': forms.NumberInput(attrs={'class': 'form-control', 'min': '0', 'max': '300'}),
+            'autoplay_enabled': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
             'scope': forms.Select(attrs={'class': 'form-control'}),
             'shops': forms.SelectMultiple(attrs={'class': 'form-control'}),
             'access_mode': forms.Select(attrs={'class': 'form-control'}),
@@ -222,6 +246,7 @@ class SiteBannerForm(forms.ModelForm):
             'end_date': 'Date de fin',
             'display_mode': 'Mode d’affichage',
             'autoplay_seconds': 'Autoplay en secondes (0 = désactivé)',
+            'autoplay_enabled': 'Défilement automatique actif',
             'scope': 'Portée de la bannière',
             'shops': 'Boutiques autorisées',
             'access_mode': 'Mode d’accès à la bannière',
@@ -482,6 +507,12 @@ class ProfileForm(forms.ModelForm):
             self.fields['last_name'].initial = self.instance.user.last_name
             self.fields['email'].initial = self.instance.user.email
 
+    def clean_phone(self):
+        phone = self.cleaned_data.get('phone')
+        if phone:
+            return normalize_phone_number(phone)
+        return phone
+
     def save(self, commit=True):
         profile = super().save(commit=False)
         user = profile.user
@@ -496,6 +527,12 @@ class ProfileForm(forms.ModelForm):
         return profile
 
 class TiKaneAccessRequestForm(forms.ModelForm):
+    currency = forms.ChoiceField(
+        choices=TiKaneAccessRequest.CURRENCY_CHOICES,
+        required=True,
+        label='Devise du compte Ti Kanè',
+        widget=forms.Select(attrs={'class': 'form-control'}),
+    )
     identity_document = forms.ImageField(
         required=True,
         widget=forms.FileInput(attrs={'class': 'form-control', 'accept': 'image/*', 'capture': 'environment'}),
@@ -520,7 +557,7 @@ class TiKaneAccessRequestForm(forms.ModelForm):
     class Meta:
         model = TiKaneAccessRequest
         fields = [
-            'full_name', 'email', 'phone', 'plan', 'identity_document',
+            'full_name', 'email', 'phone', 'currency', 'plan', 'identity_document',
             'passport_document', 'driver_license_document', 'selfie', 'acceptance_clause',
         ]
         widgets = {
@@ -815,6 +852,9 @@ class SystemSettingsForm(forms.ModelForm):
     class Meta:
         model = SystemSettings
         fields = [
+            'banner_visible_to_admins',
+            'principal_banner_visible',
+            'mobile_footer_support_enabled',
             'enable_role_management',
             'enable_financial_audit',
             'enable_alerts',
@@ -827,6 +867,9 @@ class SystemSettingsForm(forms.ModelForm):
             'microsdicash_payment_instructions',
         ]
         widgets = {
+            'banner_visible_to_admins': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'principal_banner_visible': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'mobile_footer_support_enabled': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
             'enable_role_management': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
             'enable_financial_audit': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
             'enable_alerts': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
@@ -837,6 +880,54 @@ class SystemSettingsForm(forms.ModelForm):
             'microsdicash_account_number': forms.TextInput(attrs={'class': 'form-control'}),
             'microsdicash_account_phone': forms.TextInput(attrs={'class': 'form-control'}),
             'microsdicash_payment_instructions': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
+        }
+        labels = {
+            'mobile_footer_support_enabled': '⭐ FC',
+        }
+
+
+class BannerExpandSettingsForm(forms.ModelForm):
+    class Meta:
+        model = SystemSettings
+        fields = ['banner_expand_enabled', 'banner_normal_height', 'banner_expanded_height']
+        widgets = {
+            'banner_expand_enabled': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'banner_normal_height': forms.NumberInput(attrs={'class': 'form-control', 'min': 100, 'max': 500}),
+            'banner_expanded_height': forms.NumberInput(attrs={'class': 'form-control', 'min': 120, 'max': 700}),
+        }
+
+    def clean(self):
+        cleaned_data = super().clean()
+        normal_height = cleaned_data.get('banner_normal_height')
+        expanded_height = cleaned_data.get('banner_expanded_height')
+        if normal_height and expanded_height and expanded_height <= normal_height:
+            self.add_error('banner_expanded_height', 'La hauteur agrandie doit être supérieure à la hauteur normale.')
+        return cleaned_data
+
+
+class PriorityGroupForm(forms.ModelForm):
+    class Meta:
+        model = PriorityGroup
+        fields = ['name', 'priority', 'weight', 'is_active', 'start_date', 'end_date']
+        widgets = {
+            'name': forms.TextInput(attrs={'class': 'form-control'}),
+            'priority': forms.NumberInput(attrs={'class': 'form-control', 'min': '1'}),
+            'weight': forms.NumberInput(attrs={'class': 'form-control', 'min': '1', 'max': '100'}),
+            'is_active': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'start_date': forms.DateTimeInput(attrs={'class': 'form-control', 'type': 'datetime-local'}),
+            'end_date': forms.DateTimeInput(attrs={'class': 'form-control', 'type': 'datetime-local'}),
+        }
+
+
+class BannerProductPriorityForm(forms.ModelForm):
+    class Meta:
+        model = Product
+        fields = ['priority_group', 'banner_priority', 'banner_weight', 'banner_display_allowed']
+        widgets = {
+            'priority_group': forms.Select(attrs={'class': 'form-control'}),
+            'banner_priority': forms.NumberInput(attrs={'class': 'form-control', 'min': '1'}),
+            'banner_weight': forms.NumberInput(attrs={'class': 'form-control', 'min': '1', 'max': '100'}),
+            'banner_display_allowed': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
         }
 
 
@@ -1088,4 +1179,3 @@ class AdminAnnouncementForm(forms.ModelForm):
             'enable_loop': 'Défilement en boucle',
             'animation_effect': 'Effet d\'animation',
         }
-

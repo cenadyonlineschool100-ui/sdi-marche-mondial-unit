@@ -434,8 +434,8 @@
     <!-- Statistics -->
     <div class="sdi-sol-stats">
         <div class="stat-card">
-            <h3>Membres actifs</h3>
-            <div class="value">{{ members|length }}/{{ settings.max_members }}</div>
+            <h3>Participants actifs</h3>
+            <div class="value">{{ members|length }}</div>
         </div>
         <div class="stat-card">
             <h3>Cotisation</h3>
@@ -458,8 +458,8 @@
     <div class="info-box">
         <h3>📋 À propos du Sol SDI</h3>
         <p>
-            Le Sol SDI est un système de groupement économique composé d'un maximum de <strong>{{ settings.max_members }} personnes</strong> 
-            qui cotisent régulièrement pour créer un fonds communautaire.
+            Chaque plan SDI Sol forme son propre groupe pouvant accueillir au maximum
+            <strong>{{ settings.max_members }} personnes</strong> qui cotisent régulièrement pour créer un fonds communautaire.
         </p>
         <p>
             Les membres ayant un <strong>historique de paiement irréprochable</strong> bénéficient d'un meilleur classement 
@@ -475,39 +475,42 @@
             <div class="members-grid">
                 {% for member in members %}
                     <div class="member-card">
-                        <div class="member-position">#{{ member.position }}</div>
-                        <div class="member-name">{{ member.user.get_full_name|default:member.user.username }}</div>
-                        
-                        <div class="member-status">{{ member.get_status_badge }}</div>
-                        <span class="status-label status-{{ member.status }}">
-                            {% if member.status == 'ontime' %}
-                                À jour
-                            {% elif member.status == 'late' %}
-                                En retard
-                            {% else %}
-                                En attente
-                            {% endif %}
-                        </span>
+                        <div class="member-position">#{{ member.group_position }}</div>
+                        <div class="member-name">{{ member.display_name }}</div>
+                        <div class="member-stats">Groupe : {{ member.group_label }}</div>
 
-                        <div class="member-stats">
-                            {% if member.last_payment_date %}
-                                <div>💰 Dernier paiement: {{ member.last_payment_date|date:"d/m/Y" }}</div>
-                                <div>📊 Total USD: ${{ member.total_paid_usd }}</div>
-                                <div>📊 Total HTG: {{ member.total_paid_htg|floatformat:0 }} HTG</div>
-                            {% else %}
-                                <div>Aucun paiement enregistré</div>
-                            {% endif %}
+                        {% if member.can_view_details %}
+                            <div class="member-status">{{ member.get_status_badge }}</div>
+                            <span class="status-label status-{{ member.status }}">
+                                {% if member.status == 'ontime' %}
+                                    À jour
+                                {% elif member.status == 'late' %}
+                                    En retard
+                                {% else %}
+                                    En attente
+                                {% endif %}
+                            </span>
 
-                            {% if member.next_due_date %}
-                                <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(30, 64, 175, 0.1);">
-                                    ⏰ Prochaine échéance: {{ member.next_due_date|date:"d/m/Y" }}
-                                </div>
-                            {% endif %}
-                        </div>
+                            <div class="member-stats">
+                                {% if member.last_payment_date %}
+                                    <div>💰 Dernier paiement: {{ member.last_payment_date|date:"d/m/Y" }}</div>
+                                    <div>📊 Total USD: ${{ member.total_paid_usd }}</div>
+                                    <div>📊 Total HTG: {{ member.total_paid_htg|floatformat:0 }} HTG</div>
+                                {% else %}
+                                    <div>Aucun paiement enregistré</div>
+                                {% endif %}
 
-                        <div class="member-joined">
-                            Inscrit le {{ member.joined_at|date:"d/m/Y" }}
-                        </div>
+                                {% if member.next_due_date %}
+                                    <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(30, 64, 175, 0.1);">
+                                        ⏰ Prochaine échéance: {{ member.next_due_date|date:"d/m/Y" }}
+                                    </div>
+                                {% endif %}
+                            </div>
+
+                            <div class="member-joined">
+                                Inscrit le {{ member.joined_at|date:"d/m/Y" }}
+                            </div>
+                        {% endif %}
                     </div>
                 {% endfor %}
             </div>
@@ -519,12 +522,34 @@
         {% endif %}
     </div>
 
+    {% if plans %}
+    <section class="rules-section">
+        <h2>Plans SDI Sol Microtech</h2>
+        <div class="rules-grid">
+            {% for plan in plans %}
+            <div class="rule-card">
+                <h3>{{ plan.name }}</h3>
+                <p>Durée : <strong>{{ plan.duration_days }} jours</strong></p>
+                {% if plan.amount_usd %}<div class="currency-box">${{ plan.amount_usd }} USD</div>{% endif %}
+                {% if plan.amount_htg %}<div class="currency-box">{{ plan.amount_htg|floatformat:0 }} HTG</div>{% endif %}
+            </div>
+            {% endfor %}
+        </div>
+    </section>
+    {% endif %}
+
     <!-- Join Section -->
     <div class="join-button-section">
         {% if request.user.is_authenticated %}
             {% if can_join %}
                 <form method="post" action="{% url 'sdi_sol_join' %}">
                     {% csrf_token %}
+                    <label for="sdi-sol-plan">Choisissez un plan auquel vous n’êtes pas déjà inscrit</label>
+                    <select id="sdi-sol-plan" name="plan_id" required>
+                        {% for plan in joinable_plans %}
+                        <option value="{{ plan.pk }}">{{ plan.name }} · {{ plan.duration_days }} jours</option>
+                        {% endfor %}
+                    </select>
                     <button type="submit" class="join-button">
                         ✨ Rejoindre le Sol SDI
                     </button>
@@ -540,6 +565,12 @@
             </p>
         {% endif %}
     </div>
+
+    {% if is_principal_admin %}
+    <div class="join-button-section">
+        <a href="{% url 'sdi_sol_admin' %}" class="join-button">⚙️ Gérer le Sol SDI</a>
+    </div>
+    {% endif %}
 
     <!-- Rules Section -->
     <div class="rules-section">
@@ -577,8 +608,8 @@
 
             <div class="rule-card">
                 <h3><span class="rule-icon">🚫</span> Limite de membres</h3>
-                <p>Le Sol SDI ne peut contenir que <strong>{{ settings.max_members }} membres</strong> maximum.</p>
-                <p>Une fois complet, les nouvelles inscriptions sont refusées.</p>
+                <p>Chaque groupe de plan peut accueillir au maximum <strong>{{ settings.max_members }} membres</strong>.</p>
+                <p>Les demandes en attente réservent aussi une place ; une fois le groupe complet, les nouvelles demandes sont refusées.</p>
             </div>
 
             <div class="rule-card">
@@ -614,10 +645,10 @@
     </div>
 
     <!-- Current Member Info -->
-    {% if current_member %}
+    {% for current_member in current_members %}
         <div class="info-box" style="background: linear-gradient(135deg, rgba(34, 197, 94, 0.08), rgba(34, 197, 94, 0.05)); border-left-color: #22c55e;">
-            <h3 style="color: #22c55e;">✅ Vous êtes membre du Sol SDI</h3>
-            <p><strong>Votre position actuelle:</strong> #{{ current_member.position }}</p>
+            <h3 style="color: #22c55e;">✅ Participation approuvée — {{ current_member.plan_name|default:"Sol SDI historique" }}</h3>
+            <p><strong>Votre place dans le groupe:</strong> #{{ current_member.group_position }}</p>
             <p><strong>Votre statut:</strong> 
                 {% if current_member.status == 'ontime' %}
                     🟢 À jour (Paiement effectué à temps)
@@ -634,7 +665,7 @@
             
             <!-- Action Buttons -->
             <div style="display: flex; gap: 15px; margin-top: 20px; flex-wrap: wrap;">
-                <a href="{% url 'sdi_sol_payments' %}" style="
+                <a href="{% url 'sdi_sol_payments' %}?member_id={{ current_member.pk }}" style="
                     background: linear-gradient(135deg, #1d4ed8, #2563eb);
                     color: white;
                     padding: 10px 20px;
@@ -647,24 +678,16 @@
                    onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='none'">
                     💳 Mes paiements
                 </a>
-                {% if request.user.is_staff %}
-                    <a href="{% url 'sdi_sol_admin' %}" style="
-                        background: linear-gradient(135deg, #7c3aed, #a855f7);
-                        color: white;
-                        padding: 10px 20px;
-                        border-radius: 8px;
-                        text-decoration: none;
-                        font-weight: 600;
-                        transition: all 0.3s ease;
-                        display: inline-block;
-                    " onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 8px 24px rgba(168, 85, 247, 0.3)'" 
-                       onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='none'">
-                        ⚙️ Admin Panel
-                    </a>
-                {% endif %}
             </div>
         </div>
-    {% endif %}
+    {% endfor %}
+
+    {% for pending in pending_requests %}
+        <div class="info-box">
+            <h3>⏳ Demande en attente — {{ pending.plan_name|default:"Plan SDI Sol" }}</h3>
+            <p>Votre demande n’est pas approuvée. L’accès au groupe et aux paiements sera disponible après validation par l’administrateur principal.</p>
+        </div>
+    {% endfor %}
 </div>
 
 <script>

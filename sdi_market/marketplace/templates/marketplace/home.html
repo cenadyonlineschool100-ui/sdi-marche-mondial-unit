@@ -1,6 +1,205 @@
 ﻿{% extends 'marketplace/base.html' %}
 {% load image_tags %}
 
+{% block extra_css %}
+<style>
+    @media (max-width: 599px) {
+        body header .nav-bar > .brand {
+            gap: 7px;
+        }
+    }
+
+    .hero {
+        padding: 34px 0 18px;
+    }
+
+    .hero-inner {
+        width: min(1240px, calc(100% - 36px));
+        padding: 32px;
+        gap: 28px;
+        border-radius: 26px;
+    }
+
+    .hero-copy {
+        gap: 16px;
+    }
+
+    .hero-title {
+        max-width: 760px;
+        line-height: 1.06;
+    }
+
+    .hero-subtitle {
+        margin: 0;
+        line-height: 1.6;
+    }
+
+    .hero-panel {
+        align-self: stretch;
+    }
+
+    .hero + .container {
+        width: min(1240px, calc(100% - 36px));
+    }
+
+    .hero + .container > .section:first-child {
+        margin-top: 34px;
+    }
+
+    .section {
+        margin: 44px 0;
+        padding-inline: 0;
+    }
+
+    .section-header {
+        margin-bottom: 24px;
+    }
+
+    .section-header h2 {
+        font-size: clamp(1.6rem, 2.5vw, 2.1rem);
+        line-height: 1.15;
+    }
+
+    .section-header p {
+        font-size: 1rem;
+        line-height: 1.55;
+    }
+
+    .promo-grid {
+        grid-auto-rows: 1fr;
+        gap: 16px;
+        margin: 0;
+    }
+
+    .promo-card {
+        height: 100%;
+    }
+
+    .promo-thumb {
+        min-height: 150px;
+    }
+
+    .promo-body {
+        min-height: 76px;
+        align-content: center;
+    }
+
+    .shops-grid {
+        gap: 16px;
+    }
+
+    @media (max-width: 720px) {
+        body .hero {
+            padding: 18px 0 10px;
+        }
+
+        body .hero .hero-inner,
+        body .hero + .container {
+            width: min(100% - 24px, 480px);
+        }
+
+        body .hero .hero-inner {
+            padding: 20px 18px;
+            gap: 12px;
+            border-radius: 22px;
+        }
+
+        body .hero .hero-copy {
+            gap: 10px;
+        }
+
+        body .hero .hero-title {
+            line-height: 1.05;
+        }
+
+        body .hero .hero-subtitle {
+            line-height: 1.4;
+        }
+
+        .hero + .container > .section:first-child {
+            margin-top: 26px;
+        }
+
+        .section {
+            margin: 32px 0;
+        }
+
+        .section-header {
+            margin-bottom: 18px;
+        }
+
+        .promo-thumb {
+            min-height: 128px;
+        }
+    }
+
+    @media (min-width: 1200px) {
+        body .hero {
+            padding: 34px 0 18px;
+        }
+
+        body .hero .hero-inner {
+            width: min(1800px, calc(100% - 36px));
+            padding: 32px;
+            gap: 28px;
+            border-radius: 26px;
+        }
+
+        body .hero .hero-copy {
+            gap: 16px;
+        }
+
+        body .hero .hero-title {
+            max-width: 760px;
+            line-height: 1.06;
+        }
+
+        body .hero .hero-subtitle {
+            margin: 0;
+            line-height: 1.6;
+        }
+
+        body .hero + .container > .section:first-child {
+            margin-top: 34px;
+        }
+
+        body .hero + .container > .section:first-child .section-header {
+            margin-bottom: 24px;
+        }
+
+        body .hero + .container > .section:first-child .section-header h2 {
+            font-size: 2.1rem;
+            line-height: 1.15;
+        }
+
+        body .hero + .container > .section:first-child .section-header p {
+            font-size: 1rem;
+            line-height: 1.55;
+        }
+
+        body .hero + .container > .section:first-child .promo-grid {
+            grid-auto-rows: 1fr;
+            gap: 16px;
+            margin: 0;
+        }
+
+        body .hero + .container > .section:first-child .promo-card {
+            height: 100%;
+        }
+
+        body .hero + .container > .section:first-child .promo-thumb {
+            min-height: 150px;
+        }
+
+        body .hero + .container > .section:first-child .promo-body {
+            min-height: 76px;
+            align-content: center;
+        }
+    }
+
+</style>
+{% endblock %}
+
 {% block hero %}
 <div class="hero">
     <div class="container hero-inner">
@@ -73,98 +272,6 @@
         {% endfor %}
     </div>
 </div>
-
-{% if banner_carousel_products %}
-<div class="section">
-    <div class="section-header">
-        <h2>Produits en vedette</h2>
-        <p>Découvrez nos meilleures sélections avec images vérifiées et avis confirmés.</p>
-    </div>
-    
-    <div class="shop-carousel" role="region" aria-label="Carrousel de produits en vedette">
-        <div class="carousel-track" id="banner-carousel-track">
-            {% for product in banner_carousel_products %}
-            <div class="carousel-slide {% if forloop.first %}active{% endif %}" data-product-id="{{ product.id }}" data-slide-index="{{ forloop.counter0 }}">
-                <div class="slide-card">
-                    <div class="slide-image">
-                        {% if product.get_primary_image %}
-                            <img src="{{ product.get_primary_image }}" alt="{{ product.name }}" loading="lazy" decoding="async" style="width:100%; height:100%; object-fit:cover;">
-                        {% else %}
-                            <span>{{ product.name|truncatewords:3 }}</span>
-                        {% endif %}
-                    </div>
-                    <div class="slide-content">
-                        <h3 class="slide-shop-name">{{ product.name|truncatewords:5 }}</h3>
-                        <p class="slide-shop-owner">📍 {{ product.shop.name }}</p>
-                        <p class="slide-shop-meta">
-                            {% if product.average_rating %}
-                                ⭐ {{ product.average_rating|floatformat:1 }} ({{ product.reviews_count }} avis)
-                            {% else %}
-                                ⭐ Pas encore d'avis
-                            {% endif %}
-                        </p>
-                        <p class="slide-shop-meta" style="color: #1d4ed8; font-weight: 700; font-size: 1.1rem; margin-top: 8px;">
-                            $ {{ product.price_ht }}
-                        </p>
-                        <a href="{% url 'product_detail' product.id %}" class="button" style="margin-top: 12px; display: inline-block; width: 100%; text-align: center;">
-                            Voir le produit
-                        </a>
-                    </div>
-                </div>
-            </div>
-            {% endfor %}
-        </div>
-        
-        <div class="carousel-controls">
-            <button type="button" class="button" id="banner-carousel-prev" aria-label="Produit précédent">← Précédent</button>
-            <button type="button" class="button" id="banner-carousel-next" aria-label="Produit suivant">Suivant →</button>
-        </div>
-    </div>
-</div>
-
-<script>
-(function() {
-    const track = document.getElementById('banner-carousel-track');
-    const prevBtn = document.getElementById('banner-carousel-prev');
-    const nextBtn = document.getElementById('banner-carousel-next');
-    const slides = track ? Array.from(track.querySelectorAll('.carousel-slide')) : [];
-    
-    if (!slides.length) return;
-    
-    let currentIndex = 0;
-    
-    function showSlide(index) {
-        slides.forEach((slide, i) => {
-            slide.classList.toggle('active', i === index);
-        });
-        currentIndex = index;
-    }
-    
-    function nextSlide() {
-        showSlide((currentIndex + 1) % slides.length);
-    }
-    
-    function prevSlide() {
-        showSlide((currentIndex - 1 + slides.length) % slides.length);
-    }
-    
-    if (nextBtn) nextBtn.addEventListener('click', nextSlide);
-    if (prevBtn) prevBtn.addEventListener('click', prevSlide);
-    
-    // Auto-rotation toutes les 8 secondes
-    const autoRotate = setInterval(nextSlide, 8000);
-    
-    // Arrêter l'auto-rotation si l'utilisateur clique sur un bouton
-    [nextBtn, prevBtn].forEach(btn => {
-        if (btn) {
-            btn.addEventListener('click', () => {
-                clearInterval(autoRotate);
-            });
-        }
-    });
-})();
-</script>
-{% endif %}
 
 <div class="section" style="background: linear-gradient(135deg, rgba(59,130,246,.08), rgba(255,255,255,0)); border-radius: 24px; padding: 32px; margin: 32px 0;">
     <div class="section-header">

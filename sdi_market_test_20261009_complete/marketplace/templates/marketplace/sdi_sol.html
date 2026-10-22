@@ -1,0 +1,692 @@
+{% extends 'marketplace/base.html' %}
+{% load marketplace_filters %}
+{% load static %}
+
+{% block title %}SDI Sol - Groupement Économique{% endblock %}
+
+{% block content %}
+<style>
+    .sdi-sol-container {
+        max-width: 1200px;
+        margin: 40px auto;
+        padding: 0 20px;
+    }
+
+    .sdi-sol-header {
+        text-align: center;
+        margin-bottom: 50px;
+        animation: slideIn 0.6s ease-out;
+    }
+
+    .sdi-sol-header h1 {
+        font-size: 3rem;
+        font-weight: 800;
+        background: linear-gradient(135deg, #1d4ed8, #2563eb);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        margin-bottom: 15px;
+        animation: float 3s ease-in-out infinite;
+    }
+
+    .sdi-sol-header p {
+        font-size: 1.25rem;
+        color: #5c7a9d;
+        margin-bottom: 30px;
+        max-width: 600px;
+        margin-left: auto;
+        margin-right: auto;
+    }
+
+    .sdi-sol-stats {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 20px;
+        margin-bottom: 50px;
+    }
+
+    .stat-card {
+        background: rgba(255, 255, 255, 0.95);
+        border-radius: 20px;
+        padding: 25px;
+        text-align: center;
+        border: 1px solid rgba(30, 64, 175, 0.1);
+        box-shadow: 0 10px 40px rgba(0, 22, 79, 0.08);
+        transition: all 0.3s ease;
+        animation: slideUp 0.6s ease-out;
+    }
+
+    .stat-card:hover {
+        transform: translateY(-8px);
+        box-shadow: 0 20px 60px rgba(0, 22, 79, 0.15);
+        border-color: rgba(30, 64, 175, 0.2);
+    }
+
+    .stat-card h3 {
+        color: #5c7a9d;
+        font-size: 0.95rem;
+        font-weight: 600;
+        margin-bottom: 10px;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+
+    .stat-card .value {
+        font-size: 2.5rem;
+        font-weight: 800;
+        background: linear-gradient(135deg, #1d4ed8, #2563eb);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
+
+    .info-box {
+        background: linear-gradient(135deg, rgba(29, 78, 216, 0.08), rgba(37, 99, 235, 0.08));
+        border-left: 4px solid #2563eb;
+        border-radius: 12px;
+        padding: 20px;
+        margin-bottom: 40px;
+        animation: slideIn 0.6s ease-out 0.2s both;
+    }
+
+    .info-box h3 {
+        color: #1d4ed8;
+        margin-top: 0;
+        margin-bottom: 10px;
+        font-weight: 700;
+    }
+
+    .info-box p {
+        color: #5c7a9d;
+        margin: 8px 0;
+        line-height: 1.6;
+    }
+
+    .members-section {
+        background: rgba(255, 255, 255, 0.95);
+        border-radius: 24px;
+        padding: 35px;
+        border: 1px solid rgba(30, 64, 175, 0.1);
+        box-shadow: 0 10px 40px rgba(0, 22, 79, 0.08);
+        margin-bottom: 40px;
+        animation: slideUp 0.6s ease-out 0.3s both;
+    }
+
+    .members-section h2 {
+        font-size: 1.8rem;
+        color: #1d4ed8;
+        margin-bottom: 30px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .members-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        gap: 20px;
+    }
+
+    .member-card {
+        background: linear-gradient(135deg, rgba(29, 78, 216, 0.05), rgba(147, 197, 253, 0.05));
+        border: 2px solid #e2ecff;
+        border-radius: 16px;
+        padding: 20px;
+        text-align: center;
+        transition: all 0.3s ease;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .member-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 4px;
+        background: linear-gradient(90deg, #1d4ed8, #2563eb);
+        transform: scaleX(0);
+        transform-origin: left;
+        transition: transform 0.3s ease;
+    }
+
+    .member-card:hover {
+        transform: translateY(-8px);
+        border-color: #93c5fd;
+        box-shadow: 0 15px 50px rgba(29, 78, 216, 0.15);
+    }
+
+    .member-card:hover::before {
+        transform: scaleX(1);
+    }
+
+    .member-position {
+        display: inline-block;
+        background: linear-gradient(135deg, #1d4ed8, #2563eb);
+        color: white;
+        width: 50px;
+        height: 50px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+        font-weight: 800;
+        margin-bottom: 15px;
+    }
+
+    .member-name {
+        font-size: 1.1rem;
+        font-weight: 700;
+        color: #1d4ed8;
+        margin-bottom: 10px;
+        word-break: break-word;
+    }
+
+    .member-status {
+        display: inline-block;
+        font-size: 2rem;
+        margin-bottom: 10px;
+        margin-right: 5px;
+    }
+
+    .status-label {
+        display: inline-block;
+        font-size: 0.85rem;
+        padding: 6px 12px;
+        border-radius: 12px;
+        font-weight: 600;
+        margin-bottom: 15px;
+    }
+
+    .status-ontime {
+        background: rgba(34, 197, 94, 0.1);
+        color: #22c55e;
+        border: 1px solid rgba(34, 197, 94, 0.3);
+    }
+
+    .status-late {
+        background: rgba(249, 115, 22, 0.1);
+        color: #f59e0b;
+        border: 1px solid rgba(249, 115, 22, 0.3);
+    }
+
+    .status-pending {
+        background: rgba(59, 130, 246, 0.1);
+        color: #3b82f6;
+        border: 1px solid rgba(59, 130, 246, 0.3);
+    }
+
+    .member-stats {
+        font-size: 0.9rem;
+        color: #5c7a9d;
+        margin-bottom: 15px;
+        padding: 12px;
+        background: rgba(255, 255, 255, 0.5);
+        border-radius: 8px;
+        line-height: 1.6;
+    }
+
+    .member-joined {
+        font-size: 0.8rem;
+        color: #a8b8d8;
+        margin-top: 12px;
+        padding-top: 12px;
+        border-top: 1px solid rgba(30, 64, 175, 0.1);
+    }
+
+    .empty-state {
+        text-align: center;
+        padding: 60px 20px;
+        color: #5c7a9d;
+    }
+
+    .empty-state h3 {
+        font-size: 1.5rem;
+        color: #1d4ed8;
+        margin-bottom: 15px;
+    }
+
+    .join-button-section {
+        text-align: center;
+        margin: 40px 0;
+    }
+
+    .join-button {
+        background: linear-gradient(135deg, #1d4ed8, #2563eb);
+        color: white;
+        border: none;
+        padding: 16px 40px;
+        border-radius: 12px;
+        font-size: 1rem;
+        font-weight: 700;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        box-shadow: 0 8px 24px rgba(29, 78, 216, 0.3);
+        animation: slideUp 0.6s ease-out 0.4s both;
+    }
+
+    .join-button:hover:not(:disabled) {
+        transform: translateY(-4px);
+        box-shadow: 0 12px 32px rgba(29, 78, 216, 0.4);
+    }
+
+    .join-button:active:not(:disabled) {
+        transform: translateY(-2px);
+    }
+
+    .join-button:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
+
+    .join-message {
+        font-size: 0.95rem;
+        color: #5c7a9d;
+        margin-top: 15px;
+        padding: 12px;
+        background: rgba(255, 255, 255, 0.6);
+        border-radius: 8px;
+        border-left: 3px solid #93c5fd;
+    }
+
+    .error-message {
+        color: #ef4444;
+        border-left-color: #ef4444;
+    }
+
+    .success-message {
+        color: #22c55e;
+        border-left-color: #22c55e;
+    }
+
+    .rules-section {
+        background: rgba(255, 255, 255, 0.95);
+        border-radius: 24px;
+        padding: 35px;
+        border: 1px solid rgba(30, 64, 175, 0.1);
+        box-shadow: 0 10px 40px rgba(0, 22, 79, 0.08);
+        margin-bottom: 40px;
+        animation: slideUp 0.6s ease-out 0.5s both;
+    }
+
+    .rules-section h2 {
+        font-size: 1.8rem;
+        color: #1d4ed8;
+        margin-bottom: 25px;
+    }
+
+    .rules-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 20px;
+    }
+
+    .rule-card {
+        background: linear-gradient(135deg, rgba(29, 78, 216, 0.05), rgba(147, 197, 253, 0.05));
+        border: 1px solid #e2ecff;
+        border-radius: 12px;
+        padding: 20px;
+    }
+
+    .rule-card h3 {
+        color: #1d4ed8;
+        font-size: 1.1rem;
+        margin-top: 0;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .rule-card p {
+        color: #5c7a9d;
+        margin: 10px 0;
+        line-height: 1.6;
+    }
+
+    .rule-icon {
+        font-size: 1.5rem;
+    }
+
+    .currency-box {
+        background: linear-gradient(135deg, rgba(37, 99, 235, 0.1), rgba(147, 197, 253, 0.1));
+        border: 1px solid rgba(29, 78, 216, 0.2);
+        border-radius: 12px;
+        padding: 15px;
+        margin: 10px 0;
+        text-align: center;
+        font-weight: 600;
+        color: #1d4ed8;
+    }
+
+    @keyframes slideIn {
+        from {
+            opacity: 0;
+            transform: translateX(-30px);
+        }
+        to {
+            opacity: 1;
+            transform: translateX(0);
+        }
+    }
+
+    @keyframes slideUp {
+        from {
+            opacity: 0;
+            transform: translateY(30px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    @keyframes float {
+        0%, 100% { transform: translateY(0px); }
+        50% { transform: translateY(-10px); }
+    }
+
+    @keyframes buttonPulse {
+        0%, 100% { 
+            box-shadow: 0 4px 15px rgba(29, 78, 216, 0.3);
+        }
+        50% { 
+            box-shadow: 0 4px 25px rgba(29, 78, 216, 0.5);
+        }
+    }
+
+    @media (max-width: 768px) {
+        .sdi-sol-header h1 {
+            font-size: 2rem;
+        }
+
+        .sdi-sol-header p {
+            font-size: 1rem;
+        }
+
+        .members-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .rules-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .sdi-sol-stats {
+            grid-template-columns: 1fr;
+        }
+
+        .members-section,
+        .rules-section {
+            padding: 20px;
+        }
+    }
+</style>
+
+<div class="sdi-sol-container">
+    <!-- Header -->
+    <div class="sdi-sol-header">
+        <h1>🌟 Bienvenue dans le Sol SDI</h1>
+        <p>Un groupement économique solidaire pour maximiser votre pouvoir d'achat et vos investissements</p>
+    </div>
+
+    <!-- Statistics -->
+    <div class="sdi-sol-stats">
+        <div class="stat-card">
+            <h3>Membres actifs</h3>
+            <div class="value">{{ members|length }}/{{ settings.max_members }}</div>
+        </div>
+        <div class="stat-card">
+            <h3>Cotisation</h3>
+            <div class="currency-box" style="margin: 0;">💵 ${{ settings.contribution_amount_usd }}</div>
+            <div class="currency-box">💶 {{ settings.contribution_amount_htg|floatformat:0 }} HTG</div>
+        </div>
+        <div class="stat-card">
+            <h3>Fréquence</h3>
+            <div class="value" style="font-size: 1.5rem;">
+                {% if settings.frequency == 'weekly' %}
+                    📅 Hebdomadaire
+                {% else %}
+                    📆 Mensuelle
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Info Box -->
+    <div class="info-box">
+        <h3>📋 À propos du Sol SDI</h3>
+        <p>
+            Le Sol SDI est un système de groupement économique composé d'un maximum de <strong>{{ settings.max_members }} personnes</strong> 
+            qui cotisent régulièrement pour créer un fonds communautaire.
+        </p>
+        <p>
+            Les membres ayant un <strong>historique de paiement irréprochable</strong> bénéficient d'un meilleur classement 
+            et de privilèges au sein de la communauté.
+        </p>
+    </div>
+
+    <!-- Current Members -->
+    <div class="members-section">
+        <h2>👥 Membres du Sol SDI</h2>
+
+        {% if members %}
+            <div class="members-grid">
+                {% for member in members %}
+                    <div class="member-card">
+                        <div class="member-position">#{{ member.position }}</div>
+                        <div class="member-name">{{ member.user.get_full_name|default:member.user.username }}</div>
+                        
+                        <div class="member-status">{{ member.get_status_badge }}</div>
+                        <span class="status-label status-{{ member.status }}">
+                            {% if member.status == 'ontime' %}
+                                À jour
+                            {% elif member.status == 'late' %}
+                                En retard
+                            {% else %}
+                                En attente
+                            {% endif %}
+                        </span>
+
+                        <div class="member-stats">
+                            {% if member.last_payment_date %}
+                                <div>💰 Dernier paiement: {{ member.last_payment_date|date:"d/m/Y" }}</div>
+                                <div>📊 Total USD: ${{ member.total_paid_usd }}</div>
+                                <div>📊 Total HTG: {{ member.total_paid_htg|floatformat:0 }} HTG</div>
+                            {% else %}
+                                <div>Aucun paiement enregistré</div>
+                            {% endif %}
+
+                            {% if member.next_due_date %}
+                                <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(30, 64, 175, 0.1);">
+                                    ⏰ Prochaine échéance: {{ member.next_due_date|date:"d/m/Y" }}
+                                </div>
+                            {% endif %}
+                        </div>
+
+                        <div class="member-joined">
+                            Inscrit le {{ member.joined_at|date:"d/m/Y" }}
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="empty-state">
+                <h3>Aucun membre pour le moment</h3>
+                <p>Soyez le premier à rejoindre le Sol SDI!</p>
+            </div>
+        {% endif %}
+    </div>
+
+    <!-- Join Section -->
+    <div class="join-button-section">
+        {% if request.user.is_authenticated %}
+            {% if can_join %}
+                <form method="post" action="{% url 'sdi_sol_join' %}">
+                    {% csrf_token %}
+                    <button type="submit" class="join-button">
+                        ✨ Rejoindre le Sol SDI
+                    </button>
+                </form>
+            {% else %}
+                <p class="join-message {% if 'complet' in join_message %}error-message{% else %}{% endif %}">
+                    {{ join_message }}
+                </p>
+            {% endif %}
+        {% else %}
+            <p class="join-message error-message">
+                {{ join_message }}
+            </p>
+        {% endif %}
+    </div>
+
+    <!-- Rules Section -->
+    <div class="rules-section">
+        <h2>📜 Règles et Conditions</h2>
+        <div class="rules-grid">
+            <div class="rule-card">
+                <h3><span class="rule-icon">📝</span> Inscription</h3>
+                <p>Vous devez être inscrit sur le site SDI Marché Mondial pour rejoindre le Sol SDI.</p>
+                <p><strong>Condition:</strong> Créer un compte utilisateur valide avec email et mot de passe.</p>
+            </div>
+
+            <div class="rule-card">
+                <h3><span class="rule-icon">💳</span> Cotisation obligatoire</h3>
+                <p>Chaque membre doit payer sa cotisation à temps pour garder un bon statut.</p>
+                <div class="currency-box">💵 ${{ settings.contribution_amount_usd }} ou 💶 {{ settings.contribution_amount_htg|floatformat:0 }} HTG</div>
+            </div>
+
+            <div class="rule-card">
+                <h3><span class="rule-icon">📅</span> Fréquence</h3>
+                <p>La cotisation est exigée tous les:</p>
+                <div class="currency-box">
+                    {% if settings.frequency == 'weekly' %}
+                        📅 7 jours (hebdomadaire)
+                    {% else %}
+                        📆 30 jours (mensuelle)
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="rule-card">
+                <h3><span class="rule-icon">📈</span> Classement dynamique</h3>
+                <p>Votre position dans le Sol dépend de votre historique de paiement.</p>
+                <p>Les paiements à temps améliorent votre classement.</p>
+            </div>
+
+            <div class="rule-card">
+                <h3><span class="rule-icon">🚫</span> Limite de membres</h3>
+                <p>Le Sol SDI ne peut contenir que <strong>{{ settings.max_members }} membres</strong> maximum.</p>
+                <p>Une fois complet, les nouvelles inscriptions sont refusées.</p>
+            </div>
+
+            <div class="rule-card">
+                <h3><span class="rule-icon">💰</span> Frais de retrait</h3>
+                <p>Des frais s'appliquent aux retraits:</p>
+                <div class="currency-box">
+                    💵 ${{ settings.withdrawal_fee_usd }} (USD) <br>
+                    💶 {{ settings.withdrawal_fee_htg|floatformat:0 }} HTG (HTG)
+                </div>
+            </div>
+
+            <div class="rule-card">
+                <h3><span class="rule-icon">🟢 🟡</span> Statut paiement</h3>
+                <p>
+                    <strong>🟢 À jour:</strong> Paiement effectué à temps<br>
+                    <strong>🟡 En retard:</strong> Paiement en retard<br>
+                    <strong>🟡 En attente:</strong> Aucun paiement encore
+                </p>
+            </div>
+
+            <div class="rule-card">
+                <h3><span class="rule-icon">📄</span> Reçus automatiques</h3>
+                <p>Chaque paiement génère un reçu automatique avec tous les détails.</p>
+                <p>Consultable depuis votre espace personnel à tout moment.</p>
+            </div>
+
+            <div class="rule-card">
+                <h3><span class="rule-icon">🔔</span> Notifications</h3>
+                <p>Vous recevez des notifications pour chaque mise à jour de votre statut.</p>
+                <p>Consultables dans les Messages Privés avec indicateur vert.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Current Member Info -->
+    {% if current_member %}
+        <div class="info-box" style="background: linear-gradient(135deg, rgba(34, 197, 94, 0.08), rgba(34, 197, 94, 0.05)); border-left-color: #22c55e;">
+            <h3 style="color: #22c55e;">✅ Vous êtes membre du Sol SDI</h3>
+            <p><strong>Votre position actuelle:</strong> #{{ current_member.position }}</p>
+            <p><strong>Votre statut:</strong> 
+                {% if current_member.status == 'ontime' %}
+                    🟢 À jour (Paiement effectué à temps)
+                {% elif current_member.status == 'late' %}
+                    🟡 En retard (Action requise)
+                {% else %}
+                    🟡 En attente (Premier paiement)
+                {% endif %}
+            </p>
+            {% if current_member.next_due_date %}
+                <p><strong>Prochain paiement dû le:</strong> {{ current_member.next_due_date|date:"d/m/Y" }}</p>
+            {% endif %}
+            <p><strong>Montant total payé:</strong> ${{ current_member.total_paid_usd }} / {{ current_member.total_paid_htg|floatformat:0 }} HTG</p>
+            
+            <!-- Action Buttons -->
+            <div style="display: flex; gap: 15px; margin-top: 20px; flex-wrap: wrap;">
+                <a href="{% url 'sdi_sol_payments' %}" style="
+                    background: linear-gradient(135deg, #1d4ed8, #2563eb);
+                    color: white;
+                    padding: 10px 20px;
+                    border-radius: 8px;
+                    text-decoration: none;
+                    font-weight: 600;
+                    transition: all 0.3s ease;
+                    display: inline-block;
+                " onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 8px 24px rgba(29, 78, 216, 0.3)'" 
+                   onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='none'">
+                    💳 Mes paiements
+                </a>
+                {% if request.user.is_staff %}
+                    <a href="{% url 'sdi_sol_admin' %}" style="
+                        background: linear-gradient(135deg, #7c3aed, #a855f7);
+                        color: white;
+                        padding: 10px 20px;
+                        border-radius: 8px;
+                        text-decoration: none;
+                        font-weight: 600;
+                        transition: all 0.3s ease;
+                        display: inline-block;
+                    " onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 8px 24px rgba(168, 85, 247, 0.3)'" 
+                       onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='none'">
+                        ⚙️ Admin Panel
+                    </a>
+                {% endif %}
+            </div>
+        </div>
+    {% endif %}
+</div>
+
+<script>
+    // Auto-refresh pour voir les changements en temps réel
+    document.addEventListener('DOMContentLoaded', function() {
+        // Vérifier les mises à jour toutes les 30 secondes
+        setInterval(function() {
+            fetch('{% url "sdi_sol" %}')
+                .then(response => response.text())
+                .then(html => {
+                    const parser = new DOMParser();
+                    const newDoc = parser.parseFromString(html, 'text/html');
+                    const newMembersSection = newDoc.querySelector('.members-section');
+                    const currentMembersSection = document.querySelector('.members-section');
+                    
+                    if (newMembersSection && currentMembersSection) {
+                        currentMembersSection.innerHTML = newMembersSection.innerHTML;
+                    }
+                })
+                .catch(error => console.log('Auto-refresh error:', error));
+        }, 30000);
+    });
+</script>
+
+{% endblock %}

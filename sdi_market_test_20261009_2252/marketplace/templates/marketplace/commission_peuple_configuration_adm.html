@@ -1,0 +1,105 @@
+{% extends 'marketplace/base.html' %}
+
+{% block content %}
+<section class="fintech-card" style="max-width: 1100px; margin: 32px auto; padding: 32px;">
+    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:24px;">
+        <div>
+            <h1>Commission Peuple - Configuration Admin</h1>
+            <p style="margin:0; color:#475569;">Contrôlez les actions de distribution, retour au système et les ratios de partage.</p>
+        </div>
+        <a href="{% url 'manage_agent_commissions' %}" class="btn-fintech btn-secondary" style="padding: 12px 18px;">← Retour à la gestion des commissions</a>
+    </div>
+
+    <div class="fintech-panel" style="padding:24px; margin-bottom:24px;">
+        <h2 style="margin-bottom:16px;">Actions Commission Peuple</h2>
+        <div style="display:flex; flex-wrap:wrap; gap:12px;">
+            <a href="{% url 'view_peuple_commission' %}" class="btn-fintech btn-primary" style="padding: 14px 22px;">Voir Commission Peuple</a>
+            <form method="post" action="{% url 'distribute_commission_pool' %}" style="display:inline-block;">
+                {% csrf_token %}
+                <button type="submit" class="btn-fintech btn-success" style="padding: 14px 22px;">Distribuer le pool Commission Peuple</button>
+            </form>
+            <form method="post" action="{% url 'return_commission_pool_to_system' %}" style="display:inline-block;">
+                {% csrf_token %}
+                <button type="submit" class="btn-fintech btn-warning" style="padding: 14px 22px;">Retourner le pool au système</button>
+            </form>
+        </div>
+    </div>
+
+    <div class="fintech-panel" style="padding:24px; margin-bottom:24px;">
+        <h2 style="margin-bottom:16px;">Ratios de partage</h2>
+        <form method="post" action="{% url 'update_commission_share_settings' %}" style="max-width:720px;">
+            {% csrf_token %}
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px;">
+                <label style="display:block; font-weight:600; color:#0f172a;">
+                    Part admin (%)
+                    <input type="number" name="admin_share" step="0.01" min="0" max="100" value="{{ marketplace_settings.commission_admin_share|default:'70.00' }}" class="form-control" style="width:100%; margin-top:8px; padding:10px;" />
+                </label>
+                <label style="display:block; font-weight:600; color:#0f172a;">
+                    Part distribution (%)
+                    <input type="number" name="distribution_share" step="0.01" min="0" max="100" value="{{ marketplace_settings.commission_distribution_share|default:'30.00' }}" class="form-control" style="width:100%; margin-top:8px; padding:10px;" />
+                </label>
+            </div>
+            <button type="submit" class="btn-fintech btn-primary" style="padding: 14px 22px;">Enregistrer les ratios</button>
+        </form>
+    </div>
+
+    <div class="fintech-panel" style="padding:24px; margin-bottom:24px;">
+        <h2 style="margin-bottom:16px;">Réserves de distribution</h2>
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:16px;">
+            <div style="background:#f8fafc; padding:18px; border-radius:12px;">
+                <div style="font-weight:700; color:#0f172a;">USD</div>
+                <div style="font-size:1.25rem; margin-top:8px;">{{ distribution_balance.USD|default:0|floatformat:2 }}</div>
+            </div>
+            <div style="background:#f8fafc; padding:18px; border-radius:12px;">
+                <div style="font-weight:700; color:#0f172a;">HTG</div>
+                <div style="font-size:1.25rem; margin-top:8px;">{{ distribution_balance.HTG|default:0|floatformat:2 }}</div>
+            </div>
+            <div style="background:#f8fafc; padding:18px; border-radius:12px;">
+                <div style="font-weight:700; color:#0f172a;">PESO</div>
+                <div style="font-size:1.25rem; margin-top:8px;">{{ distribution_balance.PESO|default:0|floatformat:2 }}</div>
+            </div>
+            <div style="background:#f8fafc; padding:18px; border-radius:12px;">
+                <div style="font-weight:700; color:#0f172a;">EUR</div>
+                <div style="font-size:1.25rem; margin-top:8px;">{{ distribution_balance.EUR|default:0|floatformat:2 }}</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="fintech-panel" style="padding:24px; margin-bottom:24px;">
+        <h2 style="margin-bottom:16px;">Catégories de commission</h2>
+        <p style="margin-top:0; color:#475569;">La catégorie <strong>Commission Peuple</strong> influence les utilisateurs éligibles à la distribution.</p>
+        <div style="overflow-x:auto; margin-top:16px;">
+            <table style="width:100%; border-collapse: collapse;">
+                <thead>
+                    <tr style="background:#eef2ff; color:#0f172a; text-align:left; border-bottom:2px solid #cbd5e1;">
+                        <th style="padding:12px;">Catégorie</th>
+                        <th style="padding:12px;">Slug</th>
+                        <th style="padding:12px;">Active</th>
+                        <th style="padding:12px;">Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for category in commission_categories %}
+                    <tr style="border-bottom:1px solid #e2e8f0;">
+                        <td style="padding:12px;">{{ category.name }}</td>
+                        <td style="padding:12px;">{{ category.slug }}</td>
+                        <td style="padding:12px;">{{ category.is_active|yesno:"Oui,Non" }}</td>
+                        <td style="padding:12px;">
+                            {% if request.user.is_superuser %}
+                                <a href="{% url 'toggle_commission_category' category.id %}" class="btn btn-sm btn-outline-info">{% if category.is_active %}Désactiver{% else %}Activer{% endif %}</a>
+                            {% else %}
+                                <span style="color:#64748b;">Superadmin requis</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="4" style="padding:20px; text-align:center; color:#64748b;">Aucune catégorie de commission trouvée.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</section>
+{% endblock %}

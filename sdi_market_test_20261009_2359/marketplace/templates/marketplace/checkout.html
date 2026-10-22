@@ -1,0 +1,90 @@
+{% extends 'marketplace/base.html' %}
+{% block content %}
+<div class="card">
+    <h1>💳 Validation de la commande</h1>
+
+    <div class="card">
+        <h2>Récapitulatif de votre commande</h2>
+
+        {% for item in cart_items %}
+        <div class="card" style="border-left: 4px solid #1a73e8; margin-bottom: 8px;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <h4>{{ item.product.name }}</h4>
+                    <p>Quantité : {{ item.quantity }} × {{ current_currency|currency_symbol }}{{ item.product|format_product_price:current_currency }}</p>
+                    <p>Boutique : {{ item.product.shop.name }}</p>
+                </div>
+                <div style="text-align: right;">
+                    <strong>${{ item.get_total_price }}</strong>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+
+        <div class="card" style="background: #f0f7ff; border: 2px solid #1a73e8;">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; flex-wrap: wrap;">
+                <div>
+                    <h3>Total produits : ${{ product_total }}</h3>
+                    <p>{{ cart.get_total_items }} article(s)</p>
+                    <p><strong>Distance estimée :</strong> {{ estimated_distance }} km</p>
+                    <p><strong>Poids total estimé :</strong> {{ estimated_calc.poids_kg }} kg</p>
+                    <p><strong>Volume estimé :</strong> {{ estimated_calc.volume_liters }} L</p>
+                </div>
+                <div style="text-align: right; min-width: 240px;">
+                    <p><strong>Frais de livraison estimés :</strong> ${{ estimated_calc.frais_livraison }}</p>
+                    <p><strong>Cashback acheteur estimé :</strong> ${{ estimated_calc.cashback_acheteur }}</p>
+                    <p><strong>Cashback vendeur estimé :</strong> ${{ estimated_calc.cashback_vendeur }}</p>
+                    <p><strong>Commission marketplace estimée :</strong> ${{ estimated_calc.gain_admin }}</p>
+                    <h3>Total à payer estimé : ${{ total_with_delivery }}</h3>
+                    <p><strong>Solde disponible :</strong> ${{ wallet.balance_htg }}</p>
+                    {% if wallet.balance_htg >= total_with_delivery %}
+                        <p style="color: #0f9d58;">✓ Solde suffisant</p>
+                    {% else %}
+                        <p style="color: #b00020;">✗ Solde insuffisant</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>Adresse de livraison</h2>
+        <p><strong>Solde MicroSDICash HTG :</strong> {% if wallet %}{{ wallet.balance_htg }}{% else %}0.00{% endif %} HTG</p>
+        {% if wallet and wallet.balance_htg < total_with_delivery %}
+            <p style="color: #b00020;">Attention : votre solde HTG ne couvre pas ce montant si vous choisissez MicroSDICash. Choisissez un autre moyen de paiement ou rechargez votre compte MicroSDICash.</p>
+        {% endif %}
+        <form method="post">
+            {% csrf_token %}
+            <div class="form-group">
+                <label for="delivery_address">Adresse de livraison complète :</label>
+                <textarea id="delivery_address" name="delivery_address" required
+                          placeholder="Entrez votre adresse complète (rue, ville, code postal, pays)"
+                          style="min-height: 80px;"></textarea>
+            </div>
+
+            <div class="card" style="background: #f9f6ef; border: 2px dashed #f0ad4e; padding: 14px; margin-top: 16px;">
+                <h3>Choisissez votre moyen de paiement</h3>
+                <p style="margin-bottom: 12px;">Sélectionnez la méthode la plus adaptée : HTG local, DOP local ou international.</p>
+                {% for group in payment_method_groups %}
+                    <div style="margin-bottom: 16px;">
+                        <h4 style="margin-bottom: 8px;">{{ group.label }}</h4>
+                        {% for method in group.methods %}
+                            <label style="display: block; margin-bottom: 8px; font-weight: normal;">
+                                <input type="radio" name="payment_method" value="{{ method.0 }}" {% if method.0 == 'htg_wallet' %}checked{% endif %}>
+                                {{ method.1 }}
+                            </label>
+                        {% endfor %}
+                    </div>
+                {% endfor %}
+            </div>
+
+            <div style="margin-top: 20px;">
+                <button type="submit" class="button" style="font-size: 18px; padding: 12px 24px;">
+                    💳 Confirmer la commande et envoyer la demande
+                </button>
+                <a href="{% url 'cart' %}" class="button alt" style="margin-left: 12px;">Retour au panier</a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

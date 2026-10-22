@@ -14,6 +14,7 @@
     }
     .products-results-section .product-results-heading {
         margin-bottom: 20px;
+        text-align: center;
     }
     .products-results-section .product-results-heading h2 {
         margin: 0 0 6px;
@@ -112,6 +113,79 @@
         overflow-wrap: anywhere;
         text-align: center;
     }
+    .product-search-bar {
+        margin: 24px 0 24px;
+    }
+    .product-search-bar form {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: nowrap;
+    }
+    .product-search-bar input {
+        flex: 1 1 auto;
+        height: 44px;
+        min-height: 44px;
+        padding: 10px 12px;
+        border-radius: 10px;
+    }
+    .product-search-bar button {
+        flex: 0 0 auto;
+        min-height: 44px;
+        padding: 10px 16px;
+        white-space: nowrap;
+    }
+    @media (max-width: 767px) {
+        .products-results-section {
+            margin: 24px auto;
+            padding: 0 12px;
+        }
+        .products-results-section .product-results-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
+        }
+        .product-catalog-grid {
+            grid-template-columns: 1fr;
+            gap: 12px;
+        }
+        .products-results-section .product-card {
+            padding: 10px;
+        }
+        .products-results-section .product-image,
+        .products-results-section .product-image-fallback {
+            height: 150px;
+            min-height: 150px;
+            margin-bottom: 10px;
+        }
+        .products-results-section .product-results-heading h2 {
+            font-size: 1.5rem;
+        }
+        .product-search-bar form {
+            flex-direction: column;
+            align-items: stretch;
+            flex-wrap: nowrap;
+        }
+        .product-search-bar input,
+        .product-search-bar button {
+            width: 100%;
+            flex: 0 0 auto;
+        }
+        .product-search-bar input {
+            height: 44px;
+            min-height: 44px;
+            flex: 0 0 auto !important;
+        }
+        .product-search-bar .button,
+        .products-results-section .product-actions .button {
+            width: 100%;
+        }
+        .product-priority {
+            margin-top: 18px;
+        }
+        #filtersCard .grid {
+            grid-template-columns: 1fr !important;
+        }
+    }
     @media (max-width: 480px) {
         .products-results-section {
             margin: 28px auto;
@@ -143,6 +217,10 @@
             min-height: 38px;
             padding: 7px 6px;
             font-size: .82rem;
+        }
+
+        .product-priority {
+            margin-top: 18px;
         }
     }
 </style>

@@ -1,0 +1,26 @@
+{% extends "marketplace/base.html" %}
+
+{% block title %}Devenir membre immobilier{% endblock %}
+
+{% block content %}
+<div class="container" style="max-width:700px;margin:40px auto;padding:20px;">
+    <h1>Demande d'adhésion - Immobilier</h1>
+    <p>Remplissez le formulaire pour demander à devenir membre immobilier. Après approbation, vous pourrez publier des annonces avec photos, prix et coordonnées.</p>
+
+    <form method="post">
+        {% csrf_token %}
+        <label>Nom complet</label>
+        <input type="text" name="full_name" value="{{ initial.full_name }}" class="input" />
+        <label>Téléphone</label>
+        <input type="text" name="phone" value="{{ initial.phone }}" class="input" />
+        <label>Titre d'exemple de propriété (optionnel)</label>
+        <input type="text" name="sample_property_title" class="input" />
+        <label>Message / Informations</label>
+        <textarea name="message" class="input" rows="5"></textarea>
+        <div style="margin-top:12px;">
+            <button class="button">Envoyer la demande</button>
+            <a href="{% url 'real_estate:home' %}" class="button secondary" style="margin-left:8px;">Retour</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

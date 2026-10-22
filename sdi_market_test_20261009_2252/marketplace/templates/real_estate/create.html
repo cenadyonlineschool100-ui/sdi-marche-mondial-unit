@@ -1,0 +1,295 @@
+{% extends "marketplace/base.html" %}
+
+{% block title %}Publier une Propriété - SDI Store{% endblock %}
+
+{% block content %}
+<div class="container" style="max-width: 900px; margin: 40px auto; padding: 20px;">
+    <div class="section-header">
+        <h1 style="color: var(--primary-dark); margin-bottom: 10px;">📋 Publier une nouvelle annonce immobilière</h1>
+        <p style="color: var(--text-secondary); font-size: 1rem;">Remplissez les détails de votre propriété pour la mettre en ligne.</p>
+    </div>
+
+    {% if messages %}
+        <div class="messages" style="margin-bottom: 20px;">
+            {% for message in messages %}
+                <div class="alert alert-{{ message.tags }}" role="alert" style="padding: 12px; margin-bottom: 10px; border-radius: 8px; {% if 'error' in message.tags %}background: #fee; color: #c00;{% else %}background: #efe; color: #060;{% endif %}">
+                    {{ message }}
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    <form method="post" enctype="multipart/form-data" class="property-form" style="background: var(--bg-light); padding: 30px; border-radius: 12px; border: 1px solid var(--border-color);">
+        {% csrf_token %}
+
+        <!-- Informations de base -->
+        <fieldset style="margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid var(--border-color);">
+            <legend style="font-size: 1.2rem; font-weight: 600; color: var(--primary); margin-bottom: 15px;">📝 Informations de base</legend>
+            
+            <div class="form-group" style="margin-bottom: 15px;">
+                <label for="title" style="display: block; margin-bottom: 8px; font-weight: 500; color: var(--text-primary);">Titre du bien:</label>
+                <input type="text" id="title" name="title" required placeholder="Ex: Maison 3 pièces à Tabarre" 
+                    style="width: 100%; padding: 12px; border: 1px solid var(--border-color); border-radius: 6px; font-size: 1rem;">
+            </div>
+
+            <div class="form-group" style="margin-bottom: 15px;">
+                <label for="description" style="display: block; margin-bottom: 8px; font-weight: 500; color: var(--text-primary);">Description:</label>
+                <textarea id="description" name="description" required placeholder="Décrivez votre propriété en détail..." 
+                    style="width: 100%; padding: 12px; border: 1px solid var(--border-color); border-radius: 6px; font-size: 1rem; min-height: 120px; font-family: inherit; resize: vertical;"></textarea>
+            </div>
+
+            <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                <div class="form-group">
+                    <label for="property_type" style="display: block; margin-bottom: 8px; font-weight: 500; color: var(--text-primary);">Type de bien:</label>
+                    <select id="property_type" name="property_type" required 
+                        style="width: 100%; padding: 12px; border: 1px solid var(--border-color); border-radius: 6px; font-size: 1rem;">
+                        <option value="">-- Sélectionner --</option>
+                        <option value="maison">🏠 Maison</option>
+                        <option value="appartement">🏢 Appartement</option>
+                        <option value="terrain">🌱 Terrain</option>
+                        <option value="local_commercial">🏪 Local commercial</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="listing_type" style="display: block; margin-bottom: 8px; font-weight: 500; color: var(--text-primary);">Type d'annonce:</label>
+                    <select id="listing_type" name="listing_type" required 
+                        style="width: 100%; padding: 12px; border: 1px solid var(--border-color); border-radius: 6px; font-size: 1rem;">
+                        <option value="">-- Sélectionner --</option>
+                        <option value="location">📅 Location</option>
+                        <option value="vente">💰 Vente</option>
+                    </select>
+                </div>
+            </div>
+        </fieldset>
+
+        <!-- Localisation -->
+        <fieldset style="margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid var(--border-color);">
+            <legend style="font-size: 1.2rem; font-weight: 600; color: var(--primary); margin-bottom: 15px;">🗺️ Localisation</legend>
+            
+            <div class="form-group" style="margin-bottom: 15px;">
+                <label for="address" style="display: block; margin-bottom: 8px; font-weight: 500; color: var(--text-primary);">Adresse:</label>
+                <input type="text" id="address" name="address" required placeholder="Rue, numéro..." 
+                    style="width: 100%; padding: 12px; border: 1px solid var(--border-color); border-radius: 6px; font-size: 1rem;">
+            </div>
+
+            <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                <div class="form-group">
+                    <label for="city" style="display: block; margin-bottom: 8px; font-weight: 500; color: var(--text-primary);">Ville:</label>
+                    <input type="text" id="city" name="city" required placeholder="Ex: Port-au-Prince" 
+                        style="width: 100%; padding: 12px; border: 1px solid var(--border-color); border-radius: 6px; font-size: 1rem;">
+                </div>
+
+                <div class="form-group">
+                    <label for="neighborhood" style="display: block; margin-bottom: 8px; font-weight: 500; color: var(--text-primary);">Quartier:</label>
+                    <input type="text" id="neighborhood" name="neighborhood" placeholder="Ex: Tabarre" 
+                        style="width: 100%; padding: 12px; border: 1px solid var(--border-color); border-radius: 6px; font-size: 1rem;">
+                </div>
+
+                <div class="form-group">
+                    <label for="country" style="display: block; margin-bottom: 8px; font-weight: 500; color: var(--text-primary);">Pays:</label>
+                    <input type="text" id="country" name="country" required value="Haïti" 
+                        style="width: 100%; padding: 12px; border: 1px solid var(--border-color); border-radius: 6px; font-size: 1rem;">
+                </div>
+            </div>
+        </fieldset>
+
+        <!-- Détails du bien -->
+        <fieldset style="margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid var(--border-color);">
+            <legend style="font-size: 1.2rem; font-weight: 600; color: var(--primary); margin-bottom: 15px;">📐 Détails du bien</legend>
+            
+            <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                <div class="form-group">
+                    <label for="price" style="display: block; margin-bottom: 8px; font-weight: 500; color: var(--text-primary);">Prix:</label>
+                    <input type="number" id="price" name="price" required step="0.01" min="0" placeholder="0.00" 
+                        style="width: 100%; padding: 12px; border: 1px solid var(--border-color); border-radius: 6px; font-size: 1rem;">
+                </div>
+
+                <div class="form-group">
+                    <label for="currency" style="display: block; margin-bottom: 8px; font-weight: 500; color: var(--text-primary);">Devise:</label>
+                    <select id="currency" name="currency" 
+                        style="width: 100%; padding: 12px; border: 1px solid var(--border-color); border-radius: 6px; font-size: 1rem;">
+                        <option value="HTG" selected>HTG</option>
+                        <option value="USD">USD</option>
+                        <option value="EUR">EUR</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="total_area" style="display: block; margin-bottom: 8px; font-weight: 500; color: var(--text-primary);">Superficie (m²):</label>
+                    <input type="number" id="total_area" name="total_area" step="0.01" min="0" placeholder="0" 
+                        style="width: 100%; padding: 12px; border: 1px solid var(--border-color); border-radius: 6px; font-size: 1rem;">
+                </div>
+
+                <div class="form-group">
+                    <label for="bedrooms" style="display: block; margin-bottom: 8px; font-weight: 500; color: var(--text-primary);">Chambres:</label>
+                    <input type="number" id="bedrooms" name="bedrooms" min="0" value="0" 
+                        style="width: 100%; padding: 12px; border: 1px solid var(--border-color); border-radius: 6px; font-size: 1rem;">
+                </div>
+            </div>
+
+            <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                <div class="form-group">
+                    <label for="bathrooms" style="display: block; margin-bottom: 8px; font-weight: 500; color: var(--text-primary);">Salles de bain:</label>
+                    <input type="number" id="bathrooms" name="bathrooms" min="0" value="0" 
+                        style="width: 100%; padding: 12px; border: 1px solid var(--border-color); border-radius: 6px; font-size: 1rem;">
+                </div>
+
+                <div class="form-group">
+                    <label style="display: block; margin-bottom: 8px; font-weight: 500; color: var(--text-primary);">
+                        <input type="checkbox" id="has_parking" name="has_parking" value="true">
+                        🚗 Parking
+                    </label>
+                </div>
+
+                <div class="form-group">
+                    <label style="display: block; margin-bottom: 8px; font-weight: 500; color: var(--text-primary);">
+                        <input type="checkbox" id="has_garden" name="has_garden" value="true">
+                        🌿 Jardin
+                    </label>
+                </div>
+            </div>
+
+            <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                <div class="form-group">
+                    <label style="display: block; margin-bottom: 8px; font-weight: 500; color: var(--text-primary);">
+                        <input type="checkbox" id="has_balcony" name="has_balcony" value="true">
+                        🏠 Balcon
+                    </label>
+                </div>
+
+                <div class="form-group">
+                    <label style="display: block; margin-bottom: 8px; font-weight: 500; color: var(--text-primary);">
+                        <input type="checkbox" id="has_gate" name="has_gate" value="true">
+                        🚪 Portail
+                    </label>
+                </div>
+            </div>
+        </fieldset>
+
+        {% if user.is_staff %}
+        <fieldset style="margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid var(--border-color);">
+            <legend style="font-size: 1.2rem; font-weight: 600; color: var(--primary); margin-bottom: 15px;">👤 Assignation</legend>
+            <div class="form-group" style="margin-bottom: 15px;">
+                <label for="agent_id" style="display: block; margin-bottom: 8px; font-weight: 500; color: var(--text-primary);">Agent / Livreur assigné</label>
+                <select id="agent_id" name="agent_id" style="width: 100%; padding: 12px; border: 1px solid var(--border-color); border-radius: 6px; font-size: 1rem;">
+                    <option value="">Aucun</option>
+                    {% for agent in available_agents %}
+                        <option value="{{ agent.id }}">{{ agent.get_full_name|default:agent.username }} - {{ agent.get_role_display }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </fieldset>
+        {% endif %}
+
+        <!-- Images -->
+        <fieldset style="margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid var(--border-color);">
+            <legend style="font-size: 1.2rem; font-weight: 600; color: var(--primary); margin-bottom: 15px;">📸 Images</legend>
+            
+            <div class="form-group" style="margin-bottom: 15px;">
+                <label for="images_facade" style="display: block; margin-bottom: 8px; font-weight: 500; color: var(--text-primary);">Photo générale / façade de la maison :</label>
+                <input type="file" id="images_facade" name="images_facade" multiple accept="image/*" 
+                    style="width: 100%; padding: 12px; border: 2px dashed var(--border-color); border-radius: 6px; font-size: 1rem; cursor: pointer;">
+            </div>
+            <div class="form-group" style="margin-bottom: 15px;">
+                <label for="images_interior" style="display: block; margin-bottom: 8px; font-weight: 500; color: var(--text-primary);">Photos intérieures générales (salon, séjour, entrée) :</label>
+                <input type="file" id="images_interior" name="images_interior" multiple accept="image/*" 
+                    style="width: 100%; padding: 12px; border: 2px dashed var(--border-color); border-radius: 6px; font-size: 1rem; cursor: pointer;">
+            </div>
+            <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                <div class="form-group">
+                    <label for="images_bedroom" style="display: block; margin-bottom: 8px; font-weight: 500; color: var(--text-primary);">Photos des chambres :</label>
+                    <input type="file" id="images_bedroom" name="images_bedroom" multiple accept="image/*" 
+                        style="width: 100%; padding: 12px; border: 2px dashed var(--border-color); border-radius: 6px; font-size: 1rem; cursor: pointer;">
+                </div>
+                <div class="form-group">
+                    <label for="images_bathroom" style="display: block; margin-bottom: 8px; font-weight: 500; color: var(--text-primary);">Photos des salles de bain :</label>
+                    <input type="file" id="images_bathroom" name="images_bathroom" multiple accept="image/*" 
+                        style="width: 100%; padding: 12px; border: 2px dashed var(--border-color); border-radius: 6px; font-size: 1rem; cursor: pointer;">
+                </div>
+            </div>
+            <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                <div class="form-group">
+                    <label for="images_toilette" style="display: block; margin-bottom: 8px; font-weight: 500; color: var(--text-primary);">Photos des toilettes :</label>
+                    <input type="file" id="images_toilette" name="images_toilette" multiple accept="image/*" 
+                        style="width: 100%; padding: 12px; border: 2px dashed var(--border-color); border-radius: 6px; font-size: 1rem; cursor: pointer;">
+                </div>
+                <div class="form-group">
+                    <label for="images_cuisine" style="display: block; margin-bottom: 8px; font-weight: 500; color: var(--text-primary);">Photos de la cuisine :</label>
+                    <input type="file" id="images_cuisine" name="images_cuisine" multiple accept="image/*" 
+                        style="width: 100%; padding: 12px; border: 2px dashed var(--border-color); border-radius: 6px; font-size: 1rem; cursor: pointer;">
+                </div>
+            </div>
+            <div class="form-group" style="margin-bottom: 15px;">
+                <label for="images_other" style="display: block; margin-bottom: 8px; font-weight: 500; color: var(--text-primary);">Autres photos / espaces supplémentaires :</label>
+                <input type="file" id="images_other" name="images_other" multiple accept="image/*" 
+                    style="width: 100%; padding: 12px; border: 2px dashed var(--border-color); border-radius: 6px; font-size: 1rem; cursor: pointer;">
+                <small style="color: var(--text-secondary); display: block; margin-top: 8px;">Utilisez cette zone pour les pièces non listées ou les détails spécifiques.</small>
+            </div>
+            <div class="form-group" style="margin-bottom: 15px;">
+                <label for="images" style="display: block; margin-bottom: 8px; font-weight: 500; color: var(--text-primary);">Télécharger des images supplémentaires (générique):</label>
+                <input type="file" id="images" name="images" multiple accept="image/*" 
+                    style="width: 100%; padding: 12px; border: 2px dashed var(--border-color); border-radius: 6px; font-size: 1rem; cursor: pointer;">
+                <small style="color: var(--text-secondary); display: block; margin-top: 8px;">Format: JPG, PNG, GIF. Taille max: 5 MB par image.</small>
+            </div>
+        </fieldset>
+
+        <!-- Actions -->
+        <div class="form-actions" style="display: flex; gap: 10px; justify-content: center; margin-top: 30px;">
+            <button type="submit" class="btn-primary" style="padding: 12px 30px; font-size: 1rem; border-radius: 6px; background: linear-gradient(135deg, #667eea, #764ba2); color: white; border: none; cursor: pointer; font-weight: 600;">
+                ✅ Publier l'annonce
+            </button>
+            <a href="{% url 'real_estate:home' %}" class="btn-secondary" style="padding: 12px 30px; font-size: 1rem; border-radius: 6px; background: var(--bg-secondary); color: var(--text-primary); border: 1px solid var(--border-color); cursor: pointer; font-weight: 600; text-decoration: none; display: inline-block;">
+                ❌ Annuler
+            </a>
+        </div>
+    </form>
+</div>
+
+<style>
+    .property-form {
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+
+    fieldset {
+        border: none;
+    }
+
+    .form-row {
+        width: 100%;
+    }
+
+    @media (max-width: 768px) {
+        .form-row {
+            grid-template-columns: 1fr !important;
+        }
+    }
+
+    input[type="text"],
+    input[type="number"],
+    input[type="file"],
+    textarea,
+    select {
+        transition: border-color 0.3s ease, box-shadow 0.3s ease;
+    }
+
+    input[type="text"]:focus,
+    input[type="number"]:focus,
+    input[type="file"]:focus,
+    textarea:focus,
+    select:focus {
+        outline: none;
+        border-color: var(--primary);
+        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+
+    .btn-primary:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+    }
+
+    .btn-secondary:hover {
+        background: var(--bg-tertiary);
+    }
+</style>
+{% endblock %}

@@ -1,0 +1,19 @@
+{% extends "admin/change_form.html" %}
+
+{% block object-tools-items %}
+    <li>
+        <a class="addlink" href="{% url 'admin:marketplace_exchangerate_refresh_rates' %}">
+            Actualiser les taux depuis l'API
+        </a>
+    </li>
+    {{ block.super }}
+{% endblock %}
+
+{% block content %}
+    <div class="messagelist">
+        <div class="info">
+            <p><strong>Note :</strong> Le système utilise en priorité le dernier taux de change actif défini manuellement. Si aucun taux actif n’est disponible, une tentative de récupération automatique des taux bancaires est effectuée.</p>
+        </div>
+    </div>
+    {{ block.super }}
+{% endblock %}

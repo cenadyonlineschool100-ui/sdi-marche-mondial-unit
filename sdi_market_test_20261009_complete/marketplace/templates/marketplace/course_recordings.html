@@ -1,0 +1,34 @@
+{% extends 'marketplace/base.html' %}
+
+{% block title %}Enregistrements - {{ course.title }}{% endblock %}
+
+{% block content %}
+<section class="section-header">
+    <h2>Enregistrements du cours</h2>
+    <p>Regardez ou re-regardez les sessions enregistrées pour enrichir votre apprentissage.</p>
+</section>
+
+<div class="learning-grid" style="margin-top:24px;">
+    <div class="learning-card" style="flex:1; min-width:320px;">
+        <h3>{{ course.title }}</h3>
+        <p>Voici toutes les vidéos de formation disponibles pour ce cours.</p>
+    </div>
+    <div class="learning-card" style="flex:1; min-width:320px;">
+        <h3>Actions</h3>
+        <ul class="feature-list">
+            <li><strong>Retour au cours :</strong> <a href="{% url 'course_detail' course.id %}">Détail du cours</a></li>
+            <li><strong>Rejoindre session live :</strong> <a href="{% url 'live_webrtc' course.id %}">WebRTC démo</a></li>
+        </ul>
+    </div>
+</div>
+
+<div class="learning-grid" style="margin-top:24px;">
+    {% for r in course.recordings %}
+        <article class="learning-card">
+            <h3>{{ r.title }}</h3>
+            <p><strong>Durée :</strong> {{ r.length }}</p>
+            <p><a href="{{ r.url }}" class="button">Lire l'enregistrement</a></p>
+        </article>
+    {% endfor %}
+</div>
+{% endblock %}

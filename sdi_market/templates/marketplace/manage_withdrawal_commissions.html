@@ -46,8 +46,8 @@
     }
     .withdrawal-settings-table {
         width: 100%;
-        min-width: 0;
-        table-layout: fixed;
+        min-width: 980px;
+        table-layout: auto;
     }
     .withdrawal-settings-table th,
     .withdrawal-settings-table td {
@@ -60,7 +60,11 @@
     .withdrawal-settings-table input {
         width: 100% !important;
         max-width: 100%;
-        min-width: 0;
+        min-width: 90px;
+    }
+    .withdrawal-settings-table select {
+        width: 100%;
+        min-width: 90px;
     }
     .withdrawal-settings-table button {
         width: 100%;
@@ -170,8 +174,8 @@
 <div class="container mt-5 withdrawal-settings-page">
     <div class="row">
         <div class="col-md-12">
-            <h2>Commission Retrait (HTG)</h2>
-            <p class="text-muted">Modifier les frais de retrait par tranche.</p>
+            <h2>Gestion des retraits personnels</h2>
+            <p class="text-muted">Autoriser les retraits et gérer les frais par devise. Les frais configurés sont prélevés avec chaque retrait concerné.</p>
             {% if messages %}
             <div class="alert-container">
                 {% for message in messages %}
@@ -181,14 +185,35 @@
             {% endif %}
 
             <div class="card mt-3">
+                <div class="card-header">
+                    <h5 class="mb-0">Contrôle des retraits personnels</h5>
+                </div>
+                <div class="card-body">
+                    <p>
+                        État :
+                        <strong>{% if personal_withdrawals_enabled %}ON{% else %}OFF{% endif %}</strong>.
+                        OFF bloque les nouvelles demandes personnelles sans modifier les soldes ni les demandes déjà créées.
+                    </p>
+                    <form method="post">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="set_personal_withdrawals" />
+                        <input type="hidden" name="enabled" value="{% if personal_withdrawals_enabled %}off{% else %}on{% endif %}" />
+                        <button type="submit" class="btn {% if personal_withdrawals_enabled %}btn-outline-danger{% else %}btn-success{% endif %}">
+                            {% if personal_withdrawals_enabled %}Désactiver les nouveaux retraits personnels{% else %}Autoriser les retraits personnels{% endif %}
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <div class="card mt-3">
                 <div class="card-body">
                     {% if withdrawal_configs %}
                     <div class="withdrawal-settings-table-wrap">
                         <table class="table table-sm table-striped withdrawal-settings-table">
                             <thead>
                                 <tr>
-                                    <th>Clé</th>
-                                    <th>Valeur</th>
+                                    <th>Tranche / devise</th>
+                                    <th>Configuration des frais</th>
                                     <th>Action</th>
                                 </tr>
                             </thead>
@@ -202,12 +227,55 @@
                                     <td>
                                         <form id="commission-form-{{ cfg.id }}" method="post">
                                             {% csrf_token %}
-                                            <input type="hidden" name="commission_id" value="{{ cfg.id }}" />
-                                            <input name="commission_value" value="{{ cfg.total_fee }}" class="form-control form-control-sm mr-2" />
+                                            <input type="hidden" name="action" value="update" />
+                                            <input type="hidden" name="tier_id" value="{{ cfg.id }}" />
+                                            <div class="row g-2">
+                                                <div class="col-md-4">
+                                                    <label>Devise</label>
+                                                    <select name="currency" class="form-select form-select-sm">
+                                                        <option value="USD" {% if cfg.currency == 'USD' %}selected{% endif %}>USD</option>
+                                                        <option value="HTG" {% if cfg.currency == 'HTG' %}selected{% endif %}>HTG</option>
+                                                        <option value="DOP" {% if cfg.currency == 'DOP' %}selected{% endif %}>DOP</option>
+                                                        <option value="EUR" {% if cfg.currency == 'EUR' %}selected{% endif %}>EUR</option>
+                                                    </select>
+                                                </div>
+                                                <div class="col-md-4">
+                                                    <label>Description</label>
+                                                    <input name="description" value="{{ cfg.description }}" class="form-control form-control-sm" />
+                                                </div>
+                                                <div class="col-md-4">
+                                                    <label>Statut</label>
+                                                    <select name="active" class="form-select form-select-sm">
+                                                        <option value="on" {% if cfg.active %}selected{% endif %}>Actif</option>
+                                                        <option value="">Inactif</option>
+                                                    </select>
+                                                </div>
+                                                <div class="col-md-4">
+                                                    <label>Montant min</label>
+                                                    <input type="number" step="0.01" name="min_amount" value="{{ cfg.min_amount }}" class="form-control form-control-sm" />
+                                                </div>
+                                                <div class="col-md-4">
+                                                    <label>Montant max</label>
+                                                    <input type="number" step="0.01" name="max_amount" value="{{ cfg.max_amount }}" class="form-control form-control-sm" />
+                                                </div>
+                                                <div class="col-md-4">
+                                                    <label>Frais total</label>
+                                                    <input type="number" step="0.01" name="total_fee" value="{{ cfg.total_fee }}" class="form-control form-control-sm" />
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <label>Part système</label>
+                                                    <input type="number" step="0.01" name="system_fee" value="{{ cfg.system_fee }}" class="form-control form-control-sm" />
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <label>Part agent</label>
+                                                    <input type="number" step="0.01" name="agent_fee" value="{{ cfg.agent_fee }}" class="form-control form-control-sm" />
+                                                </div>
+                                            </div>
                                         </form>
                                     </td>
                                     <td>
                                         <button type="submit" form="commission-form-{{ cfg.id }}" class="btn btn-sm btn-primary">Enregistrer</button>
+                                        <button type="submit" form="commission-form-{{ cfg.id }}" class="btn btn-sm btn-outline-danger mt-2" onclick="event.preventDefault(); if (confirm('Supprimer cette tranche ?')) { var form = document.getElementById('commission-form-{{ cfg.id }}'); form.querySelector('[name=action]').value = 'delete'; form.submit(); }">Supprimer</button>
                                     </td>
                                 </tr>
                                 {% endfor %}
@@ -218,20 +286,97 @@
                         {% for cfg in withdrawal_configs %}
                         <form method="post" class="withdrawal-setting-card">
                             {% csrf_token %}
-                            <input type="hidden" name="commission_id" value="{{ cfg.id }}" />
+                            <input type="hidden" name="action" value="update" />
+                            <input type="hidden" name="tier_id" value="{{ cfg.id }}" />
                             <h3>
                                 {{ cfg.description|default:'Tranche de retrait' }}
                                 ({{ cfg.min_amount }} - {{ cfg.max_amount }} {{ cfg.currency }})
                             </h3>
+                            <label for="mobile-currency-{{ cfg.id }}">Devise</label>
+                            <select id="mobile-currency-{{ cfg.id }}" name="currency">
+                                <option value="USD" {% if cfg.currency == 'USD' %}selected{% endif %}>USD</option>
+                                <option value="HTG" {% if cfg.currency == 'HTG' %}selected{% endif %}>HTG</option>
+                                <option value="DOP" {% if cfg.currency == 'DOP' %}selected{% endif %}>DOP</option>
+                                <option value="EUR" {% if cfg.currency == 'EUR' %}selected{% endif %}>EUR</option>
+                            </select>
+                            <label for="mobile-description-{{ cfg.id }}">Description</label>
+                            <input id="mobile-description-{{ cfg.id }}" name="description" value="{{ cfg.description }}" />
+                            <label for="mobile-min-{{ cfg.id }}">Montant min</label>
+                            <input id="mobile-min-{{ cfg.id }}" type="number" step="0.01" name="min_amount" value="{{ cfg.min_amount }}" />
+                            <label for="mobile-max-{{ cfg.id }}">Montant max</label>
+                            <input id="mobile-max-{{ cfg.id }}" type="number" step="0.01" name="max_amount" value="{{ cfg.max_amount }}" />
                             <label for="mobile-commission-{{ cfg.id }}">Frais total</label>
-                            <input id="mobile-commission-{{ cfg.id }}" name="commission_value" value="{{ cfg.total_fee }}" />
+                            <input id="mobile-commission-{{ cfg.id }}" type="number" step="0.01" name="total_fee" value="{{ cfg.total_fee }}" />
+                            <label for="mobile-system-{{ cfg.id }}">Part système</label>
+                            <input id="mobile-system-{{ cfg.id }}" type="number" step="0.01" name="system_fee" value="{{ cfg.system_fee }}" />
+                            <label for="mobile-agent-{{ cfg.id }}">Part agent</label>
+                            <input id="mobile-agent-{{ cfg.id }}" type="number" step="0.01" name="agent_fee" value="{{ cfg.agent_fee }}" />
+                            <label for="mobile-active-{{ cfg.id }}">Statut</label>
+                            <select id="mobile-active-{{ cfg.id }}" name="active">
+                                <option value="on" {% if cfg.active %}selected{% endif %}>Actif</option>
+                                <option value="">Inactif</option>
+                            </select>
                             <button type="submit" class="btn btn-primary">Enregistrer</button>
+                            <button type="submit" class="btn btn-outline-danger" onclick="event.preventDefault(); if (confirm('Supprimer cette tranche ?')) { var form = this.closest('form'); form.querySelector('[name=action]').value = 'delete'; form.submit(); }">Supprimer</button>
                         </form>
                         {% endfor %}
                     </div>
                     {% else %}
                     <p class="text-warning">Aucune configuration de retrait trouvée.</p>
                     {% endif %}
+
+                    <div class="card mt-4">
+                        <div class="card-header">
+                            <h5 class="mb-0">Ajouter une tranche de frais</h5>
+                        </div>
+                        <div class="card-body">
+                            <form method="post" class="row g-3">
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="add" />
+                                <div class="col-md-4">
+                                    <label class="form-label">Devise</label>
+                                    <select name="currency" class="form-select" required>
+                                        <option value="USD">USD</option>
+                                        <option value="HTG" selected>HTG</option>
+                                        <option value="DOP">DOP</option>
+                                        <option value="EUR">EUR</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Montant min</label>
+                                    <input type="number" step="0.01" name="min_amount" class="form-control" required />
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Montant max</label>
+                                    <input type="number" step="0.01" name="max_amount" class="form-control" required />
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Frais total</label>
+                                    <input type="number" step="0.01" name="total_fee" class="form-control" required />
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Part système</label>
+                                    <input type="number" step="0.01" name="system_fee" class="form-control" required />
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Part agent</label>
+                                    <input type="number" step="0.01" name="agent_fee" class="form-control" required />
+                                </div>
+                                <div class="col-md-8">
+                                    <label class="form-label">Description</label>
+                                    <input type="text" name="description" class="form-control" />
+                                </div>
+                                <div class="col-md-4 d-flex align-items-end">
+                                    <label class="form-check-label">
+                                        <input type="checkbox" name="active" checked /> Actif
+                                    </label>
+                                </div>
+                                <div class="col-12">
+                                    <button type="submit" class="btn btn-success">Ajouter la tranche</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
 
                     <a href="{% url 'manage_agent_commissions' %}" class="btn btn-secondary mt-3">Retour</a>
                 </div>

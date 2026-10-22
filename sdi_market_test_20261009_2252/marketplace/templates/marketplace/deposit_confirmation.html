@@ -1,0 +1,53 @@
+{% extends 'marketplace/base.html' %}
+
+{% block content %}
+<section class="fintech-card" style="max-width: 780px; margin: 32px auto; padding: 32px;">
+    <h1 style="margin-bottom: 16px;">Dépôt confirmé</h1>
+    <p style="margin-bottom: 20px; color: #475569;">Le dépôt a été enregistré et le compte du client a été crédité immédiatement. Le reçu bancaire sécurisé est disponible ci-dessous.</p>
+
+    <div class="fintech-panel" style="padding: 22px; margin-bottom: 24px; border-radius: 18px; background: #f8fafc;">
+        <h2 style="margin-bottom: 12px;">MicroSDICash - Reçu Bancaire Sécurisé</h2>
+        <div style="display: grid; gap: 16px; margin-bottom: 24px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));">
+            <div>
+                <strong>Nom client :</strong> {{ deposit.client.first_name|default:'-' }} {{ deposit.client.last_name|default:'-' }}<br />
+                <strong>ID client :</strong> {{ deposit.client.account_code }}<br />
+                <strong>Numéro de compte :</strong> {{ deposit.client.account_code }}
+            </div>
+            <div>
+                <strong>Ancien solde :</strong> {{ previous_balance|default:'-'|floatformat:2 }} {{ deposit.currency }}<br />
+                <strong>Montant déposé :</strong> {{ deposit.amount|floatformat:2 }} {{ deposit.currency }}<br />
+                <strong>Frais :</strong> {{ deposit.commission|floatformat:2 }} {{ deposit.currency }}<br />
+                <strong>Nouveau solde :</strong> {{ current_balance|default:'-'|floatformat:2 }} {{ deposit.currency }}
+            </div>
+        </div>
+
+        <div style="display:grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); margin-bottom: 24px;">
+            <div>
+                <strong>Password Principal :</strong> ********<br />
+                <strong>Password Secondaire :</strong> ********
+            </div>
+            <div>
+                <strong>Date :</strong> {{ deposit.confirmed_at|date:'d F Y' }}<br />
+                <strong>Heure :</strong> {{ deposit.confirmed_at|date:'H:i' }}<br />
+                <strong>Numéro de reçu :</strong> {{ deposit.reference }}
+            </div>
+        </div>
+
+        {% if receipt %}
+            <p style="margin-top: 8px; color: #0f766e;"><strong>Reçu généré :</strong> {{ receipt.receipt_number }}</p>
+            <div style="display:flex; gap:12px; flex-wrap: wrap; margin-bottom: 16px;">
+                <a href="{% url 'view_deposit_receipt' receipt.id %}" class="btn-fintech btn-primary" style="padding: 14px 24px; display: inline-block;">Voir le reçu</a>
+                <a href="{% url 'download_deposit_receipt' receipt.id %}" class="btn-fintech btn-outline" style="padding: 14px 24px; display: inline-block;">Télécharger le reçu</a>
+            </div>
+        {% endif %}
+
+        <p style="margin-top: 0; color: #475569;">MicroSDICash • Sécurité • Innovation</p>
+        <button onclick="window.print();" class="btn-fintech btn-secondary" style="padding: 14px 24px;">Imprimer le reçu</button>
+    </div>
+
+    <div style="display:flex; gap: 14px; flex-wrap: wrap; align-items:center;">
+        <a href="{% url 'agent_deposit' %}" class="btn-fintech btn-secondary">Nouveau dépôt</a>
+        <a href="{% url 'agent_deposit_history' %}" class="btn-fintech btn-primary">Voir l'historique</a>
+    </div>
+</section>
+{% endblock %}

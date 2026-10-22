@@ -1,0 +1,342 @@
+{% extends "marketplace/base.html" %}
+{% load static %}
+
+{% block title %}Gestion Commissions Retrait{% endblock %}
+
+{% block extra_css %}
+<style>
+    .withdrawal-commission-page,
+    .withdrawal-commission-page * {
+        box-sizing: border-box;
+    }
+    .withdrawal-commission-page {
+        width: 100%;
+        max-width: 1240px;
+        margin: 0 auto;
+        padding-left: 16px;
+        padding-right: 16px;
+    }
+    .withdrawal-commission-page .card,
+    .withdrawal-commission-page .card-body,
+    .withdrawal-commission-page .card-header {
+        min-width: 0;
+    }
+    .withdrawal-commission-table-wrap {
+        width: 100%;
+        max-width: 100%;
+        overflow-x: auto;
+    }
+    .withdrawal-commission-table {
+        width: 100%;
+        min-width: 760px;
+        table-layout: auto;
+    }
+    .withdrawal-commission-table th,
+    .withdrawal-commission-table td {
+        vertical-align: middle;
+        overflow-wrap: anywhere;
+    }
+    .withdrawal-commission-table input,
+    .withdrawal-commission-table select {
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
+    }
+    .withdrawal-commission-mobile {
+        display: none;
+    }
+    .withdrawal-tier-card {
+        width: 100%;
+        min-width: 0;
+        padding: 16px;
+        border: 1px solid #dbe3ef;
+        border-radius: 14px;
+        background: #fff;
+        box-shadow: 0 6px 18px rgba(15, 23, 42, .06);
+    }
+    .withdrawal-tier-card + .withdrawal-tier-card {
+        margin-top: 12px;
+    }
+    .withdrawal-tier-card h6 {
+        margin: 0 0 14px;
+        color: #0f2d5c;
+        font-size: 1rem;
+        line-height: 1.35;
+        overflow-wrap: anywhere;
+    }
+    .withdrawal-tier-field {
+        min-width: 0;
+        margin-bottom: 12px;
+    }
+    .withdrawal-tier-field label {
+        display: block;
+        margin-bottom: 6px;
+        color: #334155;
+        font-size: .88rem;
+        font-weight: 700;
+    }
+    .withdrawal-tier-card input,
+    .withdrawal-tier-card select {
+        width: 100%;
+        max-width: 100%;
+        min-height: 44px;
+        padding: 9px 10px;
+        border: 1px solid #cbd5e1;
+        border-radius: 9px;
+        background: #fff;
+        color: #0f172a;
+        font: inherit;
+    }
+    .withdrawal-tier-card input:focus,
+    .withdrawal-tier-card select:focus {
+        outline: 3px solid rgba(37, 99, 235, .2);
+        outline-offset: 1px;
+        border-color: #2563eb;
+    }
+    .withdrawal-tier-actions {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+        margin-top: 14px;
+    }
+    .withdrawal-tier-actions button {
+        width: 100%;
+        min-height: 44px;
+    }
+    @media (max-width: 600px) {
+        .withdrawal-commission-page {
+            padding-left: 12px;
+            padding-right: 12px;
+        }
+        .withdrawal-commission-page .container {
+            padding-left: 0;
+            padding-right: 0;
+        }
+        .withdrawal-commission-table-wrap {
+            display: none;
+        }
+        .withdrawal-commission-mobile {
+            display: block;
+        }
+        .withdrawal-commission-page .card-header h5 {
+            font-size: 1rem;
+        }
+    }
+    @media (min-width: 601px) {
+        .withdrawal-commission-mobile {
+            display: none;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mt-5 withdrawal-commission-page">
+    <div class="row">
+        <div class="col-12">
+            <h2>💰 Gestion des Commissions de Retrait</h2>
+            <p class="text-muted">Administre les tranches, la part système et la part agent pour les retraits HTG.</p>
+            {% if messages %}
+            <div class="alert-container">
+                {% for message in messages %}
+                <div class="alert alert-{{ message.tags }}" role="alert">{{ message }}</div>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="row mt-4">
+        <div class="col-lg-8">
+            <div class="card mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">Tranches de Commission Retrait HTG</h5>
+                </div>
+                <div class="card-body">
+                    {% if withdrawal_configs %}
+                    <div class="withdrawal-commission-table-wrap">
+                        <table class="table table-hover table-bordered withdrawal-commission-table">
+                            <thead>
+                                <tr>
+                                    <th>Description</th>
+                                    <th>Min</th>
+                                    <th>Max</th>
+                                    <th>Total</th>
+                                    <th>Système</th>
+                                    <th>Agent</th>
+                                    <th>Actif</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for tier in withdrawal_configs %}
+                                <tr>
+                                    <form method="post" class="d-flex flex-wrap align-items-center">
+                                        {% csrf_token %}
+                                        <td>
+                                            <input type="text" name="description" value="{{ tier.description }}" class="form-control form-control-sm" />
+                                        </td>
+                                        <td>
+                                            <input type="number" step="0.01" name="min_amount" value="{{ tier.min_amount }}" class="form-control form-control-sm" />
+                                        </td>
+                                        <td>
+                                            <input type="number" step="0.01" name="max_amount" value="{{ tier.max_amount }}" class="form-control form-control-sm" />
+                                        </td>
+                                        <td>
+                                            <input type="number" step="0.01" name="total_fee" value="{{ tier.total_fee }}" class="form-control form-control-sm" />
+                                        </td>
+                                        <td>
+                                            <input type="number" step="0.01" name="system_fee" value="{{ tier.system_fee }}" class="form-control form-control-sm" />
+                                        </td>
+                                        <td>
+                                            <input type="number" step="0.01" name="agent_fee" value="{{ tier.agent_fee }}" class="form-control form-control-sm" />
+                                        </td>
+                                        <td>
+                                            <select name="active" class="form-select form-select-sm">
+                                                <option value="on" {% if tier.active %}selected{% endif %}>Oui</option>
+                                                <option value="">Non</option>
+                                            </select>
+                                        </td>
+                                        <td class="d-flex gap-1">
+                                            <input type="hidden" name="action" value="update" />
+                                            <input type="hidden" name="tier_id" value="{{ tier.id }}" />
+                                            <button type="submit" class="btn btn-sm btn-outline-primary">Enregistrer</button>
+                                            <button type="submit" class="btn btn-sm btn-outline-danger" onclick="event.preventDefault(); if (confirm('Supprimer cette tranche ?')) { var form = this.closest('form'); form.querySelector('[name=action]').value = 'delete'; form.submit(); }">Supprimer</button>
+                                        </td>
+                                    </form>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="withdrawal-commission-mobile">
+                        {% for tier in withdrawal_configs %}
+                        <form method="post" class="withdrawal-tier-card">
+                            {% csrf_token %}
+                            <input type="hidden" name="action" value="update" />
+                            <input type="hidden" name="tier_id" value="{{ tier.id }}" />
+                            <h6>Commission {{ forloop.counter }} · {{ tier.description|default:'Tranche de retrait' }}</h6>
+                            <div class="withdrawal-tier-field">
+                                <label for="mobile-description-{{ tier.id }}">Description</label>
+                                <input id="mobile-description-{{ tier.id }}" type="text" name="description" value="{{ tier.description }}" />
+                            </div>
+                            <div class="withdrawal-tier-field">
+                                <label for="mobile-min-{{ tier.id }}">Montant minimum</label>
+                                <input id="mobile-min-{{ tier.id }}" type="number" step="0.01" name="min_amount" value="{{ tier.min_amount }}" />
+                            </div>
+                            <div class="withdrawal-tier-field">
+                                <label for="mobile-max-{{ tier.id }}">Montant maximum</label>
+                                <input id="mobile-max-{{ tier.id }}" type="number" step="0.01" name="max_amount" value="{{ tier.max_amount }}" />
+                            </div>
+                            <div class="withdrawal-tier-field">
+                                <label for="mobile-total-{{ tier.id }}">Frais total</label>
+                                <input id="mobile-total-{{ tier.id }}" type="number" step="0.01" name="total_fee" value="{{ tier.total_fee }}" />
+                            </div>
+                            <div class="withdrawal-tier-field">
+                                <label for="mobile-system-{{ tier.id }}">Commission système</label>
+                                <input id="mobile-system-{{ tier.id }}" type="number" step="0.01" name="system_fee" value="{{ tier.system_fee }}" />
+                            </div>
+                            <div class="withdrawal-tier-field">
+                                <label for="mobile-agent-{{ tier.id }}">Commission agent</label>
+                                <input id="mobile-agent-{{ tier.id }}" type="number" step="0.01" name="agent_fee" value="{{ tier.agent_fee }}" />
+                            </div>
+                            <div class="withdrawal-tier-field">
+                                <label for="mobile-active-{{ tier.id }}">Statut</label>
+                                <select id="mobile-active-{{ tier.id }}" name="active">
+                                    <option value="on" {% if tier.active %}selected{% endif %}>Actif</option>
+                                    <option value="">Inactif</option>
+                                </select>
+                            </div>
+                            <div class="withdrawal-tier-actions">
+                                <button type="submit" class="btn btn-outline-primary">Enregistrer</button>
+                                <button type="submit" class="btn btn-outline-danger" onclick="event.preventDefault(); if (confirm('Supprimer cette tranche ?')) { var form = this.closest('form'); form.querySelector('[name=action]').value = 'delete'; form.submit(); }">Supprimer</button>
+                            </div>
+                        </form>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <p class="text-warning">Aucune tranche de commission de retrait définie pour l'instant.</p>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="card mb-4">
+                <div class="card-header bg-secondary text-white">
+                    <h5 class="mb-0">Ajouter une nouvelle tranche</h5>
+                </div>
+                <div class="card-body">
+                    <form method="post">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="add" />
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Montant min</label>
+                                <input type="number" step="0.01" name="min_amount" class="form-control" required value="0.00" />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Montant max</label>
+                                <input type="number" step="0.01" name="max_amount" class="form-control" required value="0.00" />
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Frais total</label>
+                                <input type="number" step="0.01" name="total_fee" class="form-control" required value="0.00" />
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Commission système</label>
+                                <input type="number" step="0.01" name="system_fee" class="form-control" required value="0.00" />
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Commission agent</label>
+                                <input type="number" step="0.01" name="agent_fee" class="form-control" required value="0.00" />
+                            </div>
+                            <div class="col-md-8">
+                                <label class="form-label">Description</label>
+                                <input type="text" name="description" class="form-control" placeholder="20 → 99 HTG" />
+                            </div>
+                            <div class="col-md-4 d-flex align-items-end">
+                                <div class="form-check mb-0">
+                                    <input class="form-check-input" type="checkbox" name="active" id="active" checked />
+                                    <label class="form-check-label" for="active">Actif</label>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mt-3">
+                            <button type="submit" class="btn btn-success">Ajouter la tranche</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <div class="card mb-4">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0">Statistiques retraite</h5>
+                </div>
+                <div class="card-body">
+                    <p><strong>Total tranches configurées :</strong> {{ withdrawal_configs|length }}</p>
+                    <p><strong>Frais totaux configurés :</strong> {{ total_withdrawal_fees_configured }}</p>
+                    <p><strong>Part système configurée :</strong> {{ system_revenue_configured }}</p>
+                    <p><strong>Journaux récents :</strong></p>
+                    <ul class="list-group list-group-flush">
+                        {% for log in withdrawal_logs|slice:":5" %}
+                        <li class="list-group-item py-2">{{ log.created_at|date:"Y-m-d H:i" }} - {{ log.get_action_type_display }} - {{ log.target_name }}</li>
+                        {% empty %}
+                        <li class="list-group-item py-2 text-muted">Aucun log de commission.</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0">Actions</h5>
+                </div>
+                <div class="card-body">
+                    <a href="{% url 'manage_agent_commissions' %}" class="btn btn-secondary d-block mb-2">← Retour aux Commissions</a>
+                    <a href="{% url 'manage_admin_permissions' %}" class="btn btn-outline-primary d-block">Gérer les permissions admin</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

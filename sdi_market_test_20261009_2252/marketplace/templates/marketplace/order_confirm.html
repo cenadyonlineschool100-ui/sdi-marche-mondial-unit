@@ -1,0 +1,287 @@
+{% extends 'marketplace/base.html' %}
+{% load static %}
+{% block content %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="mb-0">Informations de livraison</h2>
+                </div>
+                <div class="card-body">
+                    {% if order %}
+                        <!-- Affichage de la commande existante -->
+                        <div class="alert alert-success">
+                            <h4>Commande #{{ order.id }} - {{ order.product_name }}</h4>
+                            <p><strong>Montant:</strong> ${{ order.total_amount }}</p>
+                            <p><strong>Statut:</strong> {{ order.get_status_display }}</p>
+                            <p><strong>Méthode de paiement:</strong> {{ order.get_payment_method_display }}</p>
+                            <p><strong>Statut paiement:</strong> {{ order.get_payment_status_display }}</p>
+                            <p><strong>Adresse de livraison:</strong> {{ order.delivery_address }}</p>
+                            {% if order.payment_status == 'pending' %}
+                                <div class="alert alert-warning" style="margin-top: 12px;">
+                                    Votre paiement est en attente. Nous vous contacterons bientôt avec les instructions pour finaliser le paiement.
+                                </div>
+                            {% endif %}
+                            {% if order.distance_km %}
+                                <p><strong>Distance estimée:</strong> {{ order.distance_km }} km</p>
+                            {% endif %}
+                            {% if order.buyer_address_details %}
+                                <p><strong>Instructions:</strong> {{ order.buyer_address_details }}</p>
+                            {% endif %}
+                        </div>
+
+                        <div class="card mt-3">
+                            <div class="card-body">
+                                <h5>Détails de la commande</h5>
+                                {% if order.items.exists %}
+                                    <ul>
+                                        {% for item in order.items.all %}
+                                            <li>{{ item.product.name }} × {{ item.quantity }} – {{ current_currency|currency_symbol }}{{ item.price_ht|format_currency:current_currency }}</li>
+                                        {% endfor %}
+                                    </ul>
+                                {% else %}
+                                    <p>Aucun item trouvé pour cette commande.</p>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        {% if commission_breakdown %}
+                            <div class="card mt-3">
+                                <div class="card-body">
+                                    <h5>Décomposition des frais</h5>
+                                    <p><strong>Prix produits:</strong> ${{ commission_breakdown.prix_produit_total|floatformat:2 }}</p>
+                                    <p><strong>Frais de livraison:</strong> ${{ commission_breakdown.frais_livraison|floatformat:2 }}</p>
+                                    <p><strong>Cashback acheteur:</strong> ${{ commission_breakdown.cashback_acheteur|floatformat:2 }}</p>
+                                    <p><strong>Cashback vendeur:</strong> ${{ commission_breakdown.cashback_vendeur|floatformat:2 }}</p>
+                                    <p><strong>Commission marketplace:</strong> ${{ commission_breakdown.gain_admin|floatformat:2 }}</p>
+                                    <p><strong>Part vendeur:</strong> ${{ commission_breakdown.gain_vendeur|floatformat:2 }}</p>
+                                    <p><strong>Part livreur:</strong> ${{ commission_breakdown.gain_livreur|floatformat:2 }}</p>
+                                    {% if commission_breakdown.distance_km %}
+                                        <p><strong>Distance utilisée pour le calcul:</strong> {{ commission_breakdown.distance_km }} km</p>
+                                    {% endif %}
+                                    <p><strong>Poids total estimé:</strong> {{ commission_breakdown.total_poids|floatformat:2 }} kg</p>
+                                    <p><strong>Volume estimé:</strong> {{ commission_breakdown.total_volume_liters|floatformat:2 }} L</p>
+                                </div>
+                            </div>
+                        {% endif %}
+
+                        {% if order.status == 'awaiting_delivery' %}
+                            <div class="mt-4">
+                                <h5>📍 Suivi de livraison</h5>
+                                <a href="{% url 'delivery_tracking_detail' order.id %}" class="btn btn-primary">
+                                    Voir le suivi GPS en temps réel
+                                </a>
+                            </div>
+                        {% endif %}
+
+                    {% else %}
+                        <!-- Formulaire de commande avec sélection GPS -->
+                        <h3>Acheter {{ product.name }}</h3>
+                        <p><strong>Prix:</strong> {{ current_currency|currency_symbol }}{{ product|format_product_price:current_currency }}</p>
+
+                        {% if sold_out %}
+                            <div class="alert alert-danger">
+                                <h4>Produit épuisé</h4>
+                                <p>Cet article n'est plus disponible.</p>
+                            </div>
+                        {% else %}
+                            <form method="post" id="order-form">
+                                {% csrf_token %}
+
+                                <!-- Quantité -->
+                                <div class="mb-3">
+                                    <label for="quantity" class="form-label">Quantité</label>
+                                    <input type="number" class="form-control" id="quantity" name="quantity"
+                                           min="1" max="{{ product.quantity }}" value="1" required>
+                                </div>
+
+                                <!-- Adresse de livraison -->
+                                <div class="mb-3">
+                                    <label for="id_delivery_address" class="form-label">Adresse de livraison complète *</label>
+                                    <textarea class="form-control" id="id_delivery_address" name="delivery_address"
+                                              rows="3" placeholder="Entrez votre adresse complète avec numéro, rue, ville, code postal..."
+                                              required></textarea>
+                                </div>
+
+                                <!-- Instructions spéciales -->
+                                <div class="mb-3">
+                                    <label for="id_buyer_address_details" class="form-label">Instructions de livraison (optionnel)</label>
+                                    <textarea class="form-control" id="id_buyer_address_details" name="buyer_address_details"
+                                              rows="2" placeholder="Ex: Sonner à l'interphone, laisser devant la porte, contacter au numéro..."></textarea>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label">Moyen de paiement</label>
+                                    {{ form.payment_method }}
+                                </div>
+
+                                <!-- Carte Google Maps pour sélection GPS -->
+                                <div class="mb-3">
+                                    <label class="form-label">📍 Sélectionnez votre position sur la carte *</label>
+                                    <div id="map-wrapper" style="position: relative;">
+                                        <div id="map" style="height: 400px; width: 100%; border: 1px solid #ddd; border-radius: 8px;"></div>
+                                        <div id="map-error" style="display:none; position:absolute; inset:0; background:rgba(255,255,255,0.95); color:#333; padding:20px; border:1px solid #ddd; border-radius:8px; display:flex; flex-direction:column; justify-content:center; align-items:center; text-align:center; z-index:10;"> 
+                                            <strong>Impossible de charger la carte Google Maps.</strong>
+                                            <p style="margin:10px 0 0; font-size:0.95rem;">Vérifiez votre clé API dans le fichier <code>.env</code> et relancez le serveur.</p>
+                                        </div>
+                                    </div>
+                                    <small class="form-text text-muted">
+                                        Cliquez sur la carte pour définir votre adresse de livraison. La position GPS sera automatiquement enregistrée.
+                                    </small>
+                                </div>
+
+                                <!-- Champs cachés pour les coordonnées -->
+                                <input type="hidden" id="id_buyer_lat" name="buyer_lat">
+                                <input type="hidden" id="id_buyer_lng" name="buyer_lng">
+                                <input type="hidden" id="id_map_failed" name="map_failed" value="false">
+
+                                <!-- Bouton de commande -->
+                                <div class="d-grid">
+                                    <button type="submit" class="btn btn-success btn-lg" id="submit-order" disabled>
+                                        🛒 Commander maintenant
+                                    </button>
+                                </div>
+                            </form>
+                        {% endif %}
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Scripts Google Maps -->
+<script src="https://maps.googleapis.com/maps/api/js?key={{ google_maps_api_key|default:'VOTRE_CLE_GOOGLE_MAPS_API_ICI' }}&libraries=places"></script>
+<script>
+let map;
+let marker;
+let geocoder;
+
+function initMap() {
+    // Position par défaut (Paris)
+    const defaultLocation = { lat: 48.8566, lng: 2.3522 };
+
+    map = new google.maps.Map(document.getElementById('map'), {
+        zoom: 12,
+        center: defaultLocation,
+        mapTypeControl: true,
+        streetViewControl: true,
+        fullscreenControl: true
+    });
+
+    geocoder = new google.maps.Geocoder();
+
+    // Ajouter un marqueur déplaçable
+    marker = new google.maps.Marker({
+        position: defaultLocation,
+        map: map,
+        draggable: true,
+        title: 'Votre adresse de livraison'
+    });
+
+    // Événement clic sur la carte
+    map.addListener('click', function(event) {
+        placeMarker(event.latLng);
+        updateAddressFromLatLng(event.latLng);
+    });
+
+    // Événement drag du marqueur
+    marker.addListener('dragend', function(event) {
+        updateAddressFromLatLng(event.latLng);
+    });
+
+    // Géolocalisation automatique
+    if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(function(position) {
+            const pos = {
+                lat: position.coords.latitude,
+                lng: position.coords.longitude
+            };
+            map.setCenter(pos);
+            placeMarker(pos);
+            updateAddressFromLatLng(pos);
+        });
+    }
+}
+
+function placeMarker(location) {
+    marker.setPosition(location);
+    document.getElementById('id_buyer_lat').value = location.lat();
+    document.getElementById('id_buyer_lng').value = location.lng();
+    document.getElementById('submit-order').disabled = false;
+}
+
+function updateAddressFromLatLng(latLng) {
+    geocoder.geocode({ 'location': latLng }, function(results, status) {
+        if (status === 'OK' && results[0]) {
+            const address = results[0].formatted_address;
+            document.getElementById('id_delivery_address').value = address;
+        }
+    });
+}
+
+// Recherche d'adresse
+function searchAddress() {
+    const address = document.getElementById('id_delivery_address').value;
+    if (address) {
+        geocoder.geocode({ 'address': address }, function(results, status) {
+            if (status === 'OK' && results[0]) {
+                const location = results[0].geometry.location;
+                map.setCenter(location);
+                placeMarker(location);
+            }
+        });
+    }
+}
+
+function tryEnableSubmit() {
+    const submitButton = document.getElementById('submit-order');
+    const addressField = document.getElementById('id_delivery_address');
+    const latField = document.getElementById('id_buyer_lat');
+    const lngField = document.getElementById('id_buyer_lng');
+    const mapFailedField = document.getElementById('id_map_failed');
+
+    if (!submitButton || !addressField || !latField || !lngField || !mapFailedField) {
+        return;
+    }
+
+    const address = addressField.value.trim();
+    const mapFailed = mapFailedField.value === 'true';
+    const haveLocation = latField.value && lngField.value;
+
+    submitButton.disabled = !(haveLocation || (mapFailed && address));
+}
+
+// Initialiser la carte quand le DOM est chargé
+document.addEventListener('DOMContentLoaded', function() {
+    if (document.getElementById('map')) {
+        initMap();
+    }
+
+    // Recherche automatique lors de la saisie d'adresse
+    const addressField = document.getElementById('id_delivery_address');
+    if (addressField) {
+        addressField.addEventListener('blur', function() {
+            searchAddress();
+            tryEnableSubmit();
+        });
+        addressField.addEventListener('input', tryEnableSubmit);
+    }
+});
+
+// Gestion des erreurs de clé Google Maps
+window.gm_authFailure = function() {
+    const errorLayer = document.getElementById('map-error');
+    if (errorLayer) {
+        errorLayer.style.display = 'flex';
+    }
+    const mapFailedField = document.getElementById('id_map_failed');
+    if (mapFailedField) {
+        mapFailedField.value = 'true';
+    }
+    tryEnableSubmit();
+};
+</script>
+
+{% endblock %}

@@ -1,0 +1,73 @@
+{% extends "marketplace/base.html" %}
+
+{% block title %}
+    Traiter Retrait - Agent
+{% endblock %}
+
+{% block content %}
+<div class="content-container" style="max-width: 1100px; margin: 0 auto; padding: 20px;">
+    <h1>Traiter les demandes de retrait</h1>
+    <p style="color: #666; margin-bottom: 30px;">
+        Le montant a déjà été débité lors de la demande du client. Confirmez ici la remise des fonds.
+    </p>
+
+    {% if messages %}
+        <div style="margin-bottom: 20px;">
+            {% for message in messages %}
+                <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    {% if pending_withdrawals %}
+        <div style="overflow-x: auto; background: white; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+            <table style="width: 100%; border-collapse: collapse;">
+                <thead>
+                    <tr style="text-align: left; background: #f0f8ff;">
+                        <th style="padding: 12px;">Demande</th>
+                        <th style="padding: 12px;">Client</th>
+                        <th style="padding: 12px;">Montant</th>
+                        <th style="padding: 12px;">Compte</th>
+                        <th style="padding: 12px;">Frais</th>
+                        <th style="padding: 12px;">Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for withdrawal in pending_withdrawals %}
+                        <tr style="border-top: 1px solid #eee;">
+                            <td style="padding: 12px;">#{{ withdrawal.pk }}</td>
+                            <td style="padding: 12px;">
+                                {{ withdrawal.user.get_full_name|default:withdrawal.user.username }}
+                                <br><small>{{ withdrawal.user.account_code }}</small>
+                            </td>
+                            <td style="padding: 12px;">{{ withdrawal.amount|floatformat:2 }} {{ withdrawal.currency }}</td>
+                            <td style="padding: 12px;">{{ withdrawal.account_type }}</td>
+                            <td style="padding: 12px;">{{ withdrawal.fee_total|floatformat:2 }} {{ withdrawal.currency }}</td>
+                            <td style="padding: 12px;">
+                                <form method="post">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="withdrawal_id" value="{{ withdrawal.pk }}">
+                                    <button type="submit" style="padding: 9px 14px; background: #0066cc; color: white; border: 0; border-radius: 6px; cursor: pointer;">
+                                        Confirmer la remise
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% else %}
+        <p style="padding: 18px; background: #f8f9fa; border-radius: 6px;">
+            Aucune demande de retrait en attente.
+        </p>
+    {% endif %}
+
+    <p style="margin-top: 20px;">
+        <a href="{% url 'agent_withdrawal_dashboard' %}">Voir l'historique des retraits traités</a>
+    </p>
+</div>
+{% endblock %}

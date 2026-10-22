@@ -1,0 +1,131 @@
+{% extends 'marketplace/base.html' %}
+{% load static %}
+
+{% block title %}Validation des Demandes Studio de Beauté - MicroSDICash{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
+                    <h2 class="mb-0">🎯 Validation des Demandes Studio de Beauté</h2>
+                    <span class="badge badge-light">{{ requests|length }} demande(s)</span>
+                </div>
+                <div class="card-body">
+                    {% if messages %}
+                        {% for message in messages %}
+                            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                                {{ message }}
+                                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                            </div>
+                        {% endfor %}
+                    {% endif %}
+
+                    {% if requests %}
+                        <div class="table-responsive">
+                            <table class="table table-hover table-striped">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Utilisateur</th>
+                                        <th>Nom du Studio</th>
+                                        <th>Téléphone</th>
+                                        <th>Adresse</th>
+                                        <th>Spécialités</th>
+                                        <th>Statut</th>
+                                        <th>Date de Demande</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for request in requests %}
+                                        <tr>
+                                            <td>
+                                                <strong>{{ request.user.username }}</strong><br>
+                                                <small class="text-muted">{{ request.user.email }}</small>
+                                            </td>
+                                            <td>{{ request.studio_name }}</td>
+                                            <td>{{ request.phone }}</td>
+                                            <td>{{ request.address }}</td>
+                                            <td>{{ request.specialties }}</td>
+                                            <td>
+                                                {% if request.status == 'pending' %}
+                                                    <span class="badge bg-warning">⏳ En attente</span>
+                                                {% elif request.status == 'approved' %}
+                                                    <span class="badge bg-success">✅ Approuvé</span>
+                                                    <br>
+                                                    <small class="text-muted">{{ request.approved_at|date:"d/m/Y H:i" }}</small>
+                                                {% elif request.status == 'rejected' %}
+                                                    <span class="badge bg-danger">❌ Rejeté</span>
+                                                {% endif %}
+                                            </td>
+                                            <td>{{ request.created_at|date:"d/m/Y H:i" }}</td>
+                                            <td>
+                                                {% if request.status == 'pending' %}
+                                                    <form method="post" style="display: inline;">
+                                                        {% csrf_token %}
+                                                        <input type="hidden" name="action" value="approve">
+                                                        <input type="hidden" name="request_id" value="{{ request.id }}">
+                                                        <button type="submit" class="btn btn-sm btn-success" title="Approuver">
+                                                            ✅ Approuver
+                                                        </button>
+                                                    </form>
+                                                    <form method="post" style="display: inline;">
+                                                        {% csrf_token %}
+                                                        <input type="hidden" name="action" value="reject">
+                                                        <input type="hidden" name="request_id" value="{{ request.id }}">
+                                                        <button type="submit" class="btn btn-sm btn-danger" title="Rejeter" onclick="return confirm('Êtes-vous sûr de vouloir rejeter cette demande?')">
+                                                            ❌ Rejeter
+                                                        </button>
+                                                    </form>
+                                                {% else %}
+                                                    <a href="{% url 'my_shop' %}" class="btn btn-sm btn-info">
+                                                        👁️ Voir
+                                                    </a>
+                                                {% endif %}
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td colspan="8">
+                                                <details class="ms-3">
+                                                    <summary class="text-muted cursor-pointer">📝 Description</summary>
+                                                    <div class="mt-2 p-3 bg-light rounded">
+                                                        {{ request.description }}
+                                                    </div>
+                                                </details>
+                                            </td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="alert alert-info" role="alert">
+                            <h4 class="alert-heading">ℹ️ Aucune demande</h4>
+                            <p>Il n'y a actuellement aucune demande de création de studio de beauté.</p>
+                        </div>
+                    {% endif %}
+
+                    <div class="mt-4 text-center">
+                        <a href="{% url 'admin:index' %}" class="btn btn-secondary">
+                            ← Retour à l'Admin
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .cursor-pointer {
+        cursor: pointer;
+    }
+    summary {
+        user-select: none;
+    }
+    summary:hover {
+        text-decoration: underline;
+    }
+</style>
+{% endblock %}

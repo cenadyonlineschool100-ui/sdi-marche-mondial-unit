@@ -1,0 +1,67 @@
+{% extends 'marketplace/base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="container" style="max-width:1100px; margin: 2rem auto; padding: 1rem;">
+    <div class="card" style="padding: 24px; border-radius: 18px; box-shadow: 0 20px 45px rgba(15,23,42,.1);">
+        <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:16px; margin-bottom:20px;">
+            <div>
+                <h1 style="margin:0; font-size:2rem;">Codes OTP des agents</h1>
+                <p style="margin:8px 0 0 0; color:#475569;">Affiche les codes de validation des agents. Les agents doivent recevoir ces codes pour confirmer leurs dépôts.</p>
+            </div>
+            <form method="post" style="margin:0;">
+                {% csrf_token %}
+                <button type="submit" name="generate_codes" value="1" class="fintech-btn btn-primary" style="padding:12px 18px;">Générer / Régénérer les codes</button>
+            </form>
+        </div>
+
+        <div style="margin-bottom:20px; padding:16px; background:#f8fafc; border-left:4px solid #2563eb; border-radius:12px; color:#0f172a;">
+            <strong>Note :</strong> Les codes sont générés et affichés ici pour que vous puissiez les transmettre aux agents. Si un agent n'a pas encore de code, le système en générera un automatiquement.
+        </div>
+
+        <div style="overflow-x:auto;">
+            <table style="width:100%; border-collapse:collapse;">
+                <thead>
+                    <tr style="background:#eef2ff; color:#0f172a; text-align:left;">
+                        <th style="padding:14px 12px; border-bottom:1px solid #dbeafe;">Agent</th>
+                        <th style="padding:14px 12px; border-bottom:1px solid #dbeafe;">Email</th>
+                        <th style="padding:14px 12px; border-bottom:1px solid #dbeafe;">Code OTP</th>
+                        <th style="padding:14px 12px; border-bottom:1px solid #dbeafe;">Statut</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in agent_data %}
+                        <tr style="border-bottom:1px solid #e2e8f0;">
+                            <td style="padding:14px 12px;">{{ item.agent.username }}</td>
+                            <td style="padding:14px 12px;">{{ item.agent.email|default:'-' }}</td>
+                            <td style="padding:14px 12px; font-family:monospace;">
+                                {% if item.otp_code %}
+                                    {{ item.otp_code }}
+                                {% else %}
+                                    <span style="color:#475569;">Code déjà défini</span>
+                                {% endif %}
+                            </td>
+                            <td style="padding:14px 12px; color:#0f172a;">
+                                {% if item.generated %}
+                                    <span style="color:#047857; font-weight:700;">Code généré</span>
+                                {% else %}
+                                    <span style="color:#0f172a;">En place</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% empty %}
+                        <tr>
+                            <td colspan="4" style="padding:20px; text-align:center; color:#64748b;">Aucun agent trouvé.</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <div style="margin-top:20px; display:flex; flex-wrap:wrap; gap:12px; align-items:center;">
+            <button type="button" class="fintech-btn btn-secondary" onclick="window.history.back();">Retour</button>
+            <span style="color:#475569;">Total agents : {{ agents_count }}</span>
+        </div>
+    </div>
+</div>
+{% endblock %}

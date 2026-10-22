@@ -1,0 +1,116 @@
+{% extends 'marketplace/base.html' %}
+{% block content %}
+<div class="card">
+    <h2>Ma Boutique - {{ shop.name }}</h2>
+    <p><small>Gérez vos produits et suivez les performances de votre boutique</small></p>
+
+    <!-- Statistiques de la boutique -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin: 2rem 0;">
+        <div style="padding: 1rem; border: 1px solid #e2e8f0; border-radius: 8px; background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);">
+            <h4 style="margin: 0; color: #1e293b;">Produits totaux</h4>
+            <p style="margin: 0.5rem 0 0 0; font-size: 2rem; font-weight: bold; color: #3b82f6;">{{ total_products }}</p>
+        </div>
+        <div style="padding: 1rem; border: 1px solid #e2e8f0; border-radius: 8px; background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);">
+            <h4 style="margin: 0; color: #166534;">Produits actifs</h4>
+            <p style="margin: 0.5rem 0 0 0; font-size: 2rem; font-weight: bold; color: #16a34a;">{{ active_products }}</p>
+        </div>
+        <div style="padding: 1rem; border: 1px solid #e2e8f0; border-radius: 8px; background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);">
+            <h4 style="margin: 0; color: #92400e;">Ventes totales</h4>
+            <p style="margin: 0.5rem 0 0 0; font-size: 2rem; font-weight: bold; color: #d97706;">${{ total_sales|floatformat:2 }}</p>
+        </div>
+    </div>
+
+    <!-- Boutons d'action -->
+    <div style="display: flex; gap: 1rem; margin: 2rem 0; flex-wrap: wrap;">
+        <a href="{% url 'add_product' %}" class="button" style="background-color: #28a745; color: white;">+ Ajouter un produit</a>
+        <a href="{% url 'profile' %}" class="button" style="background-color: #6c757d; color: white;">← Retour au profil</a>
+    </div>
+
+    <!-- Section Produits -->
+    <h3>Mes Produits</h3>
+    {% if products %}
+        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1rem; margin: 1rem 0;">
+            {% for product in products %}
+                <div style="border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; background: white;">
+                    <!-- Image du produit -->
+                    {% if product.images.first %}
+                        <img src="{{ product.images.first.image.url }}" alt="{{ product.name }}" style="width: 100%; height: 200px; object-fit: cover;">
+                    {% else %}
+                        <div style="width: 100%; height: 200px; background: #f8fafc; display: flex; align-items: center; justify-content: center; color: #64748b;">
+                            Pas d'image
+                        </div>
+                    {% endif %}
+
+                    <!-- Informations du produit -->
+                    <div style="padding: 1rem;">
+                        <h4 style="margin: 0 0 0.5rem 0; color: #1e293b;">{{ product.name }}</h4>
+                        <p style="margin: 0 0 0.5rem 0; color: #64748b; font-size: 0.9rem;">{{ product.description|truncatechars:100 }}</p>
+
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                            <span style="font-weight: bold; color: #059669;">
+                                {{ current_currency|currency_symbol }}
+                                {% if product.is_reseller_copy and product.reseller_entry.custom_price %}
+                                    {{ product.reseller_entry.custom_price|format_currency:current_currency }}
+                                {% else %}
+                                    {{ product|format_product_price:current_currency }}
+                                {% endif %}
+                            </span>
+                            <span style="{% if product.quantity > 0 %}color: #16a34a;{% else %}color: #dc2626;{% endif %}">
+                                Stock: {{ product.quantity }}
+                            </span>
+                        </div>
+
+                        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                            <a href="{% url 'product_detail' product.id %}" class="button" style="flex: 1; text-align: center; font-size: 0.9rem; padding: 0.5rem;">Voir</a>
+                            <a href="{% url 'add_product' %}?edit={{ product.id }}" class="button" style="flex: 1; text-align: center; font-size: 0.9rem; padding: 0.5rem; background-color: #ffc107; color: #212529;">Modifier</a>
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div style="text-align: center; padding: 3rem; border: 2px dashed #e2e8f0; border-radius: 8px; background: #f8fafc;">
+            <h3 style="color: #64748b; margin-bottom: 1rem;">Aucun produit dans votre boutique</h3>
+            <p style="color: #94a3b8; margin-bottom: 2rem;">Commencez par ajouter votre premier produit !</p>
+            <a href="{% url 'add_product' %}" class="button" style="background-color: #28a745; color: white; padding: 1rem 2rem;">+ Ajouter mon premier produit</a>
+        </div>
+    {% endif %}
+
+    <!-- Section Commandes récentes -->
+    {% if recent_orders %}
+        <h3 style="margin-top: 3rem;">Commandes récentes</h3>
+            <table style="width: 100%; border-collapse: collapse; margin-top: 1rem;">
+                <thead>
+                    <tr style="background-color: #f8fafc;">
+                        <th style="border: 1px solid #e2e8f0; padding: 0.75rem; text-align: left;">Commande</th>
+                        <th style="border: 1px solid #e2e8f0; padding: 0.75rem; text-align: left;">Client</th>
+                        <th style="border: 1px solid #e2e8f0; padding: 0.75rem; text-align: left;">Montant</th>
+                        <th style="border: 1px solid #e2e8f0; padding: 0.75rem; text-align: left;">Statut</th>
+                        <th style="border: 1px solid #e2e8f0; padding: 0.75rem; text-align: left;">Date</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for order in recent_orders %}
+                        <tr>
+                            <td style="border: 1px solid #e2e8f0; padding: 0.75rem;">#{{ order.id }}</td>
+                            <td style="border: 1px solid #e2e8f0; padding: 0.75rem;">{{ order.buyer.username }}</td>
+                            <td style="border: 1px solid #e2e8f0; padding: 0.75rem;">${{ order.total_amount }}</td>
+                            <td style="border: 1px solid #e2e8f0; padding: 0.75rem;">
+                                <span style="padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.8rem; font-weight: bold;
+                                    {% if order.status == 'delivered' %}background-color: #dcfce7; color: #166534;
+                                    {% elif order.status == 'paid' %}background-color: #dbeafe; color: #1e40af;
+                                    {% elif order.status == 'awaiting_delivery' %}background-color: #fef3c7; color: #92400e;
+                                    {% else %}background-color: #f3f4f6; color: #374151;{% endif %}">
+                                    {{ order.get_status_display }}
+                                </span>
+                            </td>
+                            <td style="border: 1px solid #e2e8f0; padding: 0.75rem;">{{ order.date_achat|date:'d/m/Y H:i' }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

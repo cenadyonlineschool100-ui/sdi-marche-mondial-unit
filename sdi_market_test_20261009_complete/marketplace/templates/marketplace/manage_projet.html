@@ -1,0 +1,354 @@
+{% extends 'marketplace/base.html' %}
+
+{% block extra_css %}
+<style>
+    .manage-project-page {
+        --manage-blue: #1d4ed8;
+        --manage-ink: #0f172a;
+        --manage-muted: #475569;
+        --manage-line: #dbe3ef;
+    }
+    .manage-project-page .section {
+        max-width: 1180px;
+        margin: 48px auto;
+    }
+    .manage-project-page .section-header {
+        max-width: 760px;
+        margin: 0 auto 28px;
+    }
+    .manage-project-page .section-header h2 {
+        color: var(--manage-ink);
+        font-size: clamp(1.6rem, 3vw, 2.2rem);
+        line-height: 1.2;
+    }
+    .manage-project-page .section-header p,
+    .manage-project-page .section > p {
+        color: var(--manage-muted);
+        line-height: 1.7;
+    }
+    .manage-project-hero .manage-project-highlights {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px;
+        margin-top: 4px;
+    }
+    .manage-project-hero .manage-project-highlight {
+        padding: 12px 14px;
+        border: 1px solid rgba(37, 99, 235, .16);
+        border-radius: 10px;
+        background: rgba(239, 246, 255, .78);
+        color: #1e3a8a;
+        font-weight: 700;
+        text-align: center;
+    }
+    .manage-project-page .content-grid,
+    .manage-project-page .services-grid,
+    .manage-project-page .feature-grid {
+        gap: 16px;
+    }
+    .manage-project-page .content-grid > div,
+    .manage-project-page .feature-card,
+    .manage-project-page .dashboard-card {
+        border: 1px solid var(--manage-line);
+        border-radius: 10px;
+        background: #fff;
+        box-shadow: 0 6px 18px rgba(15, 23, 42, .05);
+    }
+    .manage-project-page .content-grid > div {
+        padding: 24px;
+    }
+    .manage-project-page .content-grid h3,
+    .manage-project-page .feature-card h4,
+    .manage-project-page .dashboard-card strong {
+        color: var(--manage-ink);
+    }
+    .manage-project-page .feature-list {
+        display: grid;
+        gap: 10px;
+        margin: 0;
+        padding-left: 20px;
+    }
+    .manage-project-page .feature-list li {
+        padding: 12px 14px;
+        border: 1px solid #e5eaf2;
+        border-radius: 8px;
+        background: #f8fbff;
+        color: var(--manage-muted);
+        line-height: 1.45;
+    }
+    .manage-project-page .feature-card {
+        padding: 20px;
+    }
+    .manage-project-page .feature-card h4 {
+        margin-top: 0;
+        line-height: 1.3;
+    }
+    .manage-project-page .feature-card p,
+    .manage-project-page .feature-card li,
+    .manage-project-page .dashboard-card p {
+        color: var(--manage-muted);
+        line-height: 1.6;
+    }
+    .manage-project-page .project-form {
+        max-width: 900px;
+        margin: 0 auto;
+        padding: 24px;
+        border: 1px solid var(--manage-line);
+        border-radius: 10px;
+        background: #fff;
+        box-shadow: 0 6px 18px rgba(15, 23, 42, .05);
+    }
+    .manage-project-page .project-form input,
+    .manage-project-page .project-form select,
+    .manage-project-page .project-form textarea {
+        width: 100%;
+        max-width: 100%;
+        box-sizing: border-box;
+    }
+    @media (max-width: 700px) {
+        .manage-project-page .section {
+            margin: 32px auto;
+            padding-left: 16px;
+            padding-right: 16px;
+        }
+        .manage-project-hero .manage-project-highlights {
+            grid-template-columns: 1fr;
+        }
+        .manage-project-page .content-grid,
+        .manage-project-page .services-grid,
+        .manage-project-page .feature-grid {
+            grid-template-columns: 1fr;
+        }
+        .manage-project-page .content-grid > div,
+        .manage-project-page .feature-card,
+        .manage-project-page .project-form {
+            padding: 16px;
+        }
+        .manage-project-page .project-form .form-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block hero %}
+<div class="hero manage-project-hero">
+    <div class="container hero-inner">
+        <div class="hero-copy">
+            <span class="eyebrow">Manage Projet</span>
+            <h1 class="hero-title">Réalisez vos projets en Haïti sans vous déplacer</h1>
+            <p class="hero-subtitle">Confiez-nous vos projets et bénéficiez d'un suivi professionnel, transparent et sécurisé, où que vous soyez dans le monde.</p>
+            <div class="hero-actions">
+                <a href="#project-form" class="button">Confier mon projet</a>
+                <a href="#why-choose-us" class="button alt">Pourquoi nous choisir</a>
+            </div>
+            <div class="manage-project-highlights" aria-label="Avantages du service">
+                <div class="manage-project-highlight">Suivi terrain</div>
+                <div class="manage-project-highlight">Rapports réguliers</div>
+                <div class="manage-project-highlight">Gestion sécurisée</div>
+            </div>
+        </div>
+        <div class="hero-panel blue">
+            <h2>Un service de gestion à distance dédié à la diaspora haïtienne</h2>
+            <p>Nous agissons en votre nom sur le terrain, supervisons chaque étape du projet et vous tenons informé(e) en continu.</p>
+            <ul class="hero-list">
+                <li>Construction et rénovation</li>
+                <li>Achat immobilier et vérification documentaire</li>
+                <li>Achat et inspection de véhicules</li>
+                <li>Suivi transparent et rapports réguliers</li>
+            </ul>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<main class="manage-project-page">
+<div class="section">
+    <div class="section-header">
+        <h2>Manage Projet : votre partenaire de confiance en Haïti</h2>
+        <p>Manage Projet est un service de représentation et de gestion de projets qui accompagne les clients à distance pour la réalisation de leurs travaux, achats immobiliers et véhicules en Haïti.</p>
+    </div>
+    <div class="content-grid">
+        <div>
+            <h3>Description du service</h3>
+            <p>Nous prenons en charge la gestion complète de votre projet, depuis la planification jusqu'à la livraison. Notre équipe supervise les opérations sur le terrain, coordonne les prestataires, vérifie les documents et vous transmet des rapports détaillés.</p>
+        </div>
+        <div>
+            <h3>Services proposés</h3>
+            <ul class="feature-list">
+                <li>Construction de maisons, appartements et locaux commerciaux</li>
+                <li>Rénovation de bâtiments et supervision de chantiers</li>
+                <li>Achat de maisons, appartements et terrains</li>
+                <li>Recherche de biens immobiliers et vérification de documents</li>
+                <li>Accompagnement administratif</li>
+                <li>Achat de véhicules, inspection et livraison sécurisée</li>
+            </ul>
+        </div>
+    </div>
+</div>
+
+<div class="section" id="why-choose-us">
+    <div class="section-header">
+        <h2>Pourquoi nous confier votre projet</h2>
+        <p>Parce que nous offrons un service professionnel, transparent et sécurisé à tous les clients vivant à l’étranger.</p>
+    </div>
+    <div class="services-grid">
+        <div class="feature-card">
+            <h4>Transparence totale</h4>
+            <p>Suivi des actions, partage des photos et vidéos, et accès à un tableau de bord clair.</p>
+        </div>
+        <div class="feature-card">
+            <h4>Professionnalisme</h4>
+            <p>Une équipe expérimentée qui gère les contrats, les fournisseurs et les négociations.</p>
+        </div>
+        <div class="feature-card">
+            <h4>Sécurité</h4>
+            <p>Des contrôles rigoureux, des validations documentaires et une gestion sécurisée des paiements.</p>
+        </div>
+        <div class="feature-card">
+            <h4>Accompagnement personnalisé</h4>
+            <p>Un responsable projet dédié vous informe à chaque étape de l’avancement.</p>
+        </div>
+        <div class="feature-card">
+            <h4>Rapports réguliers</h4>
+            <p>Des rapports hebdomadaires, un historique des actions et des notifications automatiques.</p>
+        </div>
+        <div class="feature-card">
+            <h4>Service dédié à la diaspora</h4>
+            <p>Une expérience pensée pour les Haïtiens et leurs proches vivant à l’étranger.</p>
+        </div>
+    </div>
+</div>
+
+<div class="section">
+    <div class="section-header">
+        <h2>Fonctionnalités clés du service</h2>
+    </div>
+    <div class="feature-grid">
+        <div class="feature-card">
+            <h4>Représentation & gestion</h4>
+            <ul>
+                <li>Coordination des fournisseurs</li>
+                <li>Gestion des paiements autorisés</li>
+                <li>Négociations avec les prestataires</li>
+                <li>Rapports détaillés</li>
+            </ul>
+        </div>
+        <div class="feature-card">
+            <h4>Suivi et transparence</h4>
+            <ul>
+                <li>Photos et vidéos régulières</li>
+                <li>Rapports hebdomadaires</li>
+                <li>Tableau de bord en temps réel</li>
+                <li>Historique complet des activités</li>
+                <li>Notifications automatiques</li>
+            </ul>
+        </div>
+        <div class="feature-card">
+            <h4>Gestion financière</h4>
+            <ul>
+                <li>Estimation des coûts</li>
+                <li>Paiements sécurisés</li>
+                <li>Historique des transactions</li>
+                <li>Téléchargement des factures</li>
+            </ul>
+        </div>
+    </div>
+</div>
+
+<div class="section">
+    <div class="section-header">
+        <h2>Tableau de bord client</h2>
+        <p>Suivez l’avancement de votre projet, visualisez les rapports, échangez avec votre gestionnaire et accédez à tous les documents.</p>
+    </div>
+    <div class="dashboard-preview">
+        <div class="dashboard-card">
+            <strong>Statut du projet</strong>
+            <p>En cours</p>
+        </div>
+        <div class="dashboard-card">
+            <strong>Avancement</strong>
+            <p>67%</p>
+        </div>
+        <div class="dashboard-card">
+            <strong>Actions récentes</strong>
+            <p>Inspection terrain, validation du devis, mise en place du chantier.</p>
+        </div>
+        <div class="dashboard-card">
+            <strong>Documents</strong>
+            <p>Contrat, factures, plans et rapports accessibles.</p>
+        </div>
+        <div class="dashboard-card">
+            <strong>Messages</strong>
+            <p>Chat avec le gestionnaire et notifications reçues.</p>
+        </div>
+    </div>
+</div>
+
+<div class="section" id="project-form">
+    <div class="section-header">
+        <h2>Confiez votre projet</h2>
+        <p>Remplissez le formulaire ci-dessous pour lancer la gestion de votre projet en toute sérénité.</p>
+    </div>
+
+    {% if messages %}
+        <div class="notifications">
+            {% for message in messages %}
+                <div class="notification {% if message.tags %}{{ message.tags }}{% endif %}">{{ message }}</div>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    <form method="post" enctype="multipart/form-data" class="project-form">
+        {% csrf_token %}
+        <div class="form-grid">
+            <label>
+                Nom complet
+                <input type="text" name="full_name" placeholder="Votre nom complet" required />
+            </label>
+            <label>
+                Email
+                <input type="email" name="email" placeholder="adresse@example.com" required />
+            </label>
+            <label>
+                Téléphone / WhatsApp
+                <input type="text" name="phone" placeholder="+509 34 00 00 00" required />
+            </label>
+            <label>
+                Pays de résidence
+                <input type="text" name="country" placeholder="Pays de résidence" />
+            </label>
+            <label>
+                Type de projet
+                <select name="project_type">
+                    <option value="">Sélectionnez un type</option>
+                    <option value="construction">Construction / rénovation</option>
+                    <option value="immobilier">Achat immobilier</option>
+                    <option value="vehicule">Achat de véhicule</option>
+                    <option value="administratif">Accompagnement administratif</option>
+                    <option value="autre">Autre</option>
+                </select>
+            </label>
+            <label>
+                Estimation du budget
+                <input type="text" name="budget" placeholder="Montant approximatif" />
+            </label>
+            <label class="full-width">
+                Description détaillée
+                <textarea name="description" rows="5" placeholder="Décrivez votre projet, vos besoins et vos attentes."></textarea>
+            </label>
+            <label class="full-width">
+                Documents (contrats, plans, devis)
+                <input type="file" name="documents" multiple />
+            </label>
+            <label class="full-width">
+                Photos ou plans
+                <input type="file" name="plans" multiple />
+            </label>
+        </div>
+        <button type="submit" class="button">Envoyer ma demande</button>
+    </form>
+</div>
+</main>
+{% endblock %}

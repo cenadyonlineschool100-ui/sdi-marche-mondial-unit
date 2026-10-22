@@ -1,0 +1,58 @@
+{% extends "marketplace/base.html" %}
+
+{% block title %}Mes Propriétés - Immobilier - SDI Store{% endblock %}
+
+{% block content %}
+<div class="container" style="max-width: 1100px; margin: 40px auto; padding: 20px;">
+    <div class="section-header">
+        <h1 style="color: var(--primary-dark); margin-bottom: 10px;">🏠 Mes propriétés</h1>
+        <p style="color: var(--text-secondary); font-size: 1rem;">Gérez vos annonces, modifiez-les et supprimez-les quand vous le souhaitez.</p>
+    </div>
+
+    {% if page_obj.object_list %}
+        <div style="display: grid; gap: 20px;">
+            {% for property in page_obj.object_list %}
+                <div style="background: var(--bg-light); border: 1px solid var(--border-color); border-radius: 12px; padding: 20px; display: grid; grid-template-columns: 1fr 280px; gap: 20px; align-items: center;">
+                    <div>
+                        <h2 style="margin: 0 0 10px 0; color: var(--primary-dark);">{{ property.title }}</h2>
+                        <p style="margin: 0 0 8px 0; color: var(--text-secondary);">{{ property.city }}{% if property.neighborhood %}, {{ property.neighborhood }}{% endif %} - {{ property.get_listing_type_display }}</p>
+                        <p style="margin: 0 0 8px 0; color: var(--text-secondary);">Statut d'approbation: <strong>{{ property.get_approval_status_display }}</strong></p>
+                        <div style="display: flex; flex-wrap: wrap; gap: 10px; color: var(--text-secondary); font-size: 0.95rem;">
+                            <span>🏷️ {{ property.price }} {{ property.currency }}</span>
+                            <span>🛏️ {{ property.bedrooms }} chambres</span>
+                            <span>🚿 {{ property.bathrooms }} SDB</span>
+                            <span>📐 {{ property.total_area }} m²</span>
+                        </div>
+                    </div>
+                    <div style="display: flex; flex-direction: column; gap: 10px; justify-content: center;">
+                        <a href="{% url 'real_estate:detail' property.id %}" class="btn-secondary" style="padding: 12px 18px; text-align: center; text-decoration: none;">Voir</a>
+                        <a href="{% url 'real_estate:edit' property.id %}" class="btn-primary" style="padding: 12px 18px; text-align: center; text-decoration: none;">Modifier</a>
+                        <form method="post" action="{% url 'real_estate:delete' property.id %}" style="margin:0;">
+                            {% csrf_token %}
+                            <button type="submit" style="width:100%; padding: 12px 18px; border: none; border-radius: 6px; background: #ff6b6b; color: white; cursor: pointer; font-weight: 600;">Supprimer</button>
+                        </form>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+
+        {% if page_obj.has_other_pages %}
+            <nav style="margin-top: 30px; display: flex; justify-content: center; gap: 10px; flex-wrap: wrap;">
+                {% if page_obj.has_previous %}
+                    <a href="?page={{ page_obj.previous_page_number }}" class="btn-secondary">Précédent</a>
+                {% endif %}
+                <span style="align-self: center; color: var(--text-secondary);">Page {{ page_obj.number }} sur {{ page_obj.paginator.num_pages }}</span>
+                {% if page_obj.has_next %}
+                    <a href="?page={{ page_obj.next_page_number }}" class="btn-secondary">Suivant</a>
+                {% endif %}
+            </nav>
+        {% endif %}
+    {% else %}
+        <div style="text-align: center; padding: 50px; background: var(--bg-light); border-radius: 12px; border: 1px dashed var(--border-color);">
+            <h2 style="color: var(--primary-dark); margin-bottom: 15px;">Aucune propriété trouvée</h2>
+            <p style="color: var(--text-secondary); margin-bottom: 20px;">Vous n'avez pas encore publié de propriété.</p>
+            <a href="{% url 'real_estate:create' %}" class="btn-primary" style="padding: 12px 30px; text-decoration: none;">Publier une annonce</a>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

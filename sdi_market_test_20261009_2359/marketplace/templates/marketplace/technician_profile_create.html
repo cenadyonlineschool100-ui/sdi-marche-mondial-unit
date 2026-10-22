@@ -1,0 +1,36 @@
+{% extends 'marketplace/base.html' %}
+{% block content %}
+<section style="max-width: 980px; margin: 0 auto; padding: 40px 20px; background:transparent;">
+    <div style="margin-bottom: 24px;">
+        <h1 style="font-size:2.4rem; margin-bottom:10px;">Créer / modifier votre profil technicien</h1>
+        <p style="color:#475569;">Présentez votre entreprise, vos services et vos réalisations pour être trouvé par les clients.</p>
+    </div>
+
+    <form method="post" enctype="multipart/form-data" style="background:#fff; border:1px solid rgba(15,23,42,.08); border-radius:24px; padding:28px; box-shadow:0 20px 70px rgba(15,23,42,.06);">
+        {% csrf_token %}
+        {% if form.non_field_errors %}
+            <div style="margin-bottom:16px; padding:16px; border:1px solid #fca5a5; background:#fef2f2; color:#991b1b; border-radius:12px;">
+                {{ form.non_field_errors }}
+            </div>
+        {% endif %}
+
+        {% for field in form %}
+            <div style="margin-bottom:18px;">
+                <label style="display:block; font-weight:600; margin-bottom:8px;">{{ field.label }}</label>
+                {{ field }}
+                {% if field.help_text %}
+                    <div style="color:#6b7280; font-size:0.92rem; margin-top:6px;">{{ field.help_text }}</div>
+                {% endif %}
+                {% if field.errors %}
+                    <div style="color:#b91c1c; font-size:0.92rem; margin-top:6px;">{{ field.errors.as_text|striptags }}</div>
+                {% endif %}
+            </div>
+        {% endfor %}
+
+        <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:center; margin-top:16px;">
+            <button type="submit" class="button" style="background: linear-gradient(135deg, #1d4ed8, #2563eb); color:#fff; padding:14px 24px; border-radius:14px; border:none;">✅ Publier mon profil</button>
+            <a href="{% url 'technician_profiles' %}" style="color:#1d4ed8; font-weight:600;">Retour à la liste des techniciens</a>
+        </div>
+    </form>
+</section>
+{% endblock %}

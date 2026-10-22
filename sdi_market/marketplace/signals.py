@@ -1,9 +1,18 @@
+from django.db import transaction
 from django.db.models.signals import post_save, pre_save
 from django.dispatch import receiver
 from decimal import Decimal
-from .models import User, Wallet, Order, Transaction, DeliveryEmployee, DeliveryAssignment, Agent, AuditLog, Profile, MarketplaceSettings
+from .models import User, Wallet, Order, Transaction, DeliveryEmployee, DeliveryAssignment, Agent, AuditLog, Profile, MarketplaceSettings, PersistentNotification
 from .utils import calcul_cashback
 from .business_logic import CommissionManager, get_system_admin_wallet
+
+
+@receiver(post_save, sender=PersistentNotification)
+def persistent_notification_push(sender, instance, created, **kwargs):
+    if created:
+        from .web_push import send_notification_push
+
+        transaction.on_commit(lambda: send_notification_push(instance.pk))
 
 @receiver(pre_save, sender=Wallet)
 def wallet_pre_save(sender, instance, **kwargs):

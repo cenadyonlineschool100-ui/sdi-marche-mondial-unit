@@ -1,0 +1,91 @@
+{% extends "marketplace/base.html" %}
+
+{% block title %}Gestion des Propriétés - Admin Immobilier{% endblock %}
+
+{% block content %}
+<div class="container" style="max-width: 1200px; margin: 40px auto; padding: 20px;">
+    <!-- Admin Navigation Bar -->
+    <div style="margin-bottom:30px;padding:15px;background:linear-gradient(135deg, #667eea 0%, #764ba2 100%);border-radius:8px;display:flex;gap:10px;flex-wrap:wrap;">
+        <a href="{% url 'real_estate:admin_property_list' %}" style="padding:8px 15px;background:white;color:#667eea;border-radius:6px;text-decoration:none;font-weight:600;">📋 Propriétés</a>
+        <a href="{% url 'real_estate:admin_membership_requests' %}" style="padding:8px 15px;background:white;color:#667eea;border-radius:6px;text-decoration:none;font-weight:600;">✅ Demandes d'adhésion</a>
+        <a href="{% url 'real_estate:admin_conversations' %}" style="padding:8px 15px;background:white;color:#667eea;border-radius:6px;text-decoration:none;font-weight:600;">💬 Conversations</a>
+        <a href="{% url 'real_estate:admin_reviews' %}" style="padding:8px 15px;background:white;color:#667eea;border-radius:6px;text-decoration:none;font-weight:600;">⭐ Avis</a>
+    </div>
+
+    <div class="section-header">
+        <h1 style="color: var(--primary-dark); margin-bottom: 10px;">🏡 Toutes les propriétés</h1>
+        <p style="color: var(--text-secondary); font-size: 1rem;">Voir, modifier, supprimer et approuver les annonces immobilières.</p>
+    </div>
+
+    {% if page_obj.object_list %}
+        <div style="overflow-x:auto; background: var(--bg-light); border: 1px solid var(--border-color); border-radius: 12px;">
+            <table style="width: 100%; border-collapse: collapse;">
+                <thead>
+                    <tr style="background: var(--bg-secondary); text-align: left;">
+                        <th style="padding: 12px;">Titre</th>
+                        <th style="padding: 12px;">Propriétaire</th>
+                        <th style="padding: 12px;">Agent</th>
+                        <th style="padding: 12px;">Prix</th>
+                        <th style="padding: 12px;">Statut</th>
+                        <th style="padding: 12px;">Approbation</th>
+                        <th style="padding: 12px;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for property in page_obj.object_list %}
+                        <tr style="border-bottom: 1px solid var(--border-color);">
+                            <td style="padding: 12px;">{{ property.title|truncatewords:8 }}</td>
+                            <td style="padding: 12px;">{{ property.owner.get_full_name|default:property.owner.username }}</td>
+                            <td style="padding: 12px;">
+                                {% if property.agent %}
+                                    {{ property.agent.get_full_name|default:property.agent.username }}
+                                {% else %}
+                                    Aucun
+                                {% endif %}
+                            </td>
+                            <td style="padding: 12px;">{{ property.price|floatformat:0 }} {{ property.currency }}</td>
+                            <td style="padding: 12px;">{{ property.get_status_display }}</td>
+                            <td style="padding: 12px;">{{ property.get_approval_status_display }}</td>
+                            <td style="padding: 12px; display:flex; flex-wrap:wrap; gap:6px;">
+                                <a href="{% url 'real_estate:detail' property.id %}" style="padding: 8px 10px; background:#667eea; color:white; border-radius:6px; text-decoration:none;">Voir</a>
+                                <a href="{% url 'real_estate:edit' property.id %}" style="padding: 8px 10px; background:#4caf50; color:white; border-radius:6px; text-decoration:none;">Modifier</a>
+                                <form method="post" action="{% url 'real_estate:delete' property.id %}" style="margin:0;">
+                                    {% csrf_token %}
+                                    <button type="submit" style="padding: 8px 10px; background:#ef5350; color:white; border:none; border-radius:6px; cursor:pointer;">Supprimer</button>
+                                </form>
+                                {% if property.approval_status == 'en_attente' %}
+                                    <form method="post" action="{% url 'real_estate:approve_property' property.id %}" style="margin:0;">
+                                        {% csrf_token %}
+                                        <button type="submit" style="padding: 8px 10px; background:#43a047; color:white; border:none; border-radius:6px; cursor:pointer;">Approuver</button>
+                                    </form>
+                                    <form method="post" action="{% url 'real_estate:reject_property' property.id %}" style="margin:0;">
+                                        {% csrf_token %}
+                                        <button type="submit" style="padding: 8px 10px; background:#fb8c00; color:white; border:none; border-radius:6px; cursor:pointer;">Rejeter</button>
+                                    </form>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        {% if page_obj.has_other_pages %}
+            <nav style="margin-top: 20px; display: flex; justify-content: center; gap: 10px; align-items: center;">
+                {% if page_obj.has_previous %}
+                    <a href="?page={{ page_obj.previous_page_number }}" class="btn-secondary">Précédent</a>
+                {% endif %}
+                <span style="color: var(--text-secondary);">Page {{ page_obj.number }} sur {{ page_obj.paginator.num_pages }}</span>
+                {% if page_obj.has_next %}
+                    <a href="?page={{ page_obj.next_page_number }}" class="btn-secondary">Suivant</a>
+                {% endif %}
+            </nav>
+        {% endif %}
+    {% else %}
+        <div style="text-align: center; padding: 50px; background: var(--bg-light); border-radius: 12px; border: 1px dashed var(--border-color);">
+            <h2 style="color: var(--primary-dark); margin-bottom: 15px;">Aucune propriété trouvée</h2>
+            <p style="color: var(--text-secondary);">Il n'y a pas encore de propriétés à afficher.</p>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

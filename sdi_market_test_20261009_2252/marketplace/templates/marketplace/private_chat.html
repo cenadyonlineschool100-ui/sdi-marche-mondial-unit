@@ -1,0 +1,247 @@
+{% extends 'marketplace/base.html' %}
+
+{% block extra_css %}
+<style>
+    .private-chat-page .chat-wrapper {
+        grid-template-columns: minmax(0, 1fr);
+        margin: 16px 0 24px;
+    }
+
+    .private-chat-page .chat-panel {
+        height: min(720px, calc(100vh - 250px));
+        min-height: 420px;
+    }
+
+    .private-chat-page .chat-feed {
+        min-height: 0;
+        max-height: none;
+    }
+
+    .private-chat-back {
+        display: inline-flex;
+        align-items: center;
+        min-height: 44px;
+        margin-bottom: 12px;
+        padding: 8px 14px;
+        border-radius: 999px;
+        background: #eff6ff;
+        color: #1d4ed8;
+        font-weight: 700;
+        text-decoration: none;
+    }
+
+    .private-chat-back:focus-visible {
+        outline: 3px solid #93c5fd;
+        outline-offset: 2px;
+    }
+
+    @media (max-width: 767px) {
+        .private-chat-page .chat-wrapper {
+            margin: 12px 0 16px;
+        }
+
+        .private-chat-page .chat-panel {
+            height: clamp(420px, calc(100vh - 270px), 720px);
+            min-height: 420px;
+        }
+
+        .private-chat-page .chat-feed {
+            flex: 1 1 0;
+            min-height: 0;
+            padding: 12px;
+        }
+
+        .private-chat-page .chat-header {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            align-items: center;
+            padding: 14px;
+        }
+
+        .private-chat-page .chat-header > div:first-child {
+            display: grid;
+            grid-template-columns: auto minmax(0, 1fr);
+            align-items: center;
+            column-gap: 8px;
+            min-width: 0;
+        }
+
+        .private-chat-page .private-chat-back {
+            grid-column: 1;
+            grid-row: 1 / span 2;
+            margin: 0;
+            padding: 6px 10px;
+            font-size: 0.85rem;
+            white-space: nowrap;
+        }
+
+        .private-chat-page .chat-header h2 {
+            grid-column: 2;
+            grid-row: 1;
+            overflow: hidden;
+            font-size: 1rem;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .private-chat-page .chat-header-subtitle {
+            grid-column: 2;
+            grid-row: 2;
+            margin: 2px 0 0;
+            font-size: 0.8rem;
+        }
+
+        .private-chat-page .chat-status {
+            justify-content: flex-end;
+        }
+
+        .private-chat-page .chat-status span {
+            padding: 7px 10px;
+            font-size: 0.75rem;
+        }
+
+        .private-chat-page .chat-form {
+            grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr);
+            align-items: center;
+            gap: 6px 8px;
+            padding: 12px;
+        }
+
+        .private-chat-page .chat-form textarea,
+        .private-chat-page .chat-form button {
+            grid-column: 1 / -1;
+        }
+
+        .private-chat-page .chat-form textarea {
+            min-height: 64px;
+            padding: 9px 12px;
+        }
+
+        .private-chat-page .chat-form label {
+            margin: 0;
+            font-size: 0.8rem;
+        }
+
+        .private-chat-page .chat-form select,
+        .private-chat-page .chat-form input[type="file"] {
+            min-width: 0;
+            padding: 8px;
+            font-size: 0.75rem;
+        }
+
+        .private-chat-page .chat-form button {
+            width: 100%;
+            padding: 10px 14px;
+        }
+    }
+
+    @media (max-width: 420px) {
+        .private-chat-page .chat-status span:first-child {
+            display: none;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="section private-chat-page">
+    <div class="section-header">
+        <h2>Conversation privée</h2>
+        <p>Échangez des messages avec {{ other_user.get_full_name|default:other_user.username }}.</p>
+    </div>
+    <div class="chat-wrapper">
+        <section class="chat-panel">
+            <div class="chat-header">
+                <div>
+                    <a class="private-chat-back" href="{% url 'private_chat_contacts' %}">← Retour</a>
+                    <h2>{{ other_user.get_full_name|default:other_user.username }}</h2>
+                    <p class="chat-header-subtitle">Conversation privée</p>
+                </div>
+                <div class="chat-status">
+                    <span>Personne : {{ other_user.username }}</span>
+                    <span>{{ chat_messages|length }} messages</span>
+                </div>
+            </div>
+
+            <div class="chat-feed" id="chatFeed">
+                {% for msg in chat_messages %}
+                    <div class="chat-message {% if msg.sender == request.user %}outgoing{% else %}incoming{% endif %}">
+                        {% if msg.sender != request.user %}
+                            <div class="message-avatar">
+                                {% if msg.sender.profile.photo %}
+                                    <img src="{{ msg.sender.profile.photo.url }}" alt="{{ msg.sender.get_full_name|default:msg.sender.username }}" />
+                                {% else %}
+                                    <span>{{ msg.sender.get_full_name|default:msg.sender.username|slice:":1" }}</span>
+                                {% endif %}
+                            </div>
+                        {% endif %}
+                        <div class="message-content">
+                            <div class="message-header">
+                                <span class="message-sender">{% if msg.sender == request.user %}Vous{% else %}{{ msg.sender.get_full_name|default:msg.sender.username }}{% endif %}</span>
+                                <span class="message-time">{{ msg.created_at|date:'H:i' }}</span>
+                            </div>
+                            {% if msg.content %}
+                                <div class="message-text">{{ msg.content }}</div>
+                            {% endif %}
+                            {% if msg.product %}
+                                <div class="chat-product-preview">
+                                    {% with image=msg.product.get_primary_image %}
+                                        {% if image %}
+                                            <img src="{{ image }}" alt="{{ msg.product.name }}" />
+                                        {% else %}
+                                            <div class="chat-product-placeholder">Aucune image</div>
+                                        {% endif %}
+                                    {% endwith %}
+                                    <div class="chat-product-details">
+                                        <h4>{{ msg.product.name }}</h4>
+                                        <p class="chat-product-price">{{ current_currency|currency_symbol }}{{ msg.product|format_product_price:current_currency }}</p>
+                                        <p class="chat-product-shop">{{ msg.product.shop.name }}</p>
+                                        <a href="{% url 'product_detail' msg.product.id %}" class="button small">Voir le produit</a>
+                                    </div>
+                                </div>
+                            {% endif %}
+                            {% if msg.image %}
+                                <img src="{{ msg.image.url }}" alt="Image du message" class="chat-message-image" />
+                            {% endif %}
+                        </div>
+                        {% if msg.sender == request.user %}
+                            <div class="message-avatar">
+                                {% if request.user.profile.photo %}
+                                    <img src="{{ request.user.profile.photo.url }}" alt="Vous" />
+                                {% else %}
+                                    <span>{{ request.user.get_full_name|default:request.user.username|slice:":1" }}</span>
+                                {% endif %}
+                            </div>
+                        {% endif %}
+                    </div>
+                {% empty %}
+                    <div class="chat-message system">
+                        <div class="message-header">
+                            <span class="message-sender">Système</span>
+                            <span class="message-time">Maintenant</span>
+                        </div>
+                        <div class="message-body">Aucun message privé pour l'instant. Envoyez le premier message !</div>
+                    </div>
+                {% endfor %}
+            </div>
+
+            <form method="post" enctype="multipart/form-data" class="chat-form">
+                {% csrf_token %}
+                {{ form.content }}
+                <label for="id_product">Produit à partager</label>
+                {{ form.product }}
+                <label for="id_image">Ajouter une image</label>
+                {{ form.image }}
+                <button type="submit">Envoyer</button>
+            </form>
+        </section>
+    </div>
+</div>
+
+<script>
+    const chatFeed = document.getElementById('chatFeed');
+    if (chatFeed) {
+        chatFeed.scrollTop = chatFeed.scrollHeight;
+    }
+</script>
+{% endblock %}

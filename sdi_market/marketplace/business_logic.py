@@ -19,21 +19,79 @@ Structure:
 """
 
 import json
+import hashlib
 import os
 import urllib.request
 import urllib.error
+import uuid
 from django.utils import timezone
 from datetime import timedelta
 from decimal import Decimal
 from django.db import transaction as db_transaction
-from django.db.models import Count, Q
+from django.db.models import Count, Q, F
 from .models import (
     Order, OrderItem, DeliveryAssignment, DeliveryEmployee, 
     DeliveryTracking, DeliveryNotification, ReturnRequest,
     Transaction, Wallet, User, ExchangeRate, CommissionConfig,
     WithdrawalCommissionTier, TransferCommissionTier, PersistentNotification, ResellerProduct, Shop, Product,
+    FinancialOperation,
     MarketplaceSettings
 )
+
+
+class IdempotencyConflict(ValueError):
+    """Raised when a client reuses an idempotency key for a different request."""
+
+
+def get_session_idempotency_key(request, operation):
+    session_keys = request.session.get('financial_idempotency_keys', {})
+    key = session_keys.get(operation)
+    if not key:
+        key = uuid.uuid4().hex
+        session_keys[operation] = key
+        request.session['financial_idempotency_keys'] = session_keys
+    return key
+
+
+def rotate_session_idempotency_key(request, operation, completed_key):
+    session_keys = request.session.get('financial_idempotency_keys', {})
+    if session_keys.get(operation) == completed_key:
+        session_keys[operation] = uuid.uuid4().hex
+        request.session['financial_idempotency_keys'] = session_keys
+
+
+def begin_financial_operation(actor, operation, key, payload):
+    if not key or len(key) > 128:
+        raise ValueError('Une clé d’idempotence valide est requise.')
+
+    request_hash = hashlib.sha256(
+        json.dumps(payload, sort_keys=True, separators=(',', ':'), default=str).encode('utf-8')
+    ).hexdigest()
+    operation_record, created = FinancialOperation.objects.get_or_create(
+        actor=actor,
+        operation=operation,
+        idempotency_key=key,
+        defaults={'request_hash': request_hash},
+    )
+    if not created and operation_record.request_hash != request_hash:
+        raise IdempotencyConflict('Cette clé d’idempotence a déjà été utilisée pour une autre demande.')
+    return operation_record, created
+
+
+def complete_financial_operation(operation_record, result):
+    operation_record.result_model = result._meta.label_lower
+    operation_record.result_pk = str(result.pk)
+    operation_record.save(update_fields=['result_model', 'result_pk'])
+
+
+def get_financial_operation_result(operation_record, expected_model):
+    if operation_record.result_model != expected_model._meta.label_lower or not operation_record.result_pk:
+        raise RuntimeError('Une opération financière idempotente ne possède pas de résultat valide.')
+    result = expected_model._default_manager.filter(pk=operation_record.result_pk).first()
+    if result is None:
+        raise RuntimeError('Le résultat d’une opération financière idempotente est introuvable.')
+    return result
+
 
 # ===== DEVISE INTERNE =====
 USD_INTERNAL_CURRENCY = 'USD'  # Tous les calculs et stockage internes sont en USD
@@ -155,6 +213,31 @@ def convert_currency(amount, from_currency, to_currency):
         return usd_amount / rate.eur_to_usd if rate.eur_to_usd else Decimal('0')
     else:
         raise ValueError(f'Devise cible non prise en charge: {to_currency}')
+
+
+def get_usd_display_conversion(amount):
+    """Return configured USD counter-values without using fallback or API rates."""
+    amount = Decimal(str(amount))
+    rate = ExchangeRate.objects.filter(is_active=True).order_by('-created_at').first()
+    amounts = {'USD': amount.quantize(Decimal('0.01'))}
+    rates = {'HTG': None, 'DOP': None, 'EUR': None}
+
+    if rate:
+        configured_rates = {
+            'HTG': rate.usd_to_htg,
+            'DOP': rate.usd_to_peso,
+            'EUR': Decimal('1') / rate.eur_to_usd if rate.eur_to_usd else None,
+        }
+        for currency, configured_rate in configured_rates.items():
+            if configured_rate is None or not configured_rate.is_finite() or configured_rate <= 0:
+                amounts[currency] = None
+                continue
+            rates[currency] = configured_rate
+            amounts[currency] = (amount * configured_rate).quantize(Decimal('0.01'))
+    else:
+        amounts.update({'HTG': None, 'DOP': None, 'EUR': None})
+
+    return {'amounts': amounts, 'rates': rates}
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -339,10 +422,46 @@ class CommissionManager:
 
     @staticmethod
     def ensure_default_withdrawal_tiers():
-        """Créer les tranches de commission de retrait par défaut si elles n'existent pas."""
-        if not WithdrawalCommissionTier.objects.filter(currency='HTG').exists():
+        """Créer les tranches par défaut pour chaque devise prise en charge."""
+        currencies = ('HTG', 'USD', 'DOP', 'EUR')
+        missing_currencies = [
+            currency for currency in currencies
+            if not WithdrawalCommissionTier.objects.filter(currency=currency).exists()
+        ]
+        if not missing_currencies:
+            return
+
+        exchange_rate = ExchangeRate.objects.filter(is_active=True).order_by('-created_at').first()
+        usd_to_htg = exchange_rate.usd_to_htg if exchange_rate else DEFAULT_CURRENCY_RATES['HTG']
+        usd_to_dop = exchange_rate.usd_to_peso if exchange_rate else DEFAULT_CURRENCY_RATES['DOP']
+        eur_to_usd = exchange_rate.eur_to_usd if exchange_rate else Decimal('1') / DEFAULT_CURRENCY_RATES['EUR']
+
+        conversion_factors = {
+            'HTG': Decimal('1'),
+            'USD': Decimal('1') / usd_to_htg if usd_to_htg else Decimal('1') / DEFAULT_CURRENCY_RATES['HTG'],
+            'DOP': (
+                usd_to_dop / usd_to_htg if usd_to_htg and usd_to_dop
+                else DEFAULT_CURRENCY_RATES['DOP'] / DEFAULT_CURRENCY_RATES['HTG']
+            ),
+            'EUR': (
+                Decimal('1') / (usd_to_htg * eur_to_usd) if usd_to_htg and eur_to_usd
+                else DEFAULT_CURRENCY_RATES['EUR'] / DEFAULT_CURRENCY_RATES['HTG']
+            ),
+        }
+
+        for currency in missing_currencies:
+            factor = conversion_factors[currency]
             for tier in CommissionManager.DEFAULT_WITHDRAWAL_TIERS:
-                WithdrawalCommissionTier.objects.create(**tier)
+                converted_tier = {
+                    key: (value * factor).quantize(Decimal('0.01'))
+                    for key, value in tier.items()
+                    if key in {'min_amount', 'max_amount', 'total_fee', 'system_fee', 'agent_fee'}
+                }
+                WithdrawalCommissionTier.objects.create(
+                    **converted_tier,
+                    currency=currency,
+                    description=f"{tier['description']} ({currency})" if currency != 'HTG' else tier['description'],
+                )
 
     @staticmethod
     def get_config(key):
@@ -410,8 +529,6 @@ class CommissionManager:
     def get_withdrawal_commission_breakdown(amount, currency):
         """Retourne le détail des commissions de retrait (montant total, système, agent)."""
         currency = normalize_currency(currency)
-        if currency != 'HTG':
-            return {'total_fee': Decimal('0'), 'system_fee': Decimal('0'), 'agent_fee': Decimal('0')}
         tier = CommissionManager.get_withdrawal_commission_tier(amount, currency)
         if tier:
             return {
@@ -419,6 +536,8 @@ class CommissionManager:
                 'system_fee': tier.system_fee,
                 'agent_fee': tier.agent_fee,
             }
+        if currency != 'HTG':
+            return {'total_fee': Decimal('0'), 'system_fee': Decimal('0'), 'agent_fee': Decimal('0')}
         total = CommissionManager.get_withdrawal_fee_htg(amount)
         return {'total_fee': total, 'system_fee': total, 'agent_fee': Decimal('0')}
 
@@ -672,6 +791,59 @@ class CommissionManager:
 # ═══════════════════════════════════════════════════════════════
 # 🚚 A. ASSIGNATION AUTOMATIQUE DU LIVREUR
 # ═══════════════════════════════════════════════════════════════
+
+def create_persistent_notification(
+    recipient,
+    title,
+    message,
+    notification_type,
+    deduplication_key,
+    target_url='',
+    sound_interval_minutes=1,
+    related_assignment=None,
+):
+    """Create one persistent notification for a specific server-side event."""
+    notification, _ = PersistentNotification.objects.get_or_create(
+        deduplication_key=deduplication_key,
+        defaults={
+            'recipient': recipient,
+            'title': title,
+            'message': message,
+            'notification_type': notification_type,
+            'target_url': target_url,
+            'sound_interval_minutes': sound_interval_minutes,
+            'related_assignment': related_assignment,
+        },
+    )
+    return notification
+
+
+def notify_order_sellers(order):
+    """Notify each seller once after the order and its items have been saved."""
+    seller_orders = {}
+    items = order.items.select_related('product__shop__owner')
+    for item in items:
+        seller = item.product.shop.owner
+        seller_order = seller_orders.setdefault(
+            seller.pk,
+            {'seller': seller, 'products': [], 'amount': Decimal('0')},
+        )
+        seller_order['products'].append(f'{item.product.name} × {item.quantity}')
+        seller_order['amount'] += item.price_ht * item.quantity
+
+    for seller_id, seller_order in seller_orders.items():
+        create_persistent_notification(
+            recipient=seller_order['seller'],
+            title=f'🛒 Nouvelle commande #{order.id}',
+            message=(
+                f"Nouvelle commande de {order.buyer.get_full_name() or order.buyer.username} : "
+                f"{', '.join(seller_order['products'])}. "
+                f"Total des articles : {seller_order['amount']} USD."
+            ),
+            notification_type='new_order',
+            deduplication_key=f'order:{order.pk}:seller:{seller_id}',
+            target_url='/my-shop/',
+        )
 
 
 class DeliveryAssignmentManager:
@@ -1107,6 +1279,7 @@ class NotificationManager:
             title="🚨 Nouvelle livraison assignée",
             message=driver_message,
             notification_type='delivery_assigned',
+            deduplication_key=f'delivery-assigned:{assignment.pk}:{agent.pk}',
             related_assignment=assignment,
             sound_interval_minutes=1  # Sonne toutes les minutes
         )
@@ -1135,6 +1308,7 @@ class NotificationManager:
                 title="🔔 Commande en cours",
                 message=admin_message,
                 notification_type='admin_delivery_assigned',
+                deduplication_key=f'delivery-assigned:{assignment.pk}:{admin.pk}',
                 related_assignment=assignment,
                 sound_interval_minutes=1  # Sonne toutes les minutes
             )
@@ -1160,6 +1334,15 @@ class NotificationManager:
             status,
             message,
             assignment=assignment
+        )
+        create_persistent_notification(
+            recipient=order.buyer,
+            title=f"Commande #{order.id} : {status.replace('_', ' ').title()}",
+            message=message,
+            notification_type=f'delivery_{status}',
+            deduplication_key=f'delivery:{assignment.pk}:{status}',
+            target_url=f'/order/{order.pk}/',
+            related_assignment=assignment,
         )
     
     @staticmethod
@@ -1278,6 +1461,7 @@ class PaymentManager:
         total_reseller = Decimal('0')
         total_owner = Decimal('0')
         total_admin = Decimal('0')
+        seller_credits = {}
 
         # Distribution par item (gère les copies/resellers)
         for item in order.items.all():
@@ -1307,12 +1491,18 @@ class PaymentManager:
                 reseller_wallet = Wallet.objects.get(user=rp.seller)
                 reseller_wallet.balance += reseller_amount
                 reseller_wallet.save()
+                seller_credits[rp.seller_id] = (
+                    seller_credits.get(rp.seller_id, Decimal('0')) + reseller_amount
+                )
 
                 # Crediter propriétaire original
                 owner = rp.original_product.shop.owner
                 owner_wallet = Wallet.objects.get(user=owner)
                 owner_wallet.balance += owner_amount
                 owner_wallet.save()
+                seller_credits[owner.pk] = (
+                    seller_credits.get(owner.pk, Decimal('0')) + owner_amount
+                )
 
                 # Crediter plateforme
                 if admin_wallet and platform_amount > 0:
@@ -1342,6 +1532,9 @@ class PaymentManager:
                 seller_wallet = Wallet.objects.get(user=seller)
                 seller_wallet.balance += seller_amount
                 seller_wallet.save()
+                seller_credits[seller.pk] = (
+                    seller_credits.get(seller.pk, Decimal('0')) + seller_amount
+                )
 
                 if admin_wallet and admin_amount > 0:
                     admin_amount, distribution_amount = MarketplaceSettings.get_solo().get_commission_split(admin_amount)
@@ -1364,6 +1557,18 @@ class PaymentManager:
             delivery_wallet.save()
             Transaction.objects.create(sender=order.buyer, receiver=delivery_employee.user, amount=delivery_amount, type='delivery_payment', status='approved')
 
+        for seller_id, amount in seller_credits.items():
+            if amount > 0:
+                seller = User.objects.get(pk=seller_id)
+                create_persistent_notification(
+                    recipient=seller,
+                    title=f'💰 Argent reçu : {amount} USD',
+                    message=f'Le paiement de la commande #{order.id} a été crédité sur votre portefeuille.',
+                    notification_type='money_received',
+                    deduplication_key=f'order-payment:{order.pk}:seller:{seller_id}',
+                    target_url='/my-shop/',
+                )
+
         print("Paiement confirmé pour commande #{}:".format(order.id))
         print("   Produit total: {}".format(total_product))
         print("   Revendeur: {}".format(total_reseller))
@@ -1382,20 +1587,41 @@ class PaymentManager:
         - Vendeur ← Rien (argent retourné)
         """
         
-        buyer_wallet = Wallet.objects.get(user=order.buyer)
-        buyer_wallet.balance += order.total_amount
-        buyer_wallet.save()
+        with db_transaction.atomic():
+            operation, created = begin_financial_operation(
+                order.buyer,
+                'order_refund',
+                f'order-{order.pk}',
+                {'order_id': order.pk, 'amount': str(order.total_amount), 'currency': 'USD'},
+            )
+            if not created:
+                get_financial_operation_result(operation, Transaction)
+                return True
+
+            buyer_wallet, _ = Wallet.objects.get_or_create(user=order.buyer)
+            buyer_wallet = Wallet.objects.select_for_update().get(pk=buyer_wallet.pk)
+            Wallet.objects.filter(pk=buyer_wallet.pk).update(
+                balance=F('balance') + order.total_amount
+            )
+            tx = Transaction.objects.create(
+                sender=None,
+                receiver=order.buyer,
+                amount=order.total_amount,
+                currency='USD',
+                type='refund',
+                status='approved'
+            )
+            complete_financial_operation(operation, tx)
+            create_persistent_notification(
+                recipient=order.buyer,
+                title=f'Remboursement effectué : {order.total_amount} USD',
+                message=f'Le remboursement de la commande #{order.id} a été crédité sur votre portefeuille.',
+                notification_type='refund',
+                deduplication_key=f'order-refund:{order.pk}:buyer:{order.buyer_id}',
+                target_url='/profile/',
+            )
         
-        # Transaction de remboursement
-        tx = Transaction.objects.create(
-            sender=None,  # Système
-            receiver=order.buyer,
-            amount=order.total_amount,
-            type='refund',
-            status='approved'
-        )
-        
-        print(f"💵 Remboursement pour #{order.id}: {order.total_amount}€ → {order.buyer.username}")
+        print(f"Remboursement pour #{order.id}: {order.total_amount} EUR - {order.buyer.username}")
         
         return True
 

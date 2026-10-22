@@ -1,0 +1,242 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Gestion Commissions Retrait{% endblock %}
+
+{% block extra_css %}
+<style>
+    .withdrawal-settings-page,
+    .withdrawal-settings-page * {
+        box-sizing: border-box;
+    }
+    .withdrawal-settings-page {
+        width: 100%;
+        max-width: 1240px;
+        margin-left: auto;
+        margin-right: auto;
+        padding-left: 16px;
+        padding-right: 16px;
+    }
+    .withdrawal-settings-page > .row,
+    .withdrawal-settings-page .col-md-12,
+    .withdrawal-settings-page .card,
+    .withdrawal-settings-page .card-body {
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
+    }
+    .withdrawal-settings-page > .row,
+    .withdrawal-settings-page .col-md-12 {
+        margin-left: 0;
+        margin-right: 0;
+        padding-left: 0;
+        padding-right: 0;
+    }
+    .withdrawal-settings-page .card,
+    .withdrawal-settings-page .card-body,
+    .withdrawal-settings-page .table-responsive {
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
+    }
+    .withdrawal-settings-table-wrap {
+        width: 100%;
+        max-width: 100%;
+        overflow-x: auto;
+    }
+    .withdrawal-settings-table {
+        width: 100%;
+        min-width: 0;
+        table-layout: fixed;
+    }
+    .withdrawal-settings-table th,
+    .withdrawal-settings-table td {
+        vertical-align: middle;
+        overflow-wrap: anywhere;
+    }
+    .withdrawal-settings-table form {
+        min-width: 0;
+    }
+    .withdrawal-settings-table input {
+        width: 100% !important;
+        max-width: 100%;
+        min-width: 0;
+    }
+    .withdrawal-settings-table button {
+        width: 100%;
+        min-height: 40px;
+        white-space: nowrap;
+    }
+    .withdrawal-settings-table th:first-child,
+    .withdrawal-settings-table td:first-child {
+        width: 30%;
+    }
+    .withdrawal-settings-table th:nth-child(2),
+    .withdrawal-settings-table td:nth-child(2) {
+        width: 45%;
+    }
+    .withdrawal-settings-table th:last-child,
+    .withdrawal-settings-table td:last-child {
+        width: 25%;
+    }
+    .withdrawal-settings-mobile {
+        display: none;
+    }
+    .withdrawal-setting-card {
+        width: 100%;
+        min-width: 0;
+        padding: 16px;
+        border: 1px solid #dbe3ef;
+        border-radius: 14px;
+        background: #fff;
+        box-shadow: 0 6px 18px rgba(15, 23, 42, .06);
+    }
+    .withdrawal-setting-card + .withdrawal-setting-card {
+        margin-top: 12px;
+    }
+    .withdrawal-setting-card h3 {
+        margin: 0 0 12px;
+        color: #0f2d5c;
+        font-size: 1rem;
+        line-height: 1.35;
+        overflow-wrap: anywhere;
+    }
+    .withdrawal-setting-card label {
+        display: block;
+        margin-bottom: 6px;
+        color: #334155;
+        font-size: .9rem;
+        font-weight: 700;
+    }
+    .withdrawal-setting-card input {
+        width: 100%;
+        max-width: 100%;
+        min-height: 46px;
+        padding: 10px 12px;
+        border: 1px solid #cbd5e1;
+        border-radius: 9px;
+        color: #0f172a;
+        font: inherit;
+    }
+    .withdrawal-setting-card input:focus {
+        outline: 3px solid rgba(37, 99, 235, .2);
+        outline-offset: 1px;
+        border-color: #2563eb;
+    }
+    .withdrawal-setting-card button {
+        width: 100%;
+        min-height: 44px;
+        margin-top: 12px;
+    }
+    @media (max-width: 600px) {
+        .withdrawal-settings-page {
+            width: 100%;
+            max-width: 100%;
+            margin-left: 0 !important;
+            margin-right: 0 !important;
+            padding-left: 0;
+            padding-right: 0;
+        }
+        .withdrawal-settings-page > .row {
+            margin-left: 0;
+            margin-right: 0;
+        }
+        .withdrawal-settings-page .card {
+            margin-left: 0;
+            margin-right: 0;
+        }
+        .withdrawal-settings-table-wrap {
+            display: none;
+        }
+        .withdrawal-settings-mobile {
+            display: block;
+            width: 100%;
+            max-width: 100%;
+            margin-left: 0;
+        }
+        .withdrawal-settings-page .card-body {
+            padding: 16px;
+        }
+    }
+    @media (min-width: 601px) {
+        .withdrawal-settings-table-wrap {
+            display: block;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mt-5 withdrawal-settings-page">
+    <div class="row">
+        <div class="col-md-12">
+            <h2>Commission Retrait (HTG)</h2>
+            <p class="text-muted">Modifier les frais de retrait par tranche.</p>
+            {% if messages %}
+            <div class="alert-container">
+                {% for message in messages %}
+                <div class="alert alert-{{ message.tags }}" role="alert">{{ message }}</div>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            <div class="card mt-3">
+                <div class="card-body">
+                    {% if withdrawal_configs %}
+                    <div class="withdrawal-settings-table-wrap">
+                        <table class="table table-sm table-striped withdrawal-settings-table">
+                            <thead>
+                                <tr>
+                                    <th>Clé</th>
+                                    <th>Valeur</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for cfg in withdrawal_configs %}
+                                <tr>
+                                    <td>
+                                        {{ cfg.description|default:'Tranche de retrait' }}
+                                        ({{ cfg.min_amount }} - {{ cfg.max_amount }} {{ cfg.currency }})
+                                    </td>
+                                    <td>
+                                        <form id="commission-form-{{ cfg.id }}" method="post">
+                                            {% csrf_token %}
+                                            <input type="hidden" name="commission_id" value="{{ cfg.id }}" />
+                                            <input name="commission_value" value="{{ cfg.total_fee }}" class="form-control form-control-sm mr-2" />
+                                        </form>
+                                    </td>
+                                    <td>
+                                        <button type="submit" form="commission-form-{{ cfg.id }}" class="btn btn-sm btn-primary">Enregistrer</button>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="withdrawal-settings-mobile">
+                        {% for cfg in withdrawal_configs %}
+                        <form method="post" class="withdrawal-setting-card">
+                            {% csrf_token %}
+                            <input type="hidden" name="commission_id" value="{{ cfg.id }}" />
+                            <h3>
+                                {{ cfg.description|default:'Tranche de retrait' }}
+                                ({{ cfg.min_amount }} - {{ cfg.max_amount }} {{ cfg.currency }})
+                            </h3>
+                            <label for="mobile-commission-{{ cfg.id }}">Frais total</label>
+                            <input id="mobile-commission-{{ cfg.id }}" name="commission_value" value="{{ cfg.total_fee }}" />
+                            <button type="submit" class="btn btn-primary">Enregistrer</button>
+                        </form>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <p class="text-warning">Aucune configuration de retrait trouvée.</p>
+                    {% endif %}
+
+                    <a href="{% url 'manage_agent_commissions' %}" class="btn btn-secondary mt-3">Retour</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
