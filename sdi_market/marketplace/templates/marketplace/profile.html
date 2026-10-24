@@ -913,59 +913,11 @@
     }
     body:has(.profile-page) {
         --profile-support-height: 0px;
-        --profile-footer-height: 56px;
+        --profile-footer-height: 68px;
         --profile-mobile-footer-stack-height: calc(var(--profile-support-height) + var(--profile-footer-height) + env(safe-area-inset-bottom, 0px));
-        display: flex;
-        flex-direction: column;
-        min-height: 100vh;
     }
     body:has(.profile-page):has(.sdi-support-card) {
         --profile-support-height: 84px;
-    }
-    body:has(.profile-page) .responsive-scroll-shell {
-        display: flex;
-        flex: 1 0 auto;
-        flex-direction: column;
-        padding-bottom: 0 !important;
-    }
-    body:has(.profile-page) .responsive-scroll-shell > .container {
-        display: flex;
-        flex: 1 0 auto;
-        flex-direction: column;
-        min-height: 100%;
-    }
-    body:has(.profile-page) .marketplace-content-scale-shell:has(.profile-page) {
-        flex: 1 0 auto;
-    }
-    body:has(.profile-page) .compact-footer {
-        position: static !important;
-        flex: 0 0 var(--profile-footer-height);
-        z-index: 45;
-        display: flex;
-        align-items: center;
-        height: var(--profile-footer-height);
-        min-height: var(--profile-footer-height);
-        margin: auto 0 var(--profile-support-height);
-        padding: 0 16px;
-        box-sizing: border-box;
-        background: #0f172a;
-    }
-    body:has(.profile-page) .compact-footer > div {
-        width: 100%;
-        min-height: 0;
-        flex-wrap: nowrap !important;
-        gap: 8px !important;
-        padding: 4px 0 !important;
-        font-size: clamp(0.62rem, 2.5vw, 0.85rem) !important;
-    }
-    body:has(.profile-page) .compact-footer > div > span {
-        min-width: 0;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-    }
-    body:has(.profile-page) .compact-footer > div > div {
-        flex: 0 0 auto;
     }
     body:has(.profile-page):has(.sdi-support-card) .sdi-support-card {
         position: fixed !important;
@@ -1021,109 +973,11 @@
             perspective: none;
         }
     }
-    @media (min-width: 768px) and (max-width: 1199px) {
-        body:has(.profile-page) .responsive-scroll-shell {
-            height: auto;
-            min-height: 0;
-            flex: 1 1 0%;
-            padding-bottom: calc(var(--profile-support-height) + var(--profile-footer-height) + env(safe-area-inset-bottom, 0px)) !important;
-        }
-        body:has(.profile-page) .mobile-bottom-tabs {
-            display: flex !important;
-            bottom: calc(var(--profile-support-height) + env(safe-area-inset-bottom, 0px));
-            width: 100vw;
-            max-width: 100vw;
-            height: var(--profile-footer-height);
-            margin: 0;
-            padding: 2px 0 calc(5px + env(safe-area-inset-bottom, 0px));
-            box-sizing: border-box;
-            background: #ffffff;
-            border: 0;
-            border-top-left-radius: 16px;
-            border-top-right-radius: 16px;
-            box-shadow: 0 -4px 12px rgba(15, 23, 42, 0.08);
-            justify-content: space-between;
-            align-items: stretch;
-            gap: 0;
-            overflow: hidden;
-            z-index: 46;
-        }
-        body:has(.profile-page) .mobile-bottom-tab {
-            display: inline-flex;
-            flex: 1 1 0;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            min-height: 0;
-            padding: 2px 4px 1px;
-            margin: 0;
-            border-radius: 0;
-            color: #4b5563;
-            text-decoration: none;
-            background: transparent;
-            box-shadow: none;
-            font-size: 0.5rem;
-            font-weight: 700;
-            line-height: 1.08;
-            text-align: center;
-            box-sizing: border-box;
-            overflow: hidden;
-        }
-        body:has(.profile-page) .mobile-bottom-tab .tab-icon {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            width: 22px;
-            height: 22px;
-            margin-bottom: 2px;
-            flex-shrink: 0;
-        }
-        body:has(.profile-page) .mobile-bottom-tab .tab-icon svg {
-            width: 18px;
-            height: 18px;
-            stroke: currentColor;
-            fill: none;
-            stroke-width: 1.9;
-            stroke-linecap: round;
-            stroke-linejoin: round;
-        }
-        body:has(.profile-page) .mobile-bottom-tab .tab-label {
-            display: block;
-            width: 100%;
-            font-size: 0.5rem;
-            font-weight: 700;
-            line-height: 1.08;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-    }
     @media (min-width: 1200px) {
-        body:has(.profile-page) {
-            height: 100vh;
-        }
         body:has(.profile-page):has(.sdi-support-card) .sdi-support-card {
             position: static !important;
             height: auto;
             margin: 0;
-        }
-    }
-    @media (max-width: 767px) {
-        body:has(.profile-page) {
-            --profile-footer-height: 40px;
-        }
-        body:has(.profile-page) .responsive-scroll-shell {
-            padding-bottom: calc(var(--profile-support-height) + env(safe-area-inset-bottom, 0px)) !important;
-        }
-        body:has(.profile-page) .compact-footer {
-            margin-bottom: 0;
-        }
-        body:has(.profile-page) .marketplace-content-scale-shell:has(.profile-page) {
-            padding-bottom: calc(40px + 20px + env(safe-area-inset-bottom, 0px));
-        }
-        body:has(.profile-page) .mobile-bottom-tabs {
-            bottom: calc(var(--profile-support-height) + env(safe-area-inset-bottom, 0px));
-            z-index: 46;
         }
     }
     @media (max-width: 1199px) {
