@@ -973,6 +973,19 @@
             perspective: none;
         }
     }
+    @media (max-width: 767px) {
+        body:has(.profile-page):has(.sdi-support-card) .responsive-scroll-shell {
+            padding-bottom: calc(var(--responsive-bottom-height, 68px) + var(--profile-support-height) + 12px + env(safe-area-inset-bottom, 0px));
+        }
+    }
+    @media (min-width: 768px) and (max-width: 1199px) {
+        body:has(.profile-page):has(.sdi-support-card) .compact-footer {
+            bottom: calc(var(--mobile-system-bottom-inset, 0px) + var(--profile-support-height) + env(safe-area-inset-bottom, 0px));
+        }
+        body:has(.profile-page):has(.sdi-support-card) .responsive-scroll-shell {
+            padding-bottom: calc(var(--responsive-bottom-height, 0px) + var(--profile-support-height) + var(--mobile-system-bottom-inset, 0px));
+        }
+    }
     @media (min-width: 1200px) {
         body:has(.profile-page):has(.sdi-support-card) .sdi-support-card {
             position: static !important;
@@ -3750,6 +3763,8 @@
         scrollbar-color: #cbd5e1 transparent;
     }
 </style>
+    </div>
+    </div>
 {% endblock %}
 
 {% block extra_scripts %}
