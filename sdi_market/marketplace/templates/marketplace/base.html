@@ -6075,6 +6075,9 @@
                                 <button id="account-toggle" class="account-button" aria-haspopup="true" aria-expanded="false">Compte</button>
                                 <div class="nav-dropdown-panel" id="account-dropdown">
                                     <a href="{% url 'profile' %}">Mon Compte</a>
+                                    {% if request.user.is_seller or request.user.is_staff %}
+                                        <a href="{% url 'my_shop' %}">Ma boutique</a>
+                                    {% endif %}
                                     <a href="{% url 'sdi_sol' %}">SDI Sol</a>
                                     <a href="{% url 'transfer_funds' %}">Transférer</a>
                                     <form action="{% url 'logout' %}" method="post" style="margin:6px 0 0 0; padding:0;">
@@ -6096,6 +6099,11 @@
                                 <a id="peuple-button" href="{% url 'view_peuple_commission' %}">Cadeau Argent</a>
                                 <a href="#" id="install-app-mobile" onclick="window.openInstaller();return false;">Installer l'Application</a>
                                 <a href="{% url 'sdi_sol' %}">SDI Sol</a>
+                                {% with support_card=site_configs.support_card %}
+                                    {% if support_card and support_card.is_active and support_card.whatsapp_link %}
+                                        <a href="{{ support_card.whatsapp_link }}" target="_blank" rel="noopener noreferrer">Contact SDI</a>
+                                    {% endif %}
+                                {% endwith %}
                             </div>
                         </div>
                     </div>
@@ -6162,6 +6170,9 @@
                         <div class="mobile-nav-grid">
                             {% if request.user.is_authenticated %}
                                 <a href="{% url 'profile' %}" class="mobile-nav-card" data-icon="👤">Profil</a>
+                                {% if request.user.is_seller or request.user.is_staff %}
+                                    <a href="{% url 'my_shop' %}" class="mobile-nav-card" data-icon="🏪">Ma boutique</a>
+                                {% endif %}
                                 <a href="{% url 'order_history' %}" class="mobile-nav-card" data-icon="📦">Commandes</a>
                                 <a href="{% url 'sdi_sol' %}" class="mobile-nav-card" data-icon="💎">SDI Sol</a>
                                 <a href="{% url 'transfer_funds' %}" class="mobile-nav-card" data-icon="💸">Transférer</a>
@@ -6179,6 +6190,11 @@
                             <a href="{% url 'private_chat_contacts' %}" class="mobile-nav-card" data-icon="✉️">Messages</a>
                             <a href="{% url 'delivery_tracking' %}" class="mobile-nav-card" data-icon="🚚">Suivi</a>
                             <a href="{% url 'client_deposit_receipts' %}" class="mobile-nav-card" data-icon="🧾">Reçus</a>
+                            {% with support_card=site_configs.support_card %}
+                                {% if support_card and support_card.is_active and support_card.whatsapp_link %}
+                                    <a href="{{ support_card.whatsapp_link }}" target="_blank" rel="noopener noreferrer" class="mobile-nav-card" data-icon="💬">Contact SDI</a>
+                                {% endif %}
+                            {% endwith %}
                         </div>
                     </div>
 
