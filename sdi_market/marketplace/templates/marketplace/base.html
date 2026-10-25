@@ -7237,15 +7237,22 @@
             </span>
             <span class="tab-label">Cart</span>
         </a>
-        <a href="{% url 'profile' %}" class="mobile-bottom-tab">
-            <span class="tab-icon" aria-hidden="true">
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                    <circle cx="12" cy="8" r="4"></circle>
-                    <path d="M4.5 19a7.5 7.5 0 0 1 15 0"></path>
-                </svg>
-            </span>
-            <span class="tab-label">My SDI</span>
-        </a>
+        <div class="mobile-bottom-tab-group">
+            <div class="sdi-screen-size-control" aria-label="Contrôle de taille d'écran" role="group">
+                <button type="button" class="sdi-screen-size-control__button" data-screen-scale-action="decrease" aria-label="Réduire la taille">−</button>
+                <button type="button" class="sdi-screen-size-control__button" data-screen-scale-action="reset" aria-label="Remettre à 100 %">↺</button>
+                <button type="button" class="sdi-screen-size-control__button" data-screen-scale-action="increase" aria-label="Augmenter la taille">+</button>
+            </div>
+            <a href="{% url 'profile' %}" class="mobile-bottom-tab">
+                <span class="tab-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <circle cx="12" cy="8" r="4"></circle>
+                        <path d="M4.5 19a7.5 7.5 0 0 1 15 0"></path>
+                    </svg>
+                </span>
+                <span class="tab-label">My SDI</span>
+            </a>
+        </div>
     </nav>
 
     {% with support_card=site_configs.support_card %}
@@ -7265,13 +7272,6 @@
         {% endif %}
     {% endwith %}
 
-    {% if site_configs.support_card and site_configs.support_card.screen_size_control_enabled %}
-    <div class="sdi-screen-size-control" aria-label="Contrôle de taille d'écran" role="group">
-        <button type="button" class="sdi-screen-size-control__button" data-screen-scale-action="decrease" aria-label="Réduire la taille">−</button>
-        <button type="button" class="sdi-screen-size-control__button" data-screen-scale-action="reset" aria-label="Remettre à 100 %">↺</button>
-        <button type="button" class="sdi-screen-size-control__button" data-screen-scale-action="increase" aria-label="Augmenter la taille">+</button>
-    </div>
-    {% endif %}
     {% endif %}
 
     <style>
@@ -7507,19 +7507,17 @@
         }
 
         .sdi-screen-size-control {
-            position: fixed;
-            right: 16px;
-            bottom: 84px;
-            z-index: 120;
             display: inline-flex;
             align-items: center;
-            gap: 6px;
-            padding: 6px 8px;
-            border-radius: 999px;
+            justify-content: center;
+            flex: 0 0 20px;
+            min-width: 0;
+            gap: 0;
+            margin: 0;
+            padding: 0;
             background: transparent;
-            border: 1px solid rgba(37, 99, 235, 0.28);
-            box-shadow: 0 3px 10px rgba(37, 99, 235, 0.16);
-            backdrop-filter: blur(2px);
+            border: 0;
+            box-shadow: none;
         }
 
         .sdi-screen-size-control__button {
@@ -7527,8 +7525,8 @@
             border: none;
             background: transparent;
             color: #2563eb;
-            width: 28px;
-            height: 28px;
+            width: 24px;
+            height: 30px;
             border-radius: 50%;
             font-size: 1rem;
             line-height: 1;
@@ -7537,7 +7535,7 @@
             align-items: center;
             justify-content: center;
             cursor: pointer;
-            text-shadow: 0 1px 2px rgba(37, 99, 235, 0.28);
+            text-shadow: none;
             transition: transform 0.2s ease, background 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
             padding: 0;
         }
@@ -7556,15 +7554,31 @@
         }
 
         @media (max-width: 767px) {
+            .mobile-bottom-tab-group {
+                display: flex;
+                flex: 1 1 0;
+                flex-direction: column;
+                align-items: stretch;
+                justify-content: flex-start;
+                min-width: 0;
+                overflow: hidden;
+            }
+
+            .mobile-bottom-tab-group > .mobile-bottom-tab {
+                flex: 1 1 auto;
+                width: 100%;
+                min-height: 0;
+            }
+
             .sdi-screen-size-control {
-                right: 12px;
-                bottom: 78px;
-                padding: 5px 7px;
+                gap: 0;
+                width: 100%;
+                height: 20px;
             }
 
             .sdi-screen-size-control__button {
-                width: 26px;
-                height: 26px;
+                width: 24px;
+                height: 20px;
                 font-size: 0.9rem;
             }
         }
