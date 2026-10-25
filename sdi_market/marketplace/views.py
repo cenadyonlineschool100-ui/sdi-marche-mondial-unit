@@ -301,6 +301,35 @@ def get_commission_balance_field(currency):
     return 'commission_balance_usd'
 
 
+def _create_admin_wallet_credit_notification(transaction_record):
+    if (
+        transaction_record.status != 'approved'
+        or transaction_record.receiver_id is None
+        or transaction_record.type not in {
+            'admin_add',
+            'admin_add_agent',
+            'admin_add_all',
+            'admin_add_all_agent',
+        }
+    ):
+        return None
+
+    amount = format(transaction_record.amount, 'f')
+    currency = transaction_record.currency.upper()
+    return create_persistent_notification(
+        recipient=transaction_record.receiver,
+        title='Argent reçu',
+        message=f"Vous avez reçu {amount} {currency} de l’administration.",
+        notification_type='admin_money_received',
+        deduplication_key=(
+            f'admin-wallet-credit:{transaction_record.pk}:'
+            f'{transaction_record.receiver_id}'
+        ),
+        target_url=reverse('profile'),
+        sound_interval_minutes=1,
+    )
+
+
 def demo_page(request):
     """Page de démonstration pour la formation: présente comptes démo, boutiques et produits."""
     demo_users = User.objects.filter(email__in=['demo@buyer.local', 'seller@demo.local'])
@@ -6019,6 +6048,7 @@ def admin_add_money(request):
                             status='approved',
                         )
                         complete_financial_operation(operation, funding_transaction)
+                        _create_admin_wallet_credit_notification(funding_transaction)
                         transaction.on_commit(
                             lambda: rotate_session_idempotency_key(
                                 request,
@@ -6053,29 +6083,31 @@ def admin_add_money(request):
             for user in users:
                 wallet, _ = Wallet.objects.get_or_create(user=user)
                 if action == 'add':
-                    if account_type == 'agent':
-                        current_value = getattr(wallet, commission_field, Decimal('0')) or Decimal('0')
-                        setattr(wallet, commission_field, current_value + amount_decimal)
-                        wallet.save(update_fields=[commission_field])
-                        Transaction.objects.create(
-                            sender=None,
-                            receiver=user,
-                            amount=amount_decimal,
-                            currency=currency,
-                            type='admin_add_all_agent',
-                            status='approved'
-                        )
-                    else:
-                        wallet.balance += amount_decimal
-                        wallet.save(update_fields=['balance'])
-                        Transaction.objects.create(
-                            sender=None,
-                            receiver=user,
-                            amount=amount_decimal,
-                            currency='USD',
-                            type='admin_add_all',
-                            status='approved'
-                        )
+                    with transaction.atomic():
+                        if account_type == 'agent':
+                            current_value = getattr(wallet, commission_field, Decimal('0')) or Decimal('0')
+                            setattr(wallet, commission_field, current_value + amount_decimal)
+                            wallet.save(update_fields=[commission_field])
+                            funding_transaction = Transaction.objects.create(
+                                sender=None,
+                                receiver=user,
+                                amount=amount_decimal,
+                                currency=currency,
+                                type='admin_add_all_agent',
+                                status='approved'
+                            )
+                        else:
+                            wallet.balance += amount_decimal
+                            wallet.save(update_fields=['balance'])
+                            funding_transaction = Transaction.objects.create(
+                                sender=None,
+                                receiver=user,
+                                amount=amount_decimal,
+                                currency='USD',
+                                type='admin_add_all',
+                                status='approved'
+                            )
+                        _create_admin_wallet_credit_notification(funding_transaction)
                     users_changed += 1
                 else:
                     if account_type == 'agent':
@@ -6123,31 +6155,33 @@ def admin_add_money(request):
             user = User.objects.get(id=user_id)
             wallet, _ = Wallet.objects.get_or_create(user=user)
             if action == 'add':
-                if account_type == 'agent':
-                    current_value = getattr(wallet, commission_field, Decimal('0')) or Decimal('0')
-                    setattr(wallet, commission_field, current_value + amount_decimal)
-                    wallet.save(update_fields=[commission_field])
-                    Transaction.objects.create(
-                        sender=None,
-                        receiver=user,
-                        amount=amount_decimal,
-                        currency=currency,
-                        type='admin_add_agent',
-                        status='approved'
-                    )
-                    messages.success(request, f'Ajout de {amount} {currency} au compte agent de {user.username}.')
-                else:
-                    wallet.balance += amount_decimal
-                    wallet.save(update_fields=['balance'])
-                    Transaction.objects.create(
-                        sender=None,
-                        receiver=user,
-                        amount=amount_decimal,
-                        currency='USD',
-                        type='admin_add',
-                        status='approved'
-                    )
-                    messages.success(request, f'Ajout de {amount} {currency} au portefeuille principal de {user.username}.')
+                with transaction.atomic():
+                    if account_type == 'agent':
+                        current_value = getattr(wallet, commission_field, Decimal('0')) or Decimal('0')
+                        setattr(wallet, commission_field, current_value + amount_decimal)
+                        wallet.save(update_fields=[commission_field])
+                        funding_transaction = Transaction.objects.create(
+                            sender=None,
+                            receiver=user,
+                            amount=amount_decimal,
+                            currency=currency,
+                            type='admin_add_agent',
+                            status='approved'
+                        )
+                        messages.success(request, f'Ajout de {amount} {currency} au compte agent de {user.username}.')
+                    else:
+                        wallet.balance += amount_decimal
+                        wallet.save(update_fields=['balance'])
+                        funding_transaction = Transaction.objects.create(
+                            sender=None,
+                            receiver=user,
+                            amount=amount_decimal,
+                            currency='USD',
+                            type='admin_add',
+                            status='approved'
+                        )
+                        messages.success(request, f'Ajout de {amount} {currency} au portefeuille principal de {user.username}.')
+                    _create_admin_wallet_credit_notification(funding_transaction)
             else:
                 if account_type == 'agent':
                     current_value = getattr(wallet, commission_field, Decimal('0')) or Decimal('0')
@@ -7913,6 +7947,9 @@ def get_persistent_notifications_api(request):
         return JsonResponse({
             'notifications': notifications_data,
             'count': unread_count,
+            'admin_money_received_count': notifications.filter(
+                notification_type='admin_money_received',
+            ).count(),
         })
 
     return JsonResponse({'error': 'Méthode GET requise'}, status=405)
@@ -7953,10 +7990,10 @@ def check_notifications_sound_api(request):
         notifications = PersistentNotification.objects.filter(
             recipient=request.user,
             is_read=False,
-            last_sound_at__isnull=True,
             notification_type__in=[
                 'new_order',
                 'money_received',
+                'admin_money_received',
                 'private_message',
                 'refund',
                 'delivery_assigned',
@@ -7970,17 +8007,24 @@ def check_notifications_sound_api(request):
                 'delivery_arrived',
                 'delivery_failed',
             ],
+        ).filter(
+            Q(last_sound_at__isnull=True)
+            | Q(notification_type='admin_money_received'),
         )
 
         sound_data = []
         for notification in notifications:
             if notification.should_sound():
-                claimed = PersistentNotification.objects.filter(
+                claim = PersistentNotification.objects.filter(
                     pk=notification.pk,
                     recipient=request.user,
                     is_read=False,
-                    last_sound_at__isnull=True,
-                ).update(last_sound_at=timezone.now())
+                )
+                if notification.last_sound_at is None:
+                    claim = claim.filter(last_sound_at__isnull=True)
+                else:
+                    claim = claim.filter(last_sound_at=notification.last_sound_at)
+                claimed = claim.update(last_sound_at=timezone.now())
                 if not claimed:
                     continue
                 sound_data.append({

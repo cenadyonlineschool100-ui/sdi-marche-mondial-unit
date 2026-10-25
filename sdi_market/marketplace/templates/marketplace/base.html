@@ -498,6 +498,13 @@
             background: #16a34a;
             animation: notification-badge-pulse 1.2s ease-in-out infinite;
         }
+        .notification-toggle.has-admin-credit-alert {
+            animation: admin-credit-notification-pulse 1s ease-in-out infinite;
+        }
+        @keyframes admin-credit-notification-pulse {
+            0%, 100% { text-shadow: 0 0 2px rgba(22, 163, 74, 0.45); }
+            50% { text-shadow: 0 0 10px rgba(22, 163, 74, 1); }
+        }
         @keyframes notification-badge-pulse {
             0%, 100% { box-shadow: 0 0 0 0 rgba(22, 163, 74, 0.48); }
             50% { box-shadow: 0 0 0 5px rgba(22, 163, 74, 0); }
@@ -540,6 +547,7 @@
         .notification-panel__empty { padding: 18px 8px; color: #64748b; text-align: center; }
         @media (prefers-reduced-motion: reduce) {
             .notification-toggle.has-unread .notification-badge { animation: none; }
+            .notification-toggle.has-admin-credit-alert { animation: none; }
         }
         .main-nav {
             display: flex;
@@ -6111,7 +6119,7 @@
             </nav>
             {% if request.user.is_authenticated %}
                 <div class="notification-dropdown-wrapper" id="notification-dropdown-wrapper">
-                    <button type="button" id="notification-toggle" class="icon-link notification-toggle{% if notification_count %} has-unread{% endif %}"
+                    <button type="button" id="notification-toggle" class="icon-link notification-toggle{% if notification_count %} has-unread{% endif %}{% if admin_money_received_count %} has-admin-credit-alert{% endif %}"
                             aria-label="Notifications" aria-expanded="false" aria-controls="notification-panel">
                         🔔<span class="notification-badge" data-notification-badge{% if not notification_count %} hidden{% endif %}>{{ notification_count|default:0 }}</span>
                     </button>
@@ -6421,6 +6429,8 @@
                 this.checkInterval = 30000;
                 this.soundEnabled = true;
                 this.audioUnlocked = false;
+                this.activeOscillator = null;
+                this.soundCheckInProgress = false;
                 this.listUrl = '{% url "get_persistent_notifications_api" %}';
                 this.soundUrl = '{% url "check_notifications_sound_api" %}';
                 this.readUrl = '{% url "mark_persistent_notification_read_api" 0 %}';
@@ -6436,6 +6446,7 @@
 
                 toggle.addEventListener('click', () => {
                     const opening = panel.hidden;
+                    if (opening) this.stopCurrentSound();
                     panel.hidden = !opening;
                     toggle.setAttribute('aria-expanded', String(opening));
                     if (opening) this.refreshNotifications();
@@ -6475,14 +6486,17 @@
                     const response = await fetch(this.listUrl, { credentials: 'same-origin', cache: 'no-store' });
                     if (!response.ok) throw new Error(`Notifications indisponibles (${response.status})`);
                     const data = await response.json();
-                    this.updateBadge(data.count || 0);
+                    this.updateBadge(
+                        data.count || 0,
+                        data.admin_money_received_count || 0,
+                    );
                     this.renderNotifications(data.notifications || []);
                 } catch (error) {
                     console.error('Erreur lors du chargement des notifications:', error);
                 }
             }
 
-            updateBadge(count) {
+            updateBadge(count, adminMoneyReceivedCount) {
                 const toggle = document.getElementById('notification-toggle');
                 const badge = document.querySelector('[data-notification-badge]');
                 const panelCount = document.querySelector('[data-notification-panel-count]');
@@ -6491,6 +6505,7 @@
                 badge.hidden = count < 1;
                 panelCount.textContent = String(count);
                 toggle.classList.toggle('has-unread', count > 0);
+                toggle.classList.toggle('has-admin-credit-alert', adminMoneyReceivedCount > 0);
                 toggle.setAttribute('aria-label', count > 0
                     ? `Notifications, ${count} non lue${count > 1 ? 's' : ''}`
                     : 'Notifications');
@@ -6532,6 +6547,7 @@
 
             async openNotification(event, link) {
                 event.preventDefault();
+                this.stopCurrentSound();
                 const id = link.dataset.notificationId;
                 const target = link.dataset.targetUrl || this.notificationsUrl;
                 try {
@@ -6572,22 +6588,37 @@
             }
 
             async checkNotifications() {
-                if (!this.soundEnabled || !this.audioUnlocked) return;
+                const panel = document.getElementById('notification-panel');
+                if (
+                    !this.soundEnabled
+                    || !this.audioUnlocked
+                    || this.soundCheckInProgress
+                    || (panel && !panel.hidden)
+                ) return;
+                this.soundCheckInProgress = true;
                 try {
                     const response = await fetch(this.soundUrl, { credentials: 'same-origin', cache: 'no-store' });
                     if (!response.ok) throw new Error(`Vérification sonore impossible (${response.status})`);
                     const data = await response.json();
                     const notifications = data.notifications_to_sound || [];
-                    if (notifications.length) this.playSound(notifications);
+                    if (notifications.length && (!panel || panel.hidden)) this.playSound(notifications);
                 } catch (error) {
                     console.error('Erreur lors de la vérification sonore:', error);
+                } finally {
+                    this.soundCheckInProgress = false;
                 }
             }
 
             playSound(notifications) {
                 if (!this.soundEnabled || !this.audioContext || this.audioContext.state !== 'running') return;
+                notifications.forEach(notification => this.showBrowserNotification(notification));
+                if (this.activeOscillator) return;
                 const oscillator = this.audioContext.createOscillator();
                 const gainNode = this.audioContext.createGain();
+                this.activeOscillator = oscillator;
+                oscillator.addEventListener('ended', () => {
+                    if (this.activeOscillator === oscillator) this.activeOscillator = null;
+                }, { once: true });
                 oscillator.connect(gainNode);
                 gainNode.connect(this.audioContext.destination);
                 oscillator.frequency.setValueAtTime(800, this.audioContext.currentTime);
@@ -6597,7 +6628,16 @@
                 gainNode.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + 0.3);
                 oscillator.start();
                 oscillator.stop(this.audioContext.currentTime + 0.3);
-                notifications.forEach(notification => this.showBrowserNotification(notification));
+            }
+
+            stopCurrentSound() {
+                if (!this.activeOscillator) return;
+                try {
+                    this.activeOscillator.stop();
+                } catch (error) {
+                    console.debug('La sonnerie de notification est déjà arrêtée.', error);
+                }
+                this.activeOscillator = null;
             }
 
             showBrowserNotification(notification) {

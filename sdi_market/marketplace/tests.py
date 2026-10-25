@@ -186,11 +186,11 @@ class PersistentNotificationsTest(TestCase):
         notification.refresh_from_db()
         self.assertFalse(notification.is_read)
 
-    def test_sound_is_claimed_once_without_marking_notification_read(self):
+    def test_admin_credit_sound_repeats_after_interval_until_read(self):
         notification = self.create_notification(
             self.user,
             'test:sound:1',
-            notification_type='private_message',
+            notification_type='admin_money_received',
         )
 
         first_response = self.client.get(reverse('check_notifications_sound_api'))
@@ -205,6 +205,92 @@ class PersistentNotificationsTest(TestCase):
         notification.refresh_from_db()
         self.assertIsNotNone(notification.last_sound_at)
         self.assertFalse(notification.is_read)
+
+        notification.last_sound_at = timezone.now() - timedelta(minutes=2)
+        notification.save(update_fields=['last_sound_at'])
+        repeated_response = self.client.get(reverse('check_notifications_sound_api'))
+        self.assertEqual(
+            [item['id'] for item in repeated_response.json()['notifications_to_sound']],
+            [notification.pk],
+        )
+        notification.refresh_from_db()
+        self.assertFalse(notification.is_read)
+
+    def test_other_notification_sound_remains_one_time(self):
+        notification = self.create_notification(
+            self.user,
+            'test:sound:ordinary:1',
+            notification_type='private_message',
+        )
+        self.client.get(reverse('check_notifications_sound_api'))
+        notification.refresh_from_db()
+        notification.last_sound_at = timezone.now() - timedelta(minutes=2)
+        notification.save(update_fields=['last_sound_at'])
+
+        response = self.client.get(reverse('check_notifications_sound_api'))
+
+        self.assertEqual(response.json()['notifications_to_sound'], [])
+
+    def test_admin_credit_count_is_returned_without_marking_notifications_read(self):
+        credit = self.create_notification(
+            self.user,
+            'test:admin-credit:1',
+            notification_type='admin_money_received',
+        )
+        self.create_notification(self.user, 'test:other:1')
+
+        response = self.client.get(reverse('get_persistent_notifications_api'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['count'], 2)
+        self.assertEqual(response.json()['admin_money_received_count'], 1)
+        credit.refresh_from_db()
+        self.assertFalse(credit.is_read)
+
+        page_response = self.client.get(reverse('persistent_notifications_page'))
+        self.assertRegex(
+            page_response.content.decode(),
+            r'id="notification-toggle" class="[^"]*has-admin-credit-alert',
+        )
+
+        self.client.post(
+            reverse('mark_persistent_notification_read_api', args=[credit.pk])
+        )
+        page_after_read = self.client.get(reverse('persistent_notifications_page'))
+        self.assertNotRegex(
+            page_after_read.content.decode(),
+            r'id="notification-toggle" class="[^"]*has-admin-credit-alert',
+        )
+
+    def test_admin_credit_sounds_again_until_the_specific_notification_is_read(self):
+        credit = self.create_notification(
+            self.user,
+            'test:admin-credit-sound:1',
+            notification_type='admin_money_received',
+        )
+
+        first_response = self.client.get(reverse('check_notifications_sound_api'))
+        self.assertEqual(
+            [item['id'] for item in first_response.json()['notifications_to_sound']],
+            [credit.pk],
+        )
+
+        credit.refresh_from_db()
+        credit.last_sound_at = timezone.now() - timedelta(minutes=2)
+        credit.save(update_fields=['last_sound_at'])
+        repeated_response = self.client.get(reverse('check_notifications_sound_api'))
+        self.assertEqual(
+            [item['id'] for item in repeated_response.json()['notifications_to_sound']],
+            [credit.pk],
+        )
+
+        read_response = self.client.post(
+            reverse('mark_persistent_notification_read_api', args=[credit.pk])
+        )
+        self.assertEqual(read_response.status_code, 200)
+        stopped_response = self.client.get(reverse('check_notifications_sound_api'))
+        self.assertEqual(stopped_response.json()['notifications_to_sound'], [])
+        self.assertEqual(stopped_response.json()['count'], 0)
 
     def test_read_endpoint_schedules_browser_notification_dismissal(self):
         notification = self.create_notification(self.user, 'test:dismiss:1')
@@ -2812,6 +2898,90 @@ class AdminAddAgentViewTest(TestCase):
         self.assertEqual(transaction_record.currency, 'HTG')
         self.assertEqual(transaction_record.status, 'approved')
         self.assertEqual(Transaction.objects.filter(type='admin_add_agent').count(), 1)
+        credit_notification = PersistentNotification.objects.get(
+            recipient=self.target_user,
+            notification_type='admin_money_received',
+        )
+        self.assertEqual(
+            credit_notification.deduplication_key,
+            f'admin-wallet-credit:{transaction_record.pk}:{self.target_user.pk}',
+        )
+        self.assertIn('7.50 HTG', credit_notification.message)
+
+    def test_admin_funding_of_user_wallet_creates_credit_notification(self):
+        user = User.objects.create_user(
+            username='funded_wallet_user',
+            password='userpass123',
+        )
+        wallet, _ = Wallet.objects.get_or_create(user=user)
+
+        response = self.client.post(
+            reverse('admin_add_money'),
+            {
+                'action': 'add',
+                'target': 'single',
+                'user_id': str(user.pk),
+                'account_type': 'principal',
+                'currency': 'USD',
+                'amount': '12.34',
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        wallet.refresh_from_db()
+        self.assertEqual(wallet.balance, Decimal('12.34'))
+        funding_transaction = Transaction.objects.get(
+            type='admin_add',
+            receiver=user,
+        )
+        notification = PersistentNotification.objects.get(
+            recipient=user,
+            notification_type='admin_money_received',
+        )
+        self.assertEqual(funding_transaction.status, 'approved')
+        self.assertIn('12.34 USD', notification.message)
+        self.assertEqual(
+            notification.deduplication_key,
+            f'admin-wallet-credit:{funding_transaction.pk}:{user.pk}',
+        )
+
+    def test_admin_credit_notification_failure_rolls_back_agent_credit(self):
+        self.target_user.is_agent = True
+        self.target_user.save(update_fields=['is_agent'])
+        agent, _ = Agent.objects.get_or_create(user=self.target_user)
+        agent.is_active = True
+        agent.save(update_fields=['is_active'])
+        wallet, _ = Wallet.objects.get_or_create(user=self.target_user)
+        wallet.balance_htg = Decimal('10.00')
+        wallet.save(update_fields=['balance_htg'])
+
+        with patch(
+            'marketplace.views.create_persistent_notification',
+            side_effect=RuntimeError('simulated notification creation failure'),
+        ):
+            with self.assertRaises(RuntimeError):
+                self.client.post(
+                    reverse('admin_add_money'),
+                    {
+                        'action': 'add',
+                        'target': 'single',
+                        'user_id': str(self.target_user.pk),
+                        'account_type': 'agent',
+                        'currency': 'HTG',
+                        'amount': '5.00',
+                        'idempotency_key': 'admin-agent-funding-notification-rollback-001',
+                    },
+                )
+
+        wallet.refresh_from_db()
+        self.assertEqual(wallet.balance_htg, Decimal('10.00'))
+        self.assertFalse(Transaction.objects.filter(type='admin_add_agent').exists())
+        self.assertFalse(
+            PersistentNotification.objects.filter(
+                recipient=self.target_user,
+                notification_type='admin_money_received',
+            ).exists()
+        )
 
     def test_principal_admin_can_fund_own_operational_wallet_once(self):
         wallet, _ = Wallet.objects.get_or_create(user=self.admin_user)
@@ -2881,6 +3051,12 @@ class AdminAddAgentViewTest(TestCase):
         wallet.refresh_from_db()
         self.assertEqual(wallet.balance_htg, Decimal('10.00'))
         self.assertFalse(Transaction.objects.filter(type='admin_add_agent').exists())
+        self.assertFalse(
+            PersistentNotification.objects.filter(
+                recipient=self.target_user,
+                notification_type='admin_money_received',
+            ).exists()
+        )
 
     def test_nonprincipal_staff_and_agent_cannot_fund_agent_wallet(self):
         self.target_user.is_agent = True

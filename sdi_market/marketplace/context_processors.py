@@ -49,6 +49,7 @@ def private_chat_context(request):
             'unread_message_count': 0,
             'private_unread_message_count': 0,
             'notification_count': 0,
+            'admin_money_received_count': 0,
         }
 
     from .models import PersistentNotification, PrivateMessage
@@ -57,12 +58,16 @@ def private_chat_context(request):
         receiver=user,
         is_read=False,
     ).count()
+    unread_notifications = PersistentNotification.objects.filter(
+        recipient=user,
+        is_read=False,
+    )
     return {
         'unread_message_count': unread_message_count,
         'private_unread_message_count': unread_message_count,
-        'notification_count': PersistentNotification.objects.filter(
-            recipient=user,
-            is_read=False,
+        'notification_count': unread_notifications.count(),
+        'admin_money_received_count': unread_notifications.filter(
+            notification_type='admin_money_received',
         ).count(),
     }
 
