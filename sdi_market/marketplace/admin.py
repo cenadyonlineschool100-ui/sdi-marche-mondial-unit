@@ -21,7 +21,7 @@ from .models import (
     Course, CourseAssignment, AssignmentSubmission, CourseCertificate,
     WithdrawalCommissionTier, TransferCommissionTier, WithdrawalTransaction, AdminCommissionLog,
     DepositCommissionConfig, Deposit, AgentCommission, CommissionRule, DepositLimit, AdminSetting,
-    MarketplaceSettings, CommissionCategory, UserCommissionCategory, CommissionDistributionLog,
+    MarketplaceSettings, Category, CommissionCategory, UserCommissionCategory, CommissionDistributionLog,
     TiKaneAccessRequest, TiKanePlan, TiKaneAccount, TiKaneDailyPayment,
     SDISolSettings, SDISolMember, SDISolPayment, ActivityMenuItem, BeautyAppointment, BeautyStudioRequest, TechnicianProfile,
     Property, PropertyImage, PropertyFavorite, RealEstateMessage, PropertyReview, RealEstateNotification,
@@ -515,6 +515,14 @@ class UserAdmin(admin.ModelAdmin):
     )
 
 admin.site.register(Shop)
+
+@admin.register(Category)
+class CategoryAdmin(admin.ModelAdmin):
+    list_display = ('name', 'slug', 'parent', 'is_active', 'created_at')
+    list_filter = ('is_active', 'parent')
+    search_fields = ('name', 'slug', 'description')
+    prepopulated_fields = {'slug': ('name',)}
+    readonly_fields = ('created_at', 'updated_at')
 
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
