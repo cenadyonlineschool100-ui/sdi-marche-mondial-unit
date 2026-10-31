@@ -6007,6 +6007,35 @@
                 grid-template-areas: "brand notifications" "search search" !important;
             }
         }
+        @media (max-width: 520px) {
+            header .nav-bar {
+                width: min(100% - 18px, 430px);
+                grid-template-columns: minmax(0, 1fr) auto auto !important;
+                grid-template-areas: "brand menu notifications" "search search search" !important;
+                gap: 5px 8px;
+                align-items: center;
+            }
+            header .brand {
+                grid-area: brand !important;
+                width: auto;
+                min-width: 0;
+                justify-content: flex-start;
+            }
+            header .brand-logo {
+                flex: 0 0 40px;
+                width: 40px;
+                height: 40px;
+            }
+            header .mobile-nav-toggle {
+                grid-area: menu !important;
+            }
+            header .notification-dropdown-wrapper {
+                grid-area: notifications !important;
+            }
+            header .header-search {
+                grid-area: search !important;
+            }
+        }
         @media (min-width: 1200px) {
             body.desktop-display-mode header .nav-bar {
                 grid-template-columns: minmax(220px, 0.9fr) minmax(260px, 1fr) minmax(0, 1.5fr) auto !important;
