@@ -6126,6 +6126,14 @@
                         {% endif %}
                     </div>
                 </div>
+                {% if can_manage_display_mode %}
+                <div class="nav-group nav-group-administration">
+                    <span class="nav-group-title">Administration</span>
+                    <div class="header-special-buttons">
+                        <a href="{% url 'display_mode_control' %}" class="nav-item" data-icon="🖥️">Mode d’affichage</a>
+                    </div>
+                </div>
+                {% endif %}
                 <div class="nav-group nav-group-more">
                     <span class="nav-group-title">Plus</span>
                     <div class="header-special-buttons">

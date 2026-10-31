@@ -53,6 +53,19 @@ class GlobalDisplayModeTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Administrateurs secondaires autorisés')
 
+    def test_navigation_shows_display_mode_link_only_to_authorized_users(self):
+        response = self.client.get(reverse('home'))
+        self.assertNotContains(response, self.control_url)
+
+        self.login_as(self.owner)
+        response = self.client.get(reverse('home'))
+        self.assertContains(response, self.control_url)
+
+        DisplayModePermission.objects.create(user=self.secondary, granted_by=self.owner)
+        self.login_as(self.secondary)
+        response = self.client.get(reverse('home'))
+        self.assertContains(response, self.control_url)
+
     def test_authorized_secondary_admin_can_only_change_display_mode(self):
         DisplayModePermission.objects.create(user=self.secondary, granted_by=self.owner)
         self.login_as(self.secondary)
