@@ -259,7 +259,7 @@ def system_settings_context(request):
             user
             and user.is_authenticated
             and user.is_active
-            and user.username == 'Sdi'
+            and user.username == 'SDI'
             and user.is_superuser
         )
         can_change_display_mode = is_owner

@@ -11,7 +11,7 @@ User = get_user_model()
 class GlobalDisplayModeTests(TestCase):
     def setUp(self):
         self.owner = User.objects.create_user(
-            username='Sdi',
+            username='SDI',
             password='safe-test-password',
             is_staff=True,
             is_superuser=True,
@@ -45,7 +45,7 @@ class GlobalDisplayModeTests(TestCase):
     def login_as(self, user):
         self.client.force_login(user)
 
-    def test_exact_active_superuser_sdi_can_open_management_page(self):
+    def test_exact_active_superuser_sdi_uppercase_can_open_management_page(self):
         self.login_as(self.owner)
 
         response = self.client.get(self.control_url)
