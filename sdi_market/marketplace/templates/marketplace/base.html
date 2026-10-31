@@ -6,7 +6,7 @@
 {% load static %}
 <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="{% if desktop_display_mode_enabled %}width=1280{% else %}width=device-width, initial-scale=1.0{% endif %}" />
     <title>MicroSDICash - Plateforme Fintech</title>
 
     <!-- Instant click handler: pointerdown capturing for ultra-fast feedback, prefetch and perfIndicator trigger -->
@@ -6007,9 +6007,38 @@
                 grid-template-areas: "brand notifications" "search search" !important;
             }
         }
+        @media (min-width: 1200px) {
+            body.desktop-display-mode header .nav-bar {
+                grid-template-columns: minmax(220px, 0.9fr) minmax(260px, 1fr) minmax(0, 1.5fr) auto !important;
+                grid-template-areas: "brand search nav notifications" !important;
+            }
+            body.desktop-display-mode header .main-nav {
+                display: flex !important;
+                min-width: 0;
+                flex-wrap: nowrap;
+            }
+            body.desktop-display-mode header .mobile-nav-toggle {
+                display: none !important;
+            }
+        }
     </style>
 </head>
-<body>
+<body{% if desktop_display_mode_enabled %} class="desktop-display-mode"{% endif %}>
+    {% if desktop_display_mode_enabled %}
+    <script>
+        (function () {
+            function applyDesktopDisplayScale() {
+                var screenWidth = window.screen.width;
+                if (Number.isFinite(screenWidth) && screenWidth > 0) {
+                    document.body.style.zoom = String(Math.min(1, screenWidth / 1280));
+                }
+            }
+            applyDesktopDisplayScale();
+            window.addEventListener('resize', applyDesktopDisplayScale);
+            window.addEventListener('orientationchange', applyDesktopDisplayScale);
+        })();
+    </script>
+    {% endif %}
     {% if site_banner %}{% include 'marketplace/site_banner.html' %}{% endif %}
     <header>
         <div class="container nav-bar">
@@ -6220,6 +6249,9 @@
                             <a href="{% url 'manage_withdrawal_commissions' %}" class="mobile-nav-card" data-icon="💸">Retraits</a>
                             <a href="{% url 'manage_delivery_assignments' %}" class="mobile-nav-card" data-icon="🚗">Livreurs</a>
                             <a href="{% url 'view_receipts' %}" class="mobile-nav-card" data-icon="📄">Reçus</a>
+                            {% if can_manage_display_mode %}
+                                <a href="{% url 'display_mode_control' %}" class="mobile-nav-card" data-icon="🖥️">Contrôle du mode d’affichage</a>
+                            {% endif %}
                             {% if request.user.role == 'super_admin' or request.user.is_superuser %}
                                 <a href="{% url 'site_banner_dashboard' %}" class="mobile-nav-card" data-icon="🎯">🎯 Gestion de la bannière</a>
                                 <a href="{% url 'site_banner_activation' %}" class="mobile-nav-card" data-icon="🔘">Activation bannière</a>
@@ -6828,7 +6860,8 @@
             const isMobileUserAgent = mobileUserAgent.test(navigator.userAgent) || (navigator.userAgentData && navigator.userAgentData.mobile);
             const isTouchSmallScreen = isTouchDevice && Math.max(window.screen.width, window.screen.height) <= 1100;
             const isSmallViewport = window.matchMedia('(max-width: 900px)').matches;
-            const isMobileDevice = isMobileUserAgent || isTouchSmallScreen || isSmallViewport;
+            const isDesktopDisplayMode = document.body.classList.contains('desktop-display-mode');
+            const isMobileDevice = !isDesktopDisplayMode && (isMobileUserAgent || isTouchSmallScreen || isSmallViewport);
             const isAndroidBrowser = /Android/i.test(navigator.userAgent);
             document.body.classList.toggle('mobile-device', isMobileDevice);
             document.body.classList.toggle('android-browser', isAndroidBrowser);

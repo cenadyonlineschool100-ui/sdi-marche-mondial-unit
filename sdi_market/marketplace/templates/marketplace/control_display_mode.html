@@ -1,0 +1,70 @@
+{% extends 'marketplace/base.html' %}
+
+{% block content %}
+<section class="display-mode-page">
+    <style>
+        .display-mode-page { max-width: 900px; margin: 24px auto; }
+        .display-mode-card { background: #fff; border: 1px solid #dbe3ef; border-radius: 12px; padding: 22px; margin-bottom: 18px; box-shadow: 0 8px 24px rgba(15, 33, 56, .06); }
+        .display-mode-card h1, .display-mode-card h2 { color: #0f2138; margin-top: 0; }
+        .display-mode-status { font-weight: 700; color: #1e3a8a; }
+        .display-mode-actions, .display-mode-user { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+        .display-mode-actions form, .display-mode-user form { margin: 0; }
+        .display-mode-button { border: 0; border-radius: 8px; padding: 11px 16px; color: #fff; background: #1e3a8a; font-weight: 700; cursor: pointer; }
+        .display-mode-button--mobile { background: #475569; }
+        .display-mode-button--revoke { background: #b42318; }
+        .display-mode-user { justify-content: space-between; padding: 12px 0; border-top: 1px solid #e2e8f0; }
+        .display-mode-note { color: #52657d; line-height: 1.5; }
+    </style>
+
+    <section class="display-mode-card">
+        <h1>Contrôle du mode d’affichage</h1>
+        <p>Mode actuellement actif :
+            <span class="display-mode-status">
+                {% if desktop_display_mode_enabled %}Ordinateur{% else %}Mobile responsive{% endif %}
+            </span>
+        </p>
+        <p class="display-mode-note">
+            Ce réglage modifie la présentation de SDI uniquement. Il ne change pas le paramètre « Site pour ordinateur » de votre navigateur.
+        </p>
+        <div class="display-mode-actions">
+            <form method="post" action="{% url 'set_display_mode' %}">
+                {% csrf_token %}
+                <input type="hidden" name="mode" value="desktop">
+                <button class="display-mode-button" type="submit">ACTIVER LE MODE ORDINATEUR</button>
+            </form>
+            <form method="post" action="{% url 'set_display_mode' %}">
+                {% csrf_token %}
+                <input type="hidden" name="mode" value="mobile">
+                <button class="display-mode-button display-mode-button--mobile" type="submit">ACTIVER LE MODE MOBILE</button>
+            </form>
+        </div>
+    </section>
+
+    {% if is_display_mode_owner %}
+    <section class="display-mode-card">
+        <h2>Administrateurs secondaires autorisés</h2>
+        <p class="display-mode-note">Seul le compte admin peut gérer ces autorisations. Les administrateurs autorisés peuvent uniquement choisir le mode d’affichage.</p>
+        {% for secondary_admin in secondary_admins %}
+            <div class="display-mode-user">
+                <span>{{ secondary_admin.username }}</span>
+                {% if secondary_admin.id in authorized_display_mode_user_ids %}
+                    <span>Autorisé</span>
+                    <form method="post" action="{% url 'revoke_display_mode_access' secondary_admin.id %}">
+                        {% csrf_token %}
+                        <button class="display-mode-button display-mode-button--revoke" type="submit">Retirer l’accès</button>
+                    </form>
+                {% else %}
+                    <span>Non autorisé</span>
+                    <form method="post" action="{% url 'grant_display_mode_access' secondary_admin.id %}">
+                        {% csrf_token %}
+                        <button class="display-mode-button" type="submit">Autoriser</button>
+                    </form>
+                {% endif %}
+            </div>
+        {% empty %}
+            <p>Aucun administrateur secondaire actif n’est disponible.</p>
+        {% endfor %}
+    </section>
+    {% endif %}
+</section>
+{% endblock %}

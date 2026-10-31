@@ -79,6 +79,10 @@ from .modules_manager import (
 from .views_web_push import (
     web_push_vapid_key, web_push_subscriptions, web_push_csrf_token, service_worker,
 )
+from .views_display_mode import (
+    display_mode_control, grant_display_mode_access, revoke_display_mode_access,
+    set_display_mode,
+)
 
 router = DefaultRouter()
 router.register('products', ProductViewSet)
@@ -232,6 +236,10 @@ urlpatterns = [
     # Contrôle Système - Gestion des Mots de Passe
     path('system-control/', system_control_panel, name='system_control_panel'),
     path('system-control/refresh-exchange-rates/', refresh_exchange_rates, name='refresh_exchange_rates'),
+    path('admin/display-mode/', display_mode_control, name='display_mode_control'),
+    path('admin/display-mode/set/', set_display_mode, name='set_display_mode'),
+    path('admin/display-mode/grant/<int:user_id>/', grant_display_mode_access, name='grant_display_mode_access'),
+    path('admin/display-mode/revoke/<int:user_id>/', revoke_display_mode_access, name='revoke_display_mode_access'),
     path('api/security-dashboard/', security_dashboard_api, name='security_dashboard_api'),
     path('api/user/<int:user_id>/password/', view_user_password, name='view_user_password'),
     

@@ -252,13 +252,42 @@ def system_settings_context(request):
             'microsdicash_payment_instructions',
             'enable_cybersecurity',
             'emergency_lockdown',
+            'desktop_display_mode_enabled',
         ).filter(pk=1).first()
+        user = getattr(request, 'user', None)
+        is_owner = bool(
+            user
+            and user.is_authenticated
+            and user.is_active
+            and user.username == 'admin'
+            and user.is_superuser
+        )
+        can_change_display_mode = is_owner
+        if (
+            not can_change_display_mode
+            and user
+            and user.is_authenticated
+            and user.is_active
+            and user.is_staff
+            and user.role == 'admin_secondary'
+        ):
+            from .models import DisplayModePermission
+
+            can_change_display_mode = DisplayModePermission.objects.filter(user=user).exists()
         return {
             'system_settings': settings_obj,
             'mobile_footer_support_enabled': settings_obj.mobile_footer_support_enabled if settings_obj else True,
+            'desktop_display_mode_enabled': bool(
+                settings_obj and settings_obj.desktop_display_mode_enabled
+            ),
+            'can_manage_display_mode': can_change_display_mode,
+            'is_display_mode_owner': is_owner,
         }
     except Exception:
         return {
             'system_settings': None,
             'mobile_footer_support_enabled': True,
+            'desktop_display_mode_enabled': False,
+            'can_manage_display_mode': False,
+            'is_display_mode_owner': False,
         }

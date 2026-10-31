@@ -2805,6 +2805,10 @@ class SystemSettings(models.Model):
     banner_expanded_height = models.PositiveIntegerField(default=220, verbose_name='Hauteur agrandie du Banner')
     banner_visible_to_admins = models.BooleanField(default=True, verbose_name='Afficher la bannière aux administrateurs')
     principal_banner_visible = models.BooleanField(default=True, verbose_name='Afficher la bannière à l’administrateur principal')
+    desktop_display_mode_enabled = models.BooleanField(
+        default=False,
+        verbose_name='Activer le mode ordinateur global',
+    )
     mobile_footer_support_enabled = models.BooleanField(
         default=True,
         verbose_name='⭐ FC - Afficher le footer mobile/tablette et la carte Support SDI'
@@ -2855,6 +2859,32 @@ class SystemSettings(models.Model):
     class Meta:
         verbose_name = "Paramètre système"
         verbose_name_plural = "Paramètres système"
+
+
+class DisplayModePermission(models.Model):
+    """Secondary administrators explicitly allowed to change the global display mode."""
+    user = models.OneToOneField(
+        User,
+        on_delete=models.CASCADE,
+        related_name='display_mode_permission',
+        limit_choices_to={'is_staff': True, 'role': 'admin_secondary'},
+        verbose_name='Administrateur secondaire',
+    )
+    granted_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='granted_display_mode_permissions',
+        verbose_name='Autorisation accordée par',
+    )
+    granted_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'Autorisation de contrôle du mode d’affichage'
+        verbose_name_plural = 'Autorisations de contrôle du mode d’affichage'
+
+    def __str__(self):
+        return f"{self.user.username} - contrôle du mode d’affichage"
 
 
 class SecurityIncident(models.Model):
