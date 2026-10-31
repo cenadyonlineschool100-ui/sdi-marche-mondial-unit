@@ -17,9 +17,16 @@
     <meta name="viewport" content="width=1280">
     <script>
         if (window.screen.width <= 767 && window.matchMedia('(pointer: coarse)').matches) {
-            document.querySelector('meta[name="viewport"]').content = 'width=1201';
+            document.documentElement.classList.add('desktop-phone-display');
         }
     </script>
+    <style>
+        html.desktop-phone-display body {
+            width: 90.9091%;
+            max-width: 90.9091vw;
+            zoom: 1.1;
+        }
+    </style>
     {% else %}
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     {% endif %}

@@ -136,7 +136,8 @@ class GlobalDisplayModeTests(TestCase):
                     response,
                     "if (window.screen.width <= 767 && window.matchMedia('(pointer: coarse)').matches)",
                 )
-                self.assertContains(response, "content = 'width=1201'")
+                self.assertContains(response, "document.documentElement.classList.add('desktop-phone-display')")
+                self.assertContains(response, 'zoom: 1.1')
                 self.assertContains(
                     response,
                     'const isMobileDevice = !isDesktopDisplayMode && (isMobileUserAgent || isTouchSmallScreen || isSmallViewport);',
@@ -154,7 +155,7 @@ class GlobalDisplayModeTests(TestCase):
         response = self.client.get(reverse('home'))
         self.assertContains(response, 'width=device-width, initial-scale=1.0')
         self.assertContains(response, '<body>')
-        self.assertNotContains(response, "content = 'width=1201'")
+        self.assertNotContains(response, "desktop-phone-display")
 
     def test_django_admin_uses_global_viewport_in_both_modes(self):
         settings_obj = SystemSettings.objects.get_or_create(pk=1)[0]
@@ -163,7 +164,7 @@ class GlobalDisplayModeTests(TestCase):
             reverse('admin:marketplace_user_changelist'),
         )
 
-        for desktop_mode, expected_viewport, expected_phone_viewport in (
+        for desktop_mode, expected_viewport, expected_phone_display in (
             (True, 'width=1280', True),
             (False, 'width=device-width, initial-scale=1.0', False),
         ):
@@ -176,10 +177,11 @@ class GlobalDisplayModeTests(TestCase):
                 self.assertEqual(login_response.status_code, 200)
                 self.assertContains(login_response, expected_viewport)
                 self.assertNotContains(login_response, 'applyDesktopDisplayScale')
-                if expected_phone_viewport:
-                    self.assertContains(login_response, "content = 'width=1201'")
+                if expected_phone_display:
+                    self.assertContains(login_response, "document.documentElement.classList.add('desktop-phone-display')")
+                    self.assertContains(login_response, 'zoom: 1.1')
                 else:
-                    self.assertNotContains(login_response, "content = 'width=1201'")
+                    self.assertNotContains(login_response, "desktop-phone-display")
 
                 self.login_as(self.owner)
                 for route in admin_routes:
@@ -188,10 +190,11 @@ class GlobalDisplayModeTests(TestCase):
                         self.assertEqual(response.status_code, 200)
                         self.assertContains(response, expected_viewport)
                         self.assertNotContains(response, 'applyDesktopDisplayScale')
-                        if expected_phone_viewport:
-                            self.assertContains(response, "content = 'width=1201'")
+                        if expected_phone_display:
+                            self.assertContains(response, "document.documentElement.classList.add('desktop-phone-display')")
+                            self.assertContains(response, 'zoom: 1.1')
                         else:
-                            self.assertNotContains(response, "content = 'width=1201'")
+                            self.assertNotContains(response, "desktop-phone-display")
 
     def test_revoking_delegation_immediately_blocks_access(self):
         permission = DisplayModePermission.objects.create(
