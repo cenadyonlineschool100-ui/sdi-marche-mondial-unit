@@ -13,7 +13,11 @@
 {% block nav-global %}{% endblock %}
 
 {% block responsive %}
+    {% if desktop_display_mode_enabled %}
+    <meta name="viewport" content="width=1280">
+    {% else %}
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    {% endif %}
     <link rel="stylesheet" href="{% static "admin/css/responsive.css" %}">
     {% if LANGUAGE_BIDI %}<link rel="stylesheet" href="{% static "admin/css/responsive_rtl.css" %}">{% endif %}
 {% endblock %}
