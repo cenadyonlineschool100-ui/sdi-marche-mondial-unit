@@ -134,6 +134,11 @@ class GlobalDisplayModeTests(TestCase):
                 self.assertContains(response, '<body class="desktop-display-mode">')
                 self.assertContains(
                     response,
+                    "if (window.screen.width <= 767 && window.matchMedia('(pointer: coarse)').matches)",
+                )
+                self.assertContains(response, "content = 'width=1201'")
+                self.assertContains(
+                    response,
                     'const isMobileDevice = !isDesktopDisplayMode && (isMobileUserAgent || isTouchSmallScreen || isSmallViewport);',
                 )
 
@@ -149,6 +154,7 @@ class GlobalDisplayModeTests(TestCase):
         response = self.client.get(reverse('home'))
         self.assertContains(response, 'width=device-width, initial-scale=1.0')
         self.assertContains(response, '<body>')
+        self.assertNotContains(response, "content = 'width=1201'")
 
     def test_django_admin_uses_global_viewport_in_both_modes(self):
         settings_obj = SystemSettings.objects.get_or_create(pk=1)[0]
@@ -157,9 +163,9 @@ class GlobalDisplayModeTests(TestCase):
             reverse('admin:marketplace_user_changelist'),
         )
 
-        for desktop_mode, expected_viewport in (
-            (True, 'width=1280'),
-            (False, 'width=device-width, initial-scale=1.0'),
+        for desktop_mode, expected_viewport, expected_phone_viewport in (
+            (True, 'width=1280', True),
+            (False, 'width=device-width, initial-scale=1.0', False),
         ):
             with self.subTest(desktop_mode=desktop_mode):
                 settings_obj.desktop_display_mode_enabled = desktop_mode
@@ -170,6 +176,10 @@ class GlobalDisplayModeTests(TestCase):
                 self.assertEqual(login_response.status_code, 200)
                 self.assertContains(login_response, expected_viewport)
                 self.assertNotContains(login_response, 'applyDesktopDisplayScale')
+                if expected_phone_viewport:
+                    self.assertContains(login_response, "content = 'width=1201'")
+                else:
+                    self.assertNotContains(login_response, "content = 'width=1201'")
 
                 self.login_as(self.owner)
                 for route in admin_routes:
@@ -178,6 +188,10 @@ class GlobalDisplayModeTests(TestCase):
                         self.assertEqual(response.status_code, 200)
                         self.assertContains(response, expected_viewport)
                         self.assertNotContains(response, 'applyDesktopDisplayScale')
+                        if expected_phone_viewport:
+                            self.assertContains(response, "content = 'width=1201'")
+                        else:
+                            self.assertNotContains(response, "content = 'width=1201'")
 
     def test_revoking_delegation_immediately_blocks_access(self):
         permission = DisplayModePermission.objects.create(

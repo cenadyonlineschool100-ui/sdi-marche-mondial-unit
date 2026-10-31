@@ -15,6 +15,11 @@
 {% block responsive %}
     {% if desktop_display_mode_enabled %}
     <meta name="viewport" content="width=1280">
+    <script>
+        if (window.screen.width <= 767 && window.matchMedia('(pointer: coarse)').matches) {
+            document.querySelector('meta[name="viewport"]').content = 'width=1201';
+        }
+    </script>
     {% else %}
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     {% endif %}

@@ -7,6 +7,13 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="{% if desktop_display_mode_enabled %}width=1280{% else %}width=device-width, initial-scale=1.0{% endif %}" />
+    {% if desktop_display_mode_enabled %}
+    <script>
+        if (window.screen.width <= 767 && window.matchMedia('(pointer: coarse)').matches) {
+            document.querySelector('meta[name="viewport"]').content = 'width=1201';
+        }
+    </script>
+    {% endif %}
     <title>MicroSDICash - Plateforme Fintech</title>
 
     <!-- Instant click handler: pointerdown capturing for ultra-fast feedback, prefetch and perfIndicator trigger -->
