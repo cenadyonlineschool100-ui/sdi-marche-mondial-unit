@@ -13,26 +13,7 @@
 {% block nav-global %}{% endblock %}
 
 {% block responsive %}
-    {% if desktop_display_mode_enabled %}
-    <meta name="viewport" content="width=1280">
-    {% else %}
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    {% endif %}
     <link rel="stylesheet" href="{% static "admin/css/responsive.css" %}">
     {% if LANGUAGE_BIDI %}<link rel="stylesheet" href="{% static "admin/css/responsive_rtl.css" %}">{% endif %}
-    {% if desktop_display_mode_enabled %}
-    <script>
-        document.addEventListener('DOMContentLoaded', function () {
-            function applyDesktopDisplayScale() {
-                var screenWidth = window.screen.width;
-                if (Number.isFinite(screenWidth) && screenWidth > 0) {
-                    document.body.style.zoom = String(Math.min(1, screenWidth / 1280));
-                }
-            }
-            applyDesktopDisplayScale();
-            window.addEventListener('resize', applyDesktopDisplayScale);
-            window.addEventListener('orientationchange', applyDesktopDisplayScale);
-        });
-    </script>
-    {% endif %}
 {% endblock %}

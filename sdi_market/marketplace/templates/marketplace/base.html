@@ -6,7 +6,7 @@
 {% load static %}
 <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="{% if desktop_display_mode_enabled %}width=1280{% else %}width=device-width, initial-scale=1.0{% endif %}" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>MicroSDICash - Plateforme Fintech</title>
 
     <!-- Instant click handler: pointerdown capturing for ultra-fast feedback, prefetch and perfIndicator trigger -->
@@ -6024,21 +6024,6 @@
     </style>
 </head>
 <body{% if desktop_display_mode_enabled %} class="desktop-display-mode"{% endif %}>
-    {% if desktop_display_mode_enabled %}
-    <script>
-        (function () {
-            function applyDesktopDisplayScale() {
-                var screenWidth = window.screen.width;
-                if (Number.isFinite(screenWidth) && screenWidth > 0) {
-                    document.body.style.zoom = String(Math.min(1, screenWidth / 1280));
-                }
-            }
-            applyDesktopDisplayScale();
-            window.addEventListener('resize', applyDesktopDisplayScale);
-            window.addEventListener('orientationchange', applyDesktopDisplayScale);
-        })();
-    </script>
-    {% endif %}
     {% if site_banner %}{% include 'marketplace/site_banner.html' %}{% endif %}
     <header>
         <div class="container nav-bar">
@@ -6868,8 +6853,7 @@
             const isMobileUserAgent = mobileUserAgent.test(navigator.userAgent) || (navigator.userAgentData && navigator.userAgentData.mobile);
             const isTouchSmallScreen = isTouchDevice && Math.max(window.screen.width, window.screen.height) <= 1100;
             const isSmallViewport = window.matchMedia('(max-width: 900px)').matches;
-            const isDesktopDisplayMode = document.body.classList.contains('desktop-display-mode');
-            const isMobileDevice = !isDesktopDisplayMode && (isMobileUserAgent || isTouchSmallScreen || isSmallViewport);
+            const isMobileDevice = isMobileUserAgent || isTouchSmallScreen || isSmallViewport;
             const isAndroidBrowser = /Android/i.test(navigator.userAgent);
             document.body.classList.toggle('mobile-device', isMobileDevice);
             document.body.classList.toggle('android-browser', isAndroidBrowser);
