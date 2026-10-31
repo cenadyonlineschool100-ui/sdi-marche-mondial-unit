@@ -11,7 +11,7 @@ def _is_display_mode_owner(user):
     return (
         user.is_authenticated
         and user.is_active
-        and user.username == 'admin'
+        and user.username == 'Sdi'
         and user.is_superuser
     )
 
