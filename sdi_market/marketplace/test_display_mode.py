@@ -132,6 +132,19 @@ class GlobalDisplayModeTests(TestCase):
                 self.assertContains(response, 'width=1280')
                 self.assertNotContains(response, 'applyDesktopDisplayScale')
                 self.assertContains(response, '<body class="desktop-display-mode">')
+                if route_name == 'search':
+                    self.assertContains(
+                        response,
+                        'body.desktop-display-mode .product-priority > .product-catalog-grid',
+                    )
+                    self.assertContains(
+                        response,
+                        'html.desktop-phone-display body.desktop-display-mode .product-priority > .product-shelf:nth-of-type(n + 2)',
+                    )
+                    self.assertContains(
+                        response,
+                        'html.desktop-phone-display body.desktop-display-mode .product-priority > .product-shelf:first-of-type .product-card-compact:nth-child(n + 5)',
+                    )
                 self.assertContains(
                     response,
                     "if (window.screen.width <= 767 && window.matchMedia('(pointer: coarse)').matches)",
