@@ -130,6 +130,8 @@ class GlobalDisplayModeTests(TestCase):
                 response = self.client.get(reverse(route_name))
                 self.assertEqual(response.status_code, 200)
                 self.assertContains(response, 'width=1280')
+                self.assertContains(response, 'const desktopFitWidth = Math.min(window.innerWidth, screenWidth);')
+                self.assertContains(response, 'String(desktopFitWidth / 1280)')
                 self.assertNotContains(response, 'applyDesktopDisplayScale')
                 self.assertContains(response, '<body class="desktop-display-mode">')
                 if route_name == 'search':
@@ -147,10 +149,10 @@ class GlobalDisplayModeTests(TestCase):
                     )
                 self.assertContains(
                     response,
-                    "if (window.screen.width <= 767 && window.matchMedia('(pointer: coarse)').matches)",
+                    "const isSmallScreen = screenShortSide <= 767;",
                 )
                 self.assertContains(response, "document.documentElement.classList.add('desktop-phone-display')")
-                self.assertContains(response, 'zoom: 1.1')
+                self.assertContains(response, 'zoom: var(--desktop-phone-scale, 1)')
                 self.assertContains(
                     response,
                     'const isMobileDevice = !isDesktopDisplayMode && (isMobileUserAgent || isTouchSmallScreen || isSmallViewport);',

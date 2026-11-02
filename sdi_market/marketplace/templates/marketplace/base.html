@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="fr">
 {% load marketplace_filters %}
 {% load announcement_tags %}
@@ -9,15 +9,226 @@
     <meta name="viewport" content="{% if desktop_display_mode_enabled %}width=1280{% else %}width=device-width, initial-scale=1.0{% endif %}" />
     {% if desktop_display_mode_enabled %}
     <script>
-        if (window.screen.width <= 767 && window.matchMedia('(pointer: coarse)').matches) {
-            document.documentElement.classList.add('desktop-phone-display');
+        const desktopPhoneOrientation = window.matchMedia('(orientation: landscape)');
+        const desktopPhoneHeaderSelector = 'body > .site-top-banner, body > header';
+
+        function adjustDesktopPhoneHeaderFlow() {
+            if (!document.documentElement.classList.contains('desktop-phone-display')) return;
+            document.querySelectorAll(desktopPhoneHeaderSelector).forEach((element) => {
+                const extraHeight = Math.ceil(Math.max(
+                    0,
+                    element.getBoundingClientRect().height - element.offsetHeight
+                )) + 1;
+                element.style.setProperty('--desktop-phone-flow-compensation', `${extraHeight}px`);
+            });
         }
+
+        function fitDesktopToPhone() {
+            const screenWidth = desktopPhoneOrientation.matches
+                ? Math.max(window.screen.width, window.screen.height)
+                : Math.min(window.screen.width, window.screen.height);
+            const desktopFitWidth = Math.min(window.innerWidth, screenWidth);
+            const screenShortSide = Math.min(window.screen.width, window.screen.height);
+            const isTouchScreen = window.matchMedia('(pointer: coarse)').matches;
+            const isSmallScreen = screenShortSide <= 767;
+            const isTabletTouchScreen = isTouchScreen && screenShortSide > 767 && screenShortSide <= 1024;
+            if ((!isSmallScreen && !isTabletTouchScreen) || desktopFitWidth >= 1280) {
+                document.documentElement.classList.remove('desktop-phone-display');
+                document.documentElement.classList.remove('desktop-tablet-display');
+                document.documentElement.style.removeProperty('--desktop-phone-scale');
+                document.documentElement.style.removeProperty('--desktop-tablet-scale');
+                document.querySelectorAll(desktopPhoneHeaderSelector).forEach((element) => {
+                    element.style.removeProperty('--desktop-phone-flow-compensation');
+                });
+                return;
+            }
+            if (isTabletTouchScreen) {
+                document.documentElement.classList.remove('desktop-phone-display');
+                document.documentElement.classList.add('desktop-tablet-display');
+                document.documentElement.style.removeProperty('--desktop-phone-scale');
+                document.documentElement.style.setProperty(
+                    '--desktop-tablet-scale',
+                    String(desktopFitWidth / 1280)
+                );
+                document.querySelectorAll(desktopPhoneHeaderSelector).forEach((element) => {
+                    element.style.removeProperty('--desktop-phone-flow-compensation');
+                });
+                return;
+            }
+            document.documentElement.classList.remove('desktop-tablet-display');
+            document.documentElement.style.removeProperty('--desktop-tablet-scale');
+            document.documentElement.style.setProperty(
+                '--desktop-phone-scale',
+                String(desktopFitWidth / 1280)
+            );
+            document.documentElement.classList.add('desktop-phone-display');
+            adjustDesktopPhoneHeaderFlow();
+        }
+        fitDesktopToPhone();
+        window.addEventListener('resize', fitDesktopToPhone);
+        window.addEventListener('orientationchange', fitDesktopToPhone);
+        document.addEventListener('DOMContentLoaded', adjustDesktopPhoneHeaderFlow, { once: true });
+        window.addEventListener('load', adjustDesktopPhoneHeaderFlow);
     </script>
     <style>
+        html.desktop-phone-display,
         html.desktop-phone-display body.desktop-display-mode {
-            width: 90.9091%;
-            max-width: 90.9091vw;
-            zoom: 1.1;
+            height: auto !important;
+            overflow: visible !important;
+        }
+
+        html.desktop-phone-display body.desktop-display-mode {
+            display: flex;
+            flex-direction: column;
+            box-sizing: border-box;
+            width: 1280px;
+            min-width: 1280px;
+            min-height: calc(100vh / var(--desktop-phone-scale, 1));
+            zoom: var(--desktop-phone-scale, 1);
+        }
+
+        html.desktop-phone-display body.desktop-display-mode .responsive-scroll-shell {
+            display: flex;
+            flex: 1 0 auto;
+            flex-direction: column;
+            height: auto !important;
+            min-height: 0;
+            overflow: visible !important;
+            padding-top: 0;
+            padding-bottom: 0;
+        }
+
+        html.desktop-phone-display body.desktop-display-mode .professional-footer {
+            margin-top: auto;
+        }
+
+        html.desktop-tablet-display,
+        html.desktop-tablet-display body.desktop-display-mode {
+            height: auto !important;
+            overflow: visible !important;
+        }
+
+        html.desktop-phone-display,
+        html.desktop-tablet-display {
+            overflow-x: clip !important;
+        }
+
+        html.desktop-tablet-display body.desktop-display-mode {
+            display: flex;
+            flex-direction: column;
+            box-sizing: border-box;
+            width: 1280px;
+            min-width: 1280px;
+            min-height: calc(100vh / var(--desktop-tablet-scale, 1));
+            zoom: var(--desktop-tablet-scale, 1);
+        }
+
+        html.desktop-tablet-display body.desktop-display-mode .responsive-scroll-shell {
+            display: flex;
+            flex: 1 0 auto;
+            flex-direction: column;
+            height: auto !important;
+            min-height: 0;
+            overflow: visible !important;
+            padding-top: 0;
+            padding-bottom: 0;
+        }
+
+        html.desktop-tablet-display body.desktop-display-mode .professional-footer {
+            margin-top: auto;
+        }
+
+        html.desktop-phone-display body.desktop-display-mode > .site-top-banner,
+        html.desktop-phone-display body.desktop-display-mode > header {
+            position: relative !important;
+            top: auto !important;
+            right: auto !important;
+            left: auto !important;
+        }
+
+        html.desktop-phone-display body.desktop-display-mode header .nav-bar {
+            width: min(100% - 28px, 1600px) !important;
+            grid-template-columns: minmax(0, 1fr) minmax(260px, 1.15fr) auto !important;
+            grid-template-areas: "brand search notifications" !important;
+        }
+
+        html.desktop-phone-display body.desktop-display-mode header .brand {
+            min-width: 0;
+            gap: 8px;
+        }
+
+        html.desktop-phone-display body.desktop-display-mode header .brand-logo {
+            flex: 0 0 64px;
+            width: 64px;
+            height: 64px;
+        }
+
+        html.desktop-phone-display body.desktop-display-mode header .brand-copy {
+            flex: 1;
+            min-width: 0;
+        }
+
+        html.desktop-phone-display body.desktop-display-mode header .brand-copy strong.sdi-sol-text {
+            font-size: 0.9rem !important;
+            line-height: 1.12 !important;
+        }
+
+        html.desktop-phone-display body.desktop-display-mode header .main-nav {
+            display: none !important;
+        }
+
+        html.desktop-phone-display body.desktop-display-mode header .mobile-nav-toggle {
+            position: static;
+            display: inline-flex !important;
+            flex: 0 0 auto;
+            width: auto;
+            height: 36px;
+            padding: 0 8px;
+        }
+
+        html.desktop-phone-display body.desktop-display-mode header .mobile-nav-toggle strong {
+            font-size: 0.76rem;
+        }
+
+        html.desktop-phone-display body.desktop-display-mode header .header-search {
+            gap: 6px;
+            padding: 4px;
+        }
+
+        html.desktop-phone-display body.desktop-display-mode header .header-search input {
+            min-height: 32px;
+            padding: 6px 10px;
+            font-size: 0.82rem;
+        }
+
+        html.desktop-phone-display body.desktop-display-mode header .header-search button {
+            min-width: 96px;
+            min-height: 32px;
+            padding: 6px 10px;
+            font-size: 0.78rem;
+        }
+
+        html.desktop-phone-display body.desktop-display-mode .mobile-bottom-tabs {
+            display: none !important;
+        }
+
+        html.desktop-phone-display body.desktop-display-mode .sdi-support-card {
+            position: static;
+            width: auto;
+        }
+
+        html.desktop-phone-display body.desktop-display-mode > .site-top-banner,
+        html.desktop-phone-display body.desktop-display-mode > header {
+            box-sizing: border-box;
+            width: 85.4701%;
+            transform: scale(1.17);
+            transform-origin: top left;
+            margin-bottom: var(--desktop-phone-flow-compensation, 0px);
+        }
+
+        html.desktop-phone-display body.desktop-display-mode > .site-top-banner,
+        html.desktop-phone-display body.desktop-display-mode > .site-top-banner .site-top-banner-inner {
+            min-height: 340px;
         }
     </style>
     {% endif %}
