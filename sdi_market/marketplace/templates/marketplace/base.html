@@ -102,6 +102,10 @@
             margin-top: auto;
         }
 
+        body.desktop-display-mode .compact-footer {
+            display: none !important;
+        }
+
         html.desktop-tablet-display,
         html.desktop-tablet-display body.desktop-display-mode {
             height: auto !important;
@@ -891,7 +895,6 @@
         }
 
         header .brand-copy strong,
-        header .brand-copy span,
         header .main-nav a,
         header .mobile-nav-toggle,
         header .currency-selector label,
@@ -1074,7 +1077,7 @@
         }
         .brand-copy { display: flex; flex-direction: column; gap: 4px; }
         .brand-copy strong { font-size: 1.05rem; letter-spacing: .01em; color: var(--primary-blue); }
-        .brand-copy span { font-size: 0.88rem; color: rgba(147, 197, 253, 0.95); }
+        .brand-copy span { font-size: 0.88rem; color: #0b2f6b !important; }
 
         /* Amélioration de la lisibilité du texte */
         html, body, button, input, textarea, select {
@@ -1491,7 +1494,7 @@
             box-shadow: none;
         }
         .header-search input::placeholder {
-            color: rgba(255,255,255,0.75);
+            color: #0b2f6b !important;
         }
         .header-search button {
             min-width: 120px;

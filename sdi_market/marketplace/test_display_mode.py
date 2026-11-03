@@ -134,6 +134,10 @@ class GlobalDisplayModeTests(TestCase):
                 self.assertContains(response, 'String(desktopFitWidth / 1280)')
                 self.assertNotContains(response, 'applyDesktopDisplayScale')
                 self.assertContains(response, '<body class="desktop-display-mode">')
+                self.assertRegex(
+                    response.content.decode(),
+                    r'body\.desktop-display-mode \.compact-footer\s*\{\s*display:\s*none\s*!important;\s*\}',
+                )
                 if route_name == 'search':
                     self.assertContains(
                         response,
