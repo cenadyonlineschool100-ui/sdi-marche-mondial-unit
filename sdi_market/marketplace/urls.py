@@ -83,6 +83,10 @@ from .views_display_mode import (
     display_mode_control, grant_display_mode_access, revoke_display_mode_access,
     set_display_mode,
 )
+from .paypal_views import (
+    paypal_cancel_order, paypal_capture_order, paypal_create_order, paypal_webhook,
+)
+from .paypal_admin import paypal_payment_admin
 
 router = DefaultRouter()
 router.register('products', ProductViewSet)
@@ -101,6 +105,7 @@ router.register('return-api', ReturnRequestAPIViewSet, basename='return-api')
 router.register('stats-api', StatisticsAPIViewSet, basename='stats-api')
 
 urlpatterns = [
+    path('admin/payments/paypal/', paypal_payment_admin, name='paypal_payment_admin'),
     # APIs génération d'images
     path('api/generate-image/', generate_product_image_api, name='generate_product_image'),
     path('api/image-suggestions/', get_image_suggestions_api, name='image_suggestions'),
@@ -130,6 +135,10 @@ urlpatterns = [
     path('cart/update/<int:item_id>/', update_cart_item, name='update_cart_item'),
     path('cart/clear/', clear_cart, name='clear_cart'),
     path('checkout/', checkout, name='checkout'),
+    path('api/paypal/orders/<int:order_id>/create/', paypal_create_order, name='paypal_create_order'),
+    path('api/paypal/orders/<int:order_id>/capture/', paypal_capture_order, name='paypal_capture_order'),
+    path('api/paypal/orders/<int:order_id>/cancel/', paypal_cancel_order, name='paypal_cancel_order'),
+    path('api/paypal/webhook/', paypal_webhook, name='paypal_webhook'),
     path('profile/', profile, name='profile'),
     path('techniciens/', technician_profiles, name='technician_profiles'),
     path('technicien/creer/', technician_profile_create, name='technician_profile_create'),

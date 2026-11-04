@@ -62,6 +62,11 @@ from .recommendations import (
     refresh_recommendation_engine
 )
 from .utils import calcul_cashback
+from .paypal_stock import (
+    InsufficientStock,
+    create_paypal_stock_reservation,
+    decrement_available_stock,
+)
 from .image_utils import generate_banner_variants
 from .business_logic import (
     DeliveryAssignmentManager, DeliveryStatusManager,
@@ -2355,14 +2360,22 @@ def checkout(request):
             'label': 'Europe / EUR',
             'methods': [
                 ('eur_card', 'EUR - Carte Visa/Mastercard'),
-                ('eur_paypal', 'EUR - PayPal'),
+                *(
+                    [('eur_paypal', 'PayPal Checkout sécurisé (montant en USD)')]
+                    if settings.PAYPAL_CHECKOUT_ENABLED
+                    else []
+                ),
             ]
         },
         {
             'label': 'International',
             'methods': [
                 ('int_card', 'International - Carte Visa/Mastercard'),
-                ('int_paypal', 'International - PayPal'),
+                *(
+                    [('int_paypal', 'PayPal Checkout sécurisé (montant en USD)')]
+                    if settings.PAYPAL_CHECKOUT_ENABLED
+                    else []
+                ),
             ]
         }
     ]
@@ -2387,50 +2400,77 @@ def checkout(request):
         payment_status = 'approved' if use_wallet else 'pending'
         order_status = 'awaiting_delivery' if payment_method in ['htg_wallet', 'htg_cod'] else 'pending'
 
-        # Créer la commande
-        order = Order.objects.create(
-            buyer=request.user,
-            total_amount=total_with_delivery,
-            delivery_address=delivery_address,
-            status=order_status,
-            payment_method=payment_method,
-            payment_status=payment_status,
-            distance_km=estimated_distance,
-            date_achat=timezone.now(),
-            product_name=f'Panier ({cart.get_total_items()} article(s))'
-        )
+        try:
+            with transaction.atomic():
+                locked_cart = Cart.objects.select_for_update().get(pk=cart.pk)
+                cart_items = list(
+                    CartItem.objects.select_for_update()
+                    .filter(cart=locked_cart)
+                    .order_by('product_id')
+                )
+                product_ids = [item.product_id for item in cart_items]
+                locked_products = {
+                    product.pk: product
+                    for product in Product.objects.select_for_update()
+                    .filter(pk__in=product_ids)
+                    .order_by('pk')
+                }
+                if any(
+                    item.product_id not in locked_products
+                    or locked_products[item.product_id].quantity < item.quantity
+                    for item in cart_items
+                ):
+                    messages.error(request, 'Le stock a changé. Vérifiez votre panier avant de recommencer.')
+                    return redirect('cart')
 
-        # Créer les items de commande et mettre à jour le stock
-        for cart_item in cart.items.all():
-            OrderItem.objects.create(
-                order=order,
-                product=cart_item.product,
-                quantity=cart_item.quantity,
-                price_ht=cart_item.product.price_ht
-            )
+                for cart_item in cart_items:
+                    decrement_available_stock(cart_item.product_id, cart_item.quantity)
 
-            # Réduire le stock
-            cart_item.product.quantity -= cart_item.quantity
-            cart_item.product.save()
+                order = Order.objects.create(
+                    buyer=request.user,
+                    total_amount=total_with_delivery,
+                    delivery_address=delivery_address,
+                    status=order_status,
+                    payment_method=payment_method,
+                    payment_status=payment_status,
+                    distance_km=estimated_distance,
+                    date_achat=timezone.now(),
+                    product_name=f'Panier ({sum(item.quantity for item in cart_items)} article(s))'
+                )
 
-        if use_wallet:
-            wallet.balance -= total_with_delivery
-            wallet.save()
-            tx_status = 'approved'
-        else:
-            tx_status = 'pending'
+                reservation_items = []
+                for cart_item in cart_items:
+                    product = locked_products[cart_item.product_id]
+                    OrderItem.objects.create(
+                        order=order,
+                        product=product,
+                        quantity=cart_item.quantity,
+                        price_ht=product.price_ht
+                    )
+                    product.quantity -= cart_item.quantity
+                    reservation_items.append((product, cart_item.quantity))
 
-        # Créer la transaction
-        Transaction.objects.create(
-            sender=request.user,
-            receiver=None,  # Paiement au système
-            amount=total_with_delivery,
-            type=f'payment_{payment_method}',
-            status=tx_status
-        )
+                if payment_method in {'eur_paypal', 'int_paypal'}:
+                    create_paypal_stock_reservation(order, reservation_items)
 
-        # Vider le panier
-        cart.items.all().delete()
+                if use_wallet:
+                    wallet.balance -= total_with_delivery
+                    wallet.save(update_fields=['balance'])
+                    tx_status = 'approved'
+                else:
+                    tx_status = 'pending'
+
+                Transaction.objects.create(
+                    sender=request.user,
+                    receiver=None,
+                    amount=total_with_delivery,
+                    type=f'payment_{payment_method}',
+                    status=tx_status
+                )
+                locked_cart.items.all().delete()
+        except InsufficientStock:
+            messages.error(request, 'Le stock a changé. Vérifiez votre panier avant de recommencer.')
+            return redirect('cart')
 
         # Assigner automatiquement un livreur (business logic)
         try:
@@ -2484,6 +2524,7 @@ def checkout(request):
         'total_with_delivery': total_with_delivery,
         'estimated_distance': estimated_distance,
         'payment_method_groups': payment_method_groups,
+        'paypal_enabled': settings.PAYPAL_CHECKOUT_ENABLED,
     })
 
 
@@ -5725,14 +5766,17 @@ def order_product(request, product_id):
         form = OrderForm(request.POST)
         quantity = int(request.POST.get('quantity', 1))
 
-        if form.is_valid() and quantity > 0 and quantity <= product.quantity:
-            # Vérifier le solde
-            price_per_item = product.price_ht
-            total_amount = price_per_item * quantity
+        if form.is_valid() and quantity > 0:
+            payment_method = form.cleaned_data.get('payment_method', 'htg_wallet')
+            is_paypal_payment = payment_method in {'eur_paypal', 'int_paypal'}
 
             buyer_wallet, _ = Wallet.objects.get_or_create(user=request.user)
 
-            if buyer_wallet.balance < total_amount:
+            if is_paypal_payment and not settings.PAYPAL_CHECKOUT_ENABLED:
+                messages.error(request, 'PayPal Sandbox n’est pas encore configuré.')
+                return redirect('order_product', product_id=product.id)
+
+            if not is_paypal_payment and buyer_wallet.balance < total_amount:
                 messages.error(request, f'Solde insuffisant. Vous avez {buyer_wallet.balance}$, montant requis: {total_amount}$.')
                 return redirect('shop_detail', shop_id=product.shop.id)
 
@@ -5741,74 +5785,88 @@ def order_product(request, product_id):
                 messages.error(request, 'Auto-achat interdit.')
                 return redirect('shop_detail', shop_id=product.shop.id)
 
-            from django.db import transaction
-            with transaction.atomic():
-                # Calcul des montants
-                system_commission = Decimal('0.5') * quantity
-                cashback_acheteur = CommissionManager.get_config('cashback_par_produit_acheteur') * Decimal(str(quantity))
-                cashback_vendeur = CommissionManager.get_config('cashback_par_produit_vendeur') * Decimal(str(quantity))
+            try:
+                with transaction.atomic():
+                    product = Product.objects.select_for_update().get(pk=product_id)
+                    if product.quantity < quantity:
+                        raise InsufficientStock
+                    price_per_item = product.price_ht
+                    total_amount = price_per_item * quantity
 
-                # Débit acheteur
-                buyer_wallet.balance -= total_amount
-                buyer_wallet.commission_balance_usd += cashback_acheteur
-                buyer_wallet.save()
+                    system_commission = Decimal('0.5') * quantity
+                    cashback_acheteur = CommissionManager.get_config('cashback_par_produit_acheteur') * Decimal(str(quantity))
+                    cashback_vendeur = CommissionManager.get_config('cashback_par_produit_vendeur') * Decimal(str(quantity))
 
-                # Créditer le vendeur sur son compte commission cashback
-                seller_wallet, _ = Wallet.objects.get_or_create(user=product.shop.owner)
-                if cashback_vendeur > 0:
-                    seller_wallet.commission_balance_usd += cashback_vendeur
-                    seller_wallet.save()
+                    if not is_paypal_payment:
+                        buyer_wallet.balance -= total_amount
+                        buyer_wallet.commission_balance_usd += cashback_acheteur
+                        buyer_wallet.save()
 
-                # Mettre à jour stock
-                product.quantity -= quantity
-                if product.quantity <= 0:
-                    product.quantity = 0
-                product.save()
+                        seller_wallet, _ = Wallet.objects.get_or_create(user=product.shop.owner)
+                        if cashback_vendeur > 0:
+                            seller_wallet.commission_balance_usd += cashback_vendeur
+                            seller_wallet.save()
 
-                # Créer commande avec les informations GPS
-                estimated_at = timezone.now() + timedelta(days=3)
-                order = Order.objects.create(
-                    buyer=request.user,
-                    total_amount=total_amount,
-                    delivery_address=form.cleaned_data['delivery_address'],
-                    buyer_lat=form.cleaned_data.get('buyer_lat'),
-                    buyer_lng=form.cleaned_data.get('buyer_lng'),
-                    buyer_address_details=form.cleaned_data.get('buyer_address_details'),
-                    status='awaiting_delivery',
-                    delivery_estimated_at=estimated_at,
-                    product_name=product.name,
-                )
-                OrderItem.objects.create(order=order, product=product, quantity=quantity, price_ht=price_per_item)
-                create_persistent_notification(
-                    recipient=request.user,
-                    title=f'✅ Commande #{order.id} enregistrée',
-                    message=f'Votre commande de {product.name} a été enregistrée. Montant : {total_amount} USD.',
-                    notification_type='order_created',
-                    deduplication_key=f'order-created:{order.pk}:buyer:{request.user.pk}',
-                    target_url=reverse('order_confirm', args=[order.pk]),
-                )
-                notify_order_sellers(order)
+                    decrement_available_stock(product.pk, quantity)
+                    product.quantity -= quantity
 
-                # Transactions de séquestre et frais
-                Transaction.objects.create(sender=request.user, receiver=None, amount=total_amount, type='escrow_hold', status='pending')
-                admin_wallet = get_system_admin_wallet()
-                if admin_wallet:
-                    admin_amount, distribution_amount = MarketplaceSettings.get_solo().get_commission_split(system_commission)
-                    admin_wallet.credit_commission(admin_amount, currency='USD')
-                    if distribution_amount > 0:
-                        admin_wallet.credit_distribution(distribution_amount, currency='USD')
-                    Transaction.objects.create(sender=None, receiver=admin_wallet.user, amount=admin_amount, type='commission', status='approved')
-                else:
-                    Transaction.objects.create(sender=None, receiver=product.shop.owner, amount=system_commission, type='commission', status='approved')
-                if cashback_acheteur > 0:
-                    Transaction.objects.create(sender=None, receiver=request.user, amount=cashback_acheteur, type='cashback', status='approved')
-                if cashback_vendeur > 0:
-                    Transaction.objects.create(sender=None, receiver=product.shop.owner, amount=cashback_vendeur, type='cashback', status='approved')
+                    estimated_at = timezone.now() + timedelta(days=3)
+                    order = Order.objects.create(
+                        buyer=request.user,
+                        total_amount=total_amount,
+                        delivery_address=form.cleaned_data['delivery_address'],
+                        buyer_lat=form.cleaned_data.get('buyer_lat'),
+                        buyer_lng=form.cleaned_data.get('buyer_lng'),
+                        buyer_address_details=form.cleaned_data.get('buyer_address_details'),
+                        status='pending' if is_paypal_payment else 'awaiting_delivery',
+                        payment_method=payment_method,
+                        payment_status='pending' if is_paypal_payment else 'approved',
+                        delivery_estimated_at=estimated_at,
+                        product_name=product.name,
+                    )
+                    OrderItem.objects.create(order=order, product=product, quantity=quantity, price_ht=price_per_item)
+                    if is_paypal_payment:
+                        create_paypal_stock_reservation(order, [(product, quantity)])
+                    create_persistent_notification(
+                        recipient=request.user,
+                        title=f'✅ Commande #{order.id} enregistrée',
+                        message=f'Votre commande de {product.name} a été enregistrée. Montant : {total_amount} USD.',
+                        notification_type='order_created',
+                        deduplication_key=f'order-created:{order.pk}:buyer:{request.user.pk}',
+                        target_url=reverse('order_confirm', args=[order.pk]),
+                    )
+                    notify_order_sellers(order)
 
-                # Assigner automatiquement la livraison
-                from .business_logic import DeliveryAssignmentManager
-                assignment_manager = DeliveryAssignmentManager()
-                assignment_manager.assign_delivery_roundrobin(order)
+                    if is_paypal_payment:
+                        Transaction.objects.create(
+                            sender=request.user,
+                            receiver=None,
+                            amount=total_amount,
+                            type=f'payment_{payment_method}',
+                            status='pending',
+                        )
+                    else:
+                        Transaction.objects.create(sender=request.user, receiver=None, amount=total_amount, type='escrow_hold', status='pending')
+                        admin_wallet = get_system_admin_wallet()
+                        if admin_wallet:
+                            admin_amount, distribution_amount = MarketplaceSettings.get_solo().get_commission_split(system_commission)
+                            admin_wallet.credit_commission(admin_amount, currency='USD')
+                            if distribution_amount > 0:
+                                admin_wallet.credit_distribution(distribution_amount, currency='USD')
+                            Transaction.objects.create(sender=None, receiver=admin_wallet.user, amount=admin_amount, type='commission', status='approved')
+                        else:
+                            Transaction.objects.create(sender=None, receiver=product.shop.owner, amount=system_commission, type='commission', status='approved')
+                        if cashback_acheteur > 0:
+                            Transaction.objects.create(sender=None, receiver=request.user, amount=cashback_acheteur, type='cashback', status='approved')
+                        if cashback_vendeur > 0:
+                            Transaction.objects.create(sender=None, receiver=product.shop.owner, amount=cashback_vendeur, type='cashback', status='approved')
+
+                    from .business_logic import DeliveryAssignmentManager
+                    assignment_manager = DeliveryAssignmentManager()
+                    assignment_manager.assign_delivery_roundrobin(order)
+            except InsufficientStock:
+                messages.error(request, f'Stock insuffisant pour "{product.name}". Actualisez la page et réessayez.')
+                return redirect('product_detail', product_id=product_id)
 
             messages.success(request, 'Commande passée avec succès ! Le livreur pourra voir votre position GPS.')
             return redirect('order_confirm', order_id=order.id)
@@ -5828,11 +5886,16 @@ def order_product(request, product_id):
 def order_confirm(request, order_id):
     order = get_object_or_404(Order, id=order_id, buyer=request.user)
     commission_breakdown = CommissionManager.calcul_commande_from_order(order)
+    paypal_payment = getattr(order, 'paypal_payment', None)
     return render(request, 'marketplace/order_confirm.html', {
         'order': order,
         'commission_breakdown': commission_breakdown,
         'server_time': timezone.now(),
-        'google_maps_api_key': getattr(settings, 'GOOGLE_MAPS_API_KEY', 'VOTRE_CLE_GOOGLE_MAPS_API_ICI')
+        'google_maps_api_key': getattr(settings, 'GOOGLE_MAPS_API_KEY', 'VOTRE_CLE_GOOGLE_MAPS_API_ICI'),
+        'paypal_enabled': settings.PAYPAL_CHECKOUT_ENABLED,
+        'paypal_client_id': settings.PAYPAL_CLIENT_ID,
+        'paypal_order': order.payment_method in {'eur_paypal', 'int_paypal'},
+        'paypal_payment_status': paypal_payment.status if paypal_payment else '',
     })
 
 
@@ -6957,19 +7020,26 @@ class AgentViewSet(viewsets.ModelViewSet):
         return Response({'message': 'Recharge successful'}, status=status.HTTP_200_OK)
 
 
-class OrderViewSet(viewsets.ModelViewSet):
+class OrderViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Order.objects.all()
     serializer_class = OrderSerializer
     permission_classes = [permissions.IsAuthenticated]
 
+    def get_queryset(self):
+        queryset = Order.objects.select_related('buyer')
+        if is_financial_admin_user(self.request.user):
+            return queryset
+        return queryset.filter(buyer=self.request.user)
+
     @action(detail=True, methods=['post'])
     def pay(self, request, pk=None):
         order = self.get_object()
-        if order.status != 'pending':
-            return Response({'error': 'Order already paid'}, status=status.HTTP_400_BAD_REQUEST)
-        order.status = 'paid'
-        order.save()
-        return Response({'status': 'paid'})
+        if order.payment_status == 'approved':
+            return Response({'status': 'paid'})
+        return Response(
+            {'error': 'Le paiement doit être confirmé par le prestataire. Utilisez le checkout.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
 
 
 class WalletViewSet(viewsets.ReadOnlyModelViewSet):

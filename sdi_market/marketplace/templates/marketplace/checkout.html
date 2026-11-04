@@ -65,6 +65,9 @@
             <div class="card" style="background: #f9f6ef; border: 2px dashed #f0ad4e; padding: 14px; margin-top: 16px;">
                 <h3>Choisissez votre moyen de paiement</h3>
                 <p style="margin-bottom: 12px;">Sélectionnez la méthode la plus adaptée : HTG local, DOP local ou international.</p>
+                {% if not paypal_enabled %}
+                    <p role="status">PayPal Checkout sera disponible lorsque les identifiants Sandbox et le webhook seront configurés.</p>
+                {% endif %}
                 {% for group in payment_method_groups %}
                     <div style="margin-bottom: 16px;">
                         <h4 style="margin-bottom: 8px;">{{ group.label }}</h4>

@@ -5,6 +5,7 @@ import re
 from PIL import Image
 
 from django import forms
+from django.conf import settings
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
@@ -1078,6 +1079,15 @@ class OrderForm(forms.ModelForm):
     class Meta:
         model = Order
         fields = ['delivery_address', 'buyer_address_details', 'buyer_lat', 'buyer_lng', 'payment_method']
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if not settings.PAYPAL_CHECKOUT_ENABLED:
+            self.fields['payment_method'].choices = [
+                (value, label)
+                for value, label in self.fields['payment_method'].choices
+                if value not in {'eur_paypal', 'int_paypal'}
+            ]
 
     def clean(self):
         cleaned_data = super().clean()

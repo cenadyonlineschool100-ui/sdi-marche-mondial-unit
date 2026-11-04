@@ -2026,9 +2026,9 @@ class Order(models.Model):
         ("dop_tpag", "DOP - tPago"),
         ("dop_local_transfer", "DOP - Virement local DOP"),
         ("eur_card", "EUR - Carte Visa/Mastercard"),
-        ("eur_paypal", "EUR - PayPal"),
+        ("eur_paypal", "Europe - PayPal Checkout (USD)"),
         ("int_card", "International - Carte Visa/Mastercard"),
-        ("int_paypal", "International - PayPal"),
+        ("int_paypal", "International - PayPal Checkout (USD)"),
     )
     payment_method = models.CharField(max_length=50, choices=payment_method_choices, default="htg_wallet")
     payment_status = models.CharField(
@@ -2080,6 +2080,106 @@ class Transaction(models.Model):
     @property
     def type_display(self):
         return self.type.replace('_', ' ').title()
+
+
+class PayPalPayment(models.Model):
+    STATUS_CHOICES = (
+        ('created', 'Créé'),
+        ('completed', 'Confirmé'),
+        ('failed', 'Échoué'),
+        ('cancelled', 'Annulé'),
+        ('expired', 'Expiré'),
+    )
+
+    order = models.OneToOneField(Order, on_delete=models.PROTECT, related_name='paypal_payment')
+    transaction = models.OneToOneField(
+        Transaction, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='paypal_payment',
+    )
+    paypal_order_id = models.CharField(max_length=64, unique=True, null=True, blank=True)
+    capture_id = models.CharField(max_length=64, unique=True, null=True, blank=True)
+    request_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
+    amount = models.DecimalField(max_digits=15, decimal_places=2)
+    currency = models.CharField(max_length=3, default='USD')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='created')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    captured_at = models.DateTimeField(null=True, blank=True)
+
+    def __str__(self):
+        return f"PayPal payment for order #{self.order_id} ({self.status})"
+
+
+class PayPalWebhookEvent(models.Model):
+    event_id = models.CharField(max_length=128, unique=True)
+    event_type = models.CharField(max_length=100)
+    processed_at = models.DateTimeField(null=True, blank=True)
+    received_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.event_type}: {self.event_id}"
+
+
+class PayPalStockReservation(models.Model):
+    STATUS_CHOICES = (
+        ('reserved', 'Réservé'),
+        ('capturing', 'Capture en cours'),
+        ('released', 'Libéré'),
+        ('consumed', 'Consommé'),
+    )
+
+    order = models.OneToOneField(
+        Order, on_delete=models.PROTECT, related_name='paypal_stock_reservation',
+    )
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='reserved')
+    expires_at = models.DateTimeField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    released_at = models.DateTimeField(null=True, blank=True)
+
+    def __str__(self):
+        return f"Stock reservation for order #{self.order_id} ({self.status})"
+
+
+class PayPalStockReservationItem(models.Model):
+    reservation = models.ForeignKey(
+        PayPalStockReservation, on_delete=models.CASCADE, related_name='items',
+    )
+    product = models.ForeignKey(
+        Product, on_delete=models.PROTECT, null=True, blank=True,
+    )
+    product_id_snapshot = models.PositiveIntegerField()
+    product_name = models.CharField(max_length=100)
+    quantity = models.PositiveIntegerField()
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['reservation', 'product_id_snapshot'],
+                name='uniq_paypal_reservation_product',
+            ),
+        ]
+
+
+class PayPalStockEvent(models.Model):
+    EVENT_CHOICES = (
+        ('reserved', 'Réservé'),
+        ('re_reserved', 'Réservé à nouveau'),
+        ('released', 'Libéré'),
+        ('expired', 'Expiré'),
+        ('consumed', 'Consommé'),
+    )
+
+    order = models.ForeignKey(Order, on_delete=models.PROTECT, related_name='paypal_stock_events')
+    product = models.ForeignKey(Product, on_delete=models.SET_NULL, null=True, blank=True)
+    product_name = models.CharField(max_length=100)
+    quantity = models.PositiveIntegerField()
+    event_type = models.CharField(max_length=20, choices=EVENT_CHOICES)
+    reason = models.CharField(max_length=100, blank=True)
+    occurred_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['occurred_at', 'pk']
 
 
 class FinancialOperation(models.Model):

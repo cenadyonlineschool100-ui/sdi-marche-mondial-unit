@@ -30,6 +30,24 @@ CSRF_COOKIE_SECURE = not DEBUG
 # Google Maps API Key - À configurer pour le système de livraison
 GOOGLE_MAPS_API_KEY = os.getenv('GOOGLE_MAPS_API_KEY', 'VOTRE_CLE_GOOGLE_MAPS_API_ICI')
 
+PAYPAL_MODE = os.getenv('PAYPAL_MODE', 'sandbox').strip().lower()
+PAYPAL_CLIENT_ID = os.getenv('PAYPAL_CLIENT_ID', '').strip()
+PAYPAL_CLIENT_SECRET = os.getenv('PAYPAL_CLIENT_SECRET', '').strip()
+PAYPAL_WEBHOOK_ID = os.getenv('PAYPAL_WEBHOOK_ID', '').strip()
+PAYPAL_LIVE_ENABLED = os.getenv('PAYPAL_LIVE_ENABLED', 'False').lower() in ['true', '1', 'yes']
+PAYPAL_CHECKOUT_ENABLED = bool(
+    PAYPAL_CLIENT_ID
+    and PAYPAL_CLIENT_SECRET
+    and PAYPAL_WEBHOOK_ID
+    and (
+        PAYPAL_MODE == 'sandbox'
+        or (PAYPAL_MODE == 'live' and PAYPAL_LIVE_ENABLED)
+    )
+)
+PAYPAL_STOCK_RESERVATION_TTL_HOURS = int(
+    os.getenv('PAYPAL_STOCK_RESERVATION_TTL_HOURS', '24')
+)
+
 INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',
@@ -293,5 +311,4 @@ if DEBUG and not is_running_tests:
     DEBUG_TOOLBAR_CONFIG = {
         'SHOW_TOOLBAR_CALLBACK': lambda request: True,
     }
-
 

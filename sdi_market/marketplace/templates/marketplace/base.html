@@ -6368,11 +6368,16 @@
                         {% endif %}
                     </div>
                 </div>
-                {% if can_manage_display_mode %}
+                {% if can_manage_display_mode or request.user.is_superuser or request.user.is_staff and perms.marketplace.view_paypalpayment %}
                 <div class="nav-group nav-group-administration">
                     <span class="nav-group-title">Administration</span>
                     <div class="header-special-buttons">
-                        <a href="{% url 'display_mode_control' %}" class="nav-item" data-icon="🖥️">Mode d’affichage</a>
+                        {% if can_manage_display_mode %}
+                            <a href="{% url 'display_mode_control' %}" class="nav-item" data-icon="🖥️">Mode d’affichage</a>
+                        {% endif %}
+                        {% if request.user.is_staff and perms.marketplace.view_paypalpayment %}
+                            <a href="{% url 'paypal_payment_admin' %}" class="nav-item" data-icon="⭐">⭐ Gestion Carte Visa</a>
+                        {% endif %}
                     </div>
                 </div>
                 {% endif %}
@@ -6490,6 +6495,9 @@
                         <summary class="mobile-nav-group-title">Administration</summary>
                         <div class="mobile-nav-grid mobile-nav-grid-full">
                             <a href="{% url 'admin:index' %}" class="mobile-nav-card" data-icon="⚙️">Admin</a>
+                            {% if perms.marketplace.view_paypalpayment %}
+                                <a href="{% url 'paypal_payment_admin' %}" class="mobile-nav-card" data-icon="⭐">⭐ Gestion Carte Visa</a>
+                            {% endif %}
                             <a href="{% url 'dashboard' %}" class="mobile-nav-card" data-icon="📊">Tableau de bord</a>
                             <a href="{% url 'manage_projet' %}" class="mobile-nav-card" data-icon="🗂️">Manage Projet</a>
                             <a href="{% url 'admin_tikane_requests' %}" class="mobile-nav-card" data-icon="💰">Admin Ti Kanè</a>
