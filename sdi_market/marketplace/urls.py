@@ -31,7 +31,7 @@ from .views import (
     transfer_receipts, view_transfer_receipt,
     sdi_sol_page, sdi_sol_join, sdi_sol_payments, sdi_sol_make_payment, sdi_sol_payment_receipt, sdi_sol_admin, sdi_sol_admin_remove_member, sdi_sol_admin_approve_member, sdi_sol_admin_reject_member,
     sdi_sol_admin_save_plan, sdi_sol_admin_approve_payment, sdi_sol_admin_reject_payment,
-    tikane_access, formations_en_ligne, live_room_webrtc, live_room_jitsi, admin_tikane_requests, admin_tikane_plans,
+    tikane_access, formations_en_ligne, live_room_webrtc, live_room_jitsi, admin_tikane_requests, admin_tikane_document, admin_tikane_plans,
     demo_page, microordinateur, manage_projet,
 )
 from .views_deposit import (
@@ -160,6 +160,7 @@ urlpatterns = [
     path('request-delivery-access/', request_delivery_access, name='request_delivery_access'),
     path('tikane/', tikane_access, name='tikane_access'),
     path('admin/tikane/requests/', admin_tikane_requests, name='admin_tikane_requests'),
+    path('admin/tikane/requests/<int:request_id>/documents/<str:field_name>/', admin_tikane_document, name='admin_tikane_document'),
     path('admin/tikane/plans/', admin_tikane_plans, name='admin_tikane_plans'),
     path('admin/optimize-performance/', optimize_performance, name='optimize_performance'),
     path('admin/optimize-performance', optimize_performance),

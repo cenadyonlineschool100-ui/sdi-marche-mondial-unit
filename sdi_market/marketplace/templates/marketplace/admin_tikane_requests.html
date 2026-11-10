@@ -10,6 +10,8 @@
                 <tr style="background:#eff6ff; color:#0f172a; text-align:left;">
                     <th style="padding:12px; border-bottom:1px solid rgba(148,163,184,0.3);">Utilisateur</th>
                     <th style="padding:12px; border-bottom:1px solid rgba(148,163,184,0.3);">Plan</th>
+                    <th style="padding:12px; border-bottom:1px solid rgba(148,163,184,0.3);">Devise</th>
+                    <th style="padding:12px; border-bottom:1px solid rgba(148,163,184,0.3);">Pièces justificatives</th>
                     <th style="padding:12px; border-bottom:1px solid rgba(148,163,184,0.3);">Statut</th>
                     <th style="padding:12px; border-bottom:1px solid rgba(148,163,184,0.3);">Demandé le</th>
                     <th style="padding:12px; border-bottom:1px solid rgba(148,163,184,0.3);">Actions</th>
@@ -25,6 +27,13 @@
                         {% else %}
                             Aucun plan sélectionné
                         {% endif %}
+                    </td>
+                    <td style="padding:14px;">{{ request.currency }}</td>
+                    <td style="padding:14px;">
+                        {% if request.identity_document %}<a href="{% url 'admin_tikane_document' request.id 'identity_document' %}" target="_blank" rel="noopener">Carte d’identité</a><br>{% endif %}
+                        {% if request.passport_document %}<a href="{% url 'admin_tikane_document' request.id 'passport_document' %}" target="_blank" rel="noopener">Passeport</a><br>{% endif %}
+                        {% if request.driver_license_document %}<a href="{% url 'admin_tikane_document' request.id 'driver_license_document' %}" target="_blank" rel="noopener">Permis de conduire</a><br>{% endif %}
+                        {% if request.selfie %}<a href="{% url 'admin_tikane_document' request.id 'selfie' %}" target="_blank" rel="noopener">Selfie</a>{% endif %}
                     </td>
                     <td style="padding:14px;"><strong>{{ request.get_status_display }}</strong></td>
                     <td style="padding:14px;">{{ request.requested_at|date:'d/m/Y H:i' }}</td>
@@ -50,7 +59,7 @@
                 </tr>
                 {% empty %}
                 <tr>
-                    <td colspan="5" style="padding:18px; text-align:center; color:#475569;">Aucune demande Ti Kanè n’est en attente pour le moment.</td>
+                    <td colspan="7" style="padding:18px; text-align:center; color:#475569;">Aucune demande Ti Kanè n’est en attente pour le moment.</td>
                 </tr>
                 {% endfor %}
             </tbody>

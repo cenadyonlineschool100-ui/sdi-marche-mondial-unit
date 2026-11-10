@@ -92,6 +92,12 @@
         max-width: 100%;
         min-width: 0;
     }
+    .tikane-form .errorlist {
+        margin: 6px 0 0;
+        padding-left: 20px;
+        color: #b91c1c;
+        font-size: .9rem;
+    }
     .tikane-form > div {
         width: 100%;
         max-width: 100%;
@@ -389,18 +395,26 @@
                             {{ form.non_field_errors }}
                             <label for="{{ form.full_name.id_for_label }}">Nom complet</label>
                             {{ form.full_name }}
+                            {{ form.full_name.errors }}
                             <label for="{{ form.email.id_for_label }}">Email</label>
                             {{ form.email }}
+                            {{ form.email.errors }}
                             <label for="{{ form.phone.id_for_label }}">Téléphone</label>
                             {{ form.phone }}
+                            {{ form.phone.errors }}
+                            <label for="{{ form.currency.id_for_label }}">Devise du compte Ti Kanè</label>
+                            {{ form.currency }}
+                            {{ form.currency.errors }}
                             <label for="{{ form.plan.id_for_label }}">Plan d’épargne</label>
                             {{ form.plan }}
+                            {{ form.plan.errors }}
                             <div class="tikane-document-field"><label for="{{ form.identity_document.id_for_label }}">Carte d’identité</label>
                                 <div class="tikane-upload">
                                     <span class="tikane-upload-icon" aria-hidden="true">📄</span>
                                     <span class="tikane-upload-title">Ajouter votre carte d’identité</span>
                                     <span class="tikane-upload-help">Formats acceptés selon les règles de l’application.</span>
                                     {{ form.identity_document }}
+                                    {{ form.identity_document.errors }}
                                     <div class="tikane-file-actions">
                                         <label class="tikane-file-button" for="{{ form.identity_document.id_for_label }}">Choisir un fichier</label>
                                         <button type="button" class="tikane-file-remove" data-file-remove="{{ form.identity_document.id_for_label }}" hidden>Supprimer</button>
@@ -413,6 +427,7 @@
                                     <span class="tikane-upload-title">Ajouter votre passeport</span>
                                     <span class="tikane-upload-help">Formats acceptés selon les règles de l’application.</span>
                                     {{ form.passport_document }}
+                                    {{ form.passport_document.errors }}
                                     <div class="tikane-file-actions">
                                         <label class="tikane-file-button" for="{{ form.passport_document.id_for_label }}">Choisir un fichier</label>
                                         <button type="button" class="tikane-file-remove" data-file-remove="{{ form.passport_document.id_for_label }}" hidden>Supprimer</button>
@@ -425,6 +440,7 @@
                                     <span class="tikane-upload-title">Ajouter votre permis de conduire</span>
                                     <span class="tikane-upload-help">Formats acceptés selon les règles de l’application.</span>
                                     {{ form.driver_license_document }}
+                                    {{ form.driver_license_document.errors }}
                                     <div class="tikane-file-actions">
                                         <label class="tikane-file-button" for="{{ form.driver_license_document.id_for_label }}">Choisir un fichier</label>
                                         <button type="button" class="tikane-file-remove" data-file-remove="{{ form.driver_license_document.id_for_label }}" hidden>Supprimer</button>
@@ -437,6 +453,7 @@
                                     <span class="tikane-upload-title">Selfie en direct</span>
                                     <span class="tikane-upload-help">Ajoutez votre selfie pour vérifier votre identité.</span>
                                     {{ form.selfie }}
+                                    {{ form.selfie.errors }}
                                     <div class="tikane-file-actions">
                                         <label class="tikane-file-button" for="{{ form.selfie.id_for_label }}">Ajouter un selfie</label>
                                         <button type="button" class="tikane-file-remove" data-file-remove="{{ form.selfie.id_for_label }}" hidden>Supprimer</button>
@@ -448,6 +465,7 @@
                                 <p>Le système Ti Kanè SDI Marché Mondial Universal n’est pas responsable des pertes financières liées aux Ti Kanè privés gérés par des agents ou des tiers. Chaque propriétaire de Ti Kanè est entièrement responsable de la gestion de ses clients et de ses opérations.</p>
                                 <label for="{{ form.acceptance_clause.id_for_label }}">
                                     {{ form.acceptance_clause }}
+                                    {{ form.acceptance_clause.errors }}
                                     <span>J’accepte la clause de responsabilité</span>
                                 </label>
                             </div></div>
@@ -489,7 +507,7 @@
 {% block extra_scripts %}
 <script>
     document.addEventListener('DOMContentLoaded', function () {
-        const planSelect = document.querySelector('.tikane-form select');
+        const planSelect = document.getElementById('{{ form.plan.id_for_label }}');
         if (planSelect && planSelect.options.length && planSelect.options[0].textContent.trim() === '---------') {
             planSelect.options[0].textContent = 'Sélectionnez un plan d’épargne';
         }
