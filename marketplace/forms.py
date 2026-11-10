@@ -527,6 +527,12 @@ class ProfileForm(forms.ModelForm):
         return profile
 
 class TiKaneAccessRequestForm(forms.ModelForm):
+    currency = forms.ChoiceField(
+        choices=TiKaneAccessRequest.CURRENCY_CHOICES,
+        required=True,
+        label='Devise du compte Ti Kanè',
+        widget=forms.Select(attrs={'class': 'form-control'}),
+    )
     identity_document = forms.ImageField(
         required=True,
         widget=forms.FileInput(attrs={'class': 'form-control', 'accept': 'image/*', 'capture': 'environment'}),
@@ -551,7 +557,7 @@ class TiKaneAccessRequestForm(forms.ModelForm):
     class Meta:
         model = TiKaneAccessRequest
         fields = [
-            'full_name', 'email', 'phone', 'plan', 'identity_document',
+            'full_name', 'email', 'phone', 'currency', 'plan', 'identity_document',
             'passport_document', 'driver_license_document', 'selfie', 'acceptance_clause',
         ]
         widgets = {

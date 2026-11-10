@@ -1,5 +1,7 @@
 import base64
 import json
+import tempfile
+from io import BytesIO
 from concurrent.futures import ThreadPoolExecutor
 from decimal import Decimal
 from threading import Barrier
@@ -7,6 +9,8 @@ from types import SimpleNamespace
 from unittest.mock import call, patch
 
 from django.contrib import admin
+from django.core.files.uploadedfile import SimpleUploadedFile
+from PIL import Image
 from django.contrib.auth.models import Permission
 from django.db import close_old_connections
 from django.db.models import Sum
@@ -22,6 +26,7 @@ from .models import (
     Transfer, SDISolSettings, SDISolMember, SDISolPayment, RealEstateMembershipRequest, SystemSettings, PriorityGroup, SiteBanner, SiteBannerAccess, SiteBannerPayment, SiteBannerEvent, SiteBannerPermission,
     PersistentNotification, PushSubscription, ReturnRequest, WithdrawalRequest, WithdrawalTransaction,
 )
+from .models import TiKaneAccount, TiKaneAccessRequest, TiKanePlan
 from .business_logic import PaymentManager, create_persistent_notification
 from .views_commission import get_commission_eligible_users
 
@@ -2066,3 +2071,176 @@ class TestSDISolFlow(TestCase):
         resp = self.client.get(receipt_url)
         self.assertEqual(resp.status_code, 200)
         self.assertIn(receipt, resp.content.decode('utf-8'))
+
+
+class TiKaneAccessRegistrationTest(TestCase):
+    def setUp(self):
+        self.media_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(self.media_dir.cleanup)
+        media_settings = override_settings(MEDIA_ROOT=self.media_dir.name)
+        media_settings.enable()
+        self.addCleanup(media_settings.disable)
+
+        self.admin = User.objects.create_superuser(
+            username='tikane-review-admin',
+            email='tikane-admin@example.com',
+            password='testpass123',
+        )
+        self.customer = User.objects.create_user(
+            username='tikane-registration-customer',
+            email='customer@example.com',
+            password='customerpass123',
+        )
+        self.plan = TiKanePlan.objects.create(
+            name='Registration test plan',
+            duration_days=30,
+        )
+        self.customer_client = Client()
+        self.customer_client.force_login(self.customer)
+        self.admin_client = Client()
+        self.admin_client.force_login(self.admin)
+
+    def make_image(self, name):
+        stream = BytesIO()
+        Image.new('RGB', (2, 2), 'white').save(stream, format='PNG')
+        return SimpleUploadedFile(name, stream.getvalue(), content_type='image/png')
+
+    def submit_registration(self, include_currency=True, omitted_fields=()):
+        data = {
+            'full_name': 'Test TiKane Customer',
+            'email': 'customer@example.com',
+            'phone': '5090000000',
+            'plan': str(self.plan.pk),
+            'acceptance_clause': 'on',
+            'identity_document': self.make_image('identity.png'),
+            'passport_document': self.make_image('passport.png'),
+            'driver_license_document': self.make_image('license.png'),
+            'selfie': self.make_image('selfie.png'),
+        }
+        for field_name in omitted_fields:
+            data.pop(field_name)
+        if include_currency:
+            data['currency'] = 'HTG'
+        return self.customer_client.post(reverse('tikane_access'), data)
+
+    def test_registration_form_displays_required_currency(self):
+        response = self.customer_client.get(reverse('tikane_access'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'name="currency"')
+        self.assertContains(response, 'Devise du compte Ti Kanè')
+
+    def test_missing_currency_is_explained_and_does_not_create_request(self):
+        response = self.submit_registration(include_currency=False)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('currency', response.context['form'].errors)
+        self.assertContains(response, 'Ce champ est obligatoire.')
+        self.assertFalse(TiKaneAccessRequest.objects.filter(user=self.customer).exists())
+
+    def test_missing_documents_and_responsibility_clause_show_validation_errors(self):
+        omitted_fields = (
+            'identity_document',
+            'passport_document',
+            'driver_license_document',
+            'selfie',
+            'acceptance_clause',
+        )
+        response = self.submit_registration(omitted_fields=omitted_fields)
+
+        self.assertEqual(response.status_code, 200)
+        errors = response.context['form'].errors
+        for field_name in omitted_fields[:-1]:
+            self.assertIn(field_name, errors)
+        self.assertIn('__all__', errors)
+        self.assertContains(response, 'Vous devez accepter la clause de responsabilité')
+        self.assertFalse(TiKaneAccessRequest.objects.filter(user=self.customer).exists())
+
+    def test_valid_registration_is_saved_and_notifies_principal_admin(self):
+        response = self.submit_registration()
+
+        self.assertRedirects(response, reverse('tikane_access'), fetch_redirect_response=False)
+        access_request = TiKaneAccessRequest.objects.get(user=self.customer)
+        self.assertEqual(access_request.status, 'pending')
+        self.assertEqual(access_request.currency, 'HTG')
+        self.assertTrue(access_request.identity_document)
+        self.assertTrue(access_request.passport_document)
+        self.assertTrue(access_request.driver_license_document)
+        self.assertTrue(access_request.selfie)
+
+        notification = PersistentNotification.objects.get(
+            recipient=self.admin,
+            notification_type='tikane_access_review',
+        )
+        self.assertEqual(notification.target_url, reverse('admin_tikane_requests'))
+        self.assertFalse(PushSubscription.objects.filter(user=self.admin).exists())
+
+    def test_admin_can_review_uploaded_documents_but_customer_cannot_open_them(self):
+        self.submit_registration()
+        access_request = TiKaneAccessRequest.objects.get(user=self.customer)
+
+        admin_page = self.admin_client.get(reverse('admin_tikane_requests'))
+        self.assertContains(admin_page, 'Carte d’identité')
+        self.assertContains(admin_page, 'customer@example.com')
+        self.assertNotContains(admin_page, 'Planifier approbation +30 min')
+
+        document_url = reverse(
+            'admin_tikane_document',
+            args=[access_request.pk, 'identity_document'],
+        )
+        document_response = self.admin_client.get(document_url)
+        self.assertEqual(document_response.status_code, 200)
+        self.assertEqual(document_response['Content-Type'], 'image/png')
+        self.assertEqual(b''.join(document_response.streaming_content)[:8], b'\x89PNG\r\n\x1a\n')
+
+        customer_response = self.customer_client.get(document_url)
+        self.assertEqual(customer_response.status_code, 302)
+
+    def test_admin_approval_activates_account_and_customer_can_access_it(self):
+        access_request = TiKaneAccessRequest.objects.create(
+            user=self.customer,
+            full_name='Test TiKane Customer',
+            email='customer@example.com',
+            phone='5090000000',
+            currency='HTG',
+            plan=self.plan,
+            acceptance_clause=True,
+        )
+
+        response = self.admin_client.post(reverse('admin_tikane_requests'), {
+            'action': 'approve_immediate',
+            'request_id': access_request.pk,
+        })
+
+        self.assertEqual(response.status_code, 302)
+        access_request.refresh_from_db()
+        self.assertEqual(access_request.status, 'approved')
+        account = TiKaneAccount.objects.get(user=self.customer)
+        self.assertEqual(account.status, 'active')
+        self.assertEqual(account.currency, 'HTG')
+
+        customer_page = self.customer_client.get(reverse('tikane_access'))
+        self.assertEqual(customer_page.status_code, 200)
+        self.assertContains(customer_page, 'Compte Ti Kanè actif')
+        self.assertNotContains(customer_page, 'Soumettre la demande')
+
+    def test_admin_can_refuse_request_without_creating_account(self):
+        access_request = TiKaneAccessRequest.objects.create(
+            user=self.customer,
+            full_name='Test TiKane Customer',
+            email='customer@example.com',
+            phone='5090000000',
+            currency='HTG',
+            plan=self.plan,
+            acceptance_clause=True,
+        )
+
+        response = self.admin_client.post(reverse('admin_tikane_requests'), {
+            'action': 'refuse',
+            'request_id': access_request.pk,
+        })
+
+        self.assertEqual(response.status_code, 302)
+        access_request.refresh_from_db()
+        self.assertEqual(access_request.status, 'refused')
+        self.assertFalse(TiKaneAccount.objects.filter(user=self.customer).exists())

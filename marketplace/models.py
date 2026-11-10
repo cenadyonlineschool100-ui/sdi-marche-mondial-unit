@@ -17,7 +17,15 @@ from django.contrib.auth.models import AbstractUser
 from django.contrib.auth.hashers import make_password, check_password
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.db.models import JSONField
+from django.core.exceptions import ValidationError
 from django.core.files.storage import default_storage
+
+TIKANE_CURRENCY_CHOICES = (
+    ('USD', 'USD'),
+    ('HTG', 'HTG'),
+    ('DOP', 'DOP'),
+    ('EUR', 'EUR'),
+)
 
 # -------------------------------
 # Utilisateur (acheteur + vendeur + employé livraison)
@@ -286,6 +294,7 @@ class TiKanePlan(models.Model):
         ordering = ['duration_days', 'name']
 
 class TiKaneAccessRequest(models.Model):
+    CURRENCY_CHOICES = TIKANE_CURRENCY_CHOICES
     STATUS_CHOICES = [
         ('pending', 'En attente d\'approbation'),
         ('approved', 'Approuvé'),
@@ -297,6 +306,7 @@ class TiKaneAccessRequest(models.Model):
     full_name = models.CharField(max_length=255)
     email = models.EmailField(max_length=254)
     phone = models.CharField(max_length=20)
+    currency = models.CharField(max_length=3, choices=TIKANE_CURRENCY_CHOICES, null=True)
     identity_document = models.ImageField(upload_to='tikane/identity_documents/', blank=True, null=True)
     passport_document = models.ImageField(upload_to='tikane/passports/', blank=True, null=True)
     driver_license_document = models.ImageField(upload_to='tikane/driver_licenses/', blank=True, null=True)
@@ -312,6 +322,10 @@ class TiKaneAccessRequest(models.Model):
     admin_notes = models.TextField(blank=True)
 
     def save(self, *args, **kwargs):
+        if self.currency not in dict(TIKANE_CURRENCY_CHOICES) and (
+            self._state.adding or self.currency is not None
+        ):
+            raise ValidationError({'currency': 'La devise du compte Ti Kan? est obligatoire.'})
         if self.status == 'approved' and not self.account_number:
             self.account_number = self.account_number or f"TK-{timezone.now().year}-{str(self.pk or int(datetime.datetime.now().timestamp()))[-6:]}"
         if self.status == 'approved' and not self.tikaned_id:
@@ -327,6 +341,7 @@ class TiKaneAccessRequest(models.Model):
         ordering = ['-requested_at']
 
 class TiKaneAccount(models.Model):
+    CURRENCY_CHOICES = TIKANE_CURRENCY_CHOICES
     STATUS_CHOICES = [
         ('active', 'Actif'),
         ('pending', 'En attente'),
@@ -342,6 +357,7 @@ class TiKaneAccount(models.Model):
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='active')
     unique_identifier = models.CharField(max_length=50, unique=True)
     plan = models.ForeignKey('TiKanePlan', on_delete=models.SET_NULL, null=True, blank=True, related_name='accounts')
+    currency = models.CharField(max_length=3, choices=TIKANE_CURRENCY_CHOICES, null=True)
     balance = models.DecimalField(max_digits=20, decimal_places=2, default=0)
     total_deposits = models.DecimalField(max_digits=20, decimal_places=2, default=0)
     total_withdrawals = models.DecimalField(max_digits=20, decimal_places=2, default=0)
@@ -354,6 +370,10 @@ class TiKaneAccount(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     def save(self, *args, **kwargs):
+        if self.currency not in dict(TIKANE_CURRENCY_CHOICES) and (
+            self._state.adding or self.currency is not None
+        ):
+            raise ValidationError({'currency': 'La devise du compte Ti Kan? est obligatoire.'})
         if not self.account_number:
             self.account_number = f"TK-{timezone.now().year}-{str(uuid.uuid4())[:8].upper()}"
         if not self.unique_identifier:

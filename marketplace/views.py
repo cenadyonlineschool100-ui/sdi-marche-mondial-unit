@@ -1,10 +1,11 @@
-﻿import logging
+import logging
+import mimetypes
 import base64
 import re
 import os
 import io
 
-from django.http import HttpResponse, JsonResponse, HttpResponseForbidden
+from django.http import FileResponse, Http404, HttpResponse, JsonResponse, HttpResponseForbidden
 from django.contrib import messages
 from django.contrib.auth import authenticate, get_user_model, login, logout
 from django.contrib.auth.decorators import login_required, user_passes_test
@@ -3553,13 +3554,34 @@ def tikane_access(request):
             form = TiKaneAccessRequestForm(request.POST, request.FILES)
 
         if form.is_valid():
-            tikane_request = form.save(commit=False)
-            tikane_request.user = request.user
-            tikane_request.status = 'pending'
-            tikane_request.requested_at = tikane_request.requested_at or timezone.now()
-            tikane_request.save()
-            messages.success(request, 'Votre demande Ti Kanè Digital a bien été enregistrée. Un administrateur la traitera sous peu.')
-            return redirect('tikane_access')
+            principal_admins = list(
+                User.objects.filter(is_active=True, is_staff=True)
+                .filter(Q(is_superuser=True) | Q(role='super_admin'))
+            )
+            if not principal_admins:
+                form.add_error(None, 'Aucun administrateur principal actif ne peut recevoir cette demande.')
+            else:
+                submitted_at = timezone.now()
+                with transaction.atomic():
+                    tikane_request = form.save(commit=False)
+                    tikane_request.user = request.user
+                    tikane_request.status = 'pending'
+                    tikane_request.requested_at = submitted_at
+                    tikane_request.save()
+                    for administrator in principal_admins:
+                        create_persistent_notification(
+                            recipient=administrator,
+                            title='Nouvelle demande Ti Kanè à examiner',
+                            message=f'{tikane_request.full_name} a soumis une demande Ti Kanè.',
+                            notification_type='tikane_access_review',
+                            deduplication_key=(
+                                f'tikane-access-request:{tikane_request.pk}:'
+                                f'admin:{administrator.pk}:{submitted_at.isoformat()}'
+                            ),
+                            target_url=reverse('admin_tikane_requests'),
+                        )
+                messages.success(request, 'Votre demande Ti Kanè Digital a bien été enregistrée. Un administrateur la traitera sous peu.')
+                return redirect('tikane_access')
     else:
         if tikane_request and tikane_request.status in ['pending', 'refused', 'suspended']:
             form = TiKaneAccessRequestForm(instance=tikane_request)
@@ -3599,35 +3621,39 @@ def admin_tikane_requests(request):
         tikane_request = get_object_or_404(TiKaneAccessRequest, id=request_id)
 
         if action == 'approve_immediate':
-            tikane_request.status = 'approved'
-            tikane_request.reviewed_by = request.user
-            tikane_request.reviewed_at = timezone.now()
-            tikane_request.admin_notes = ''
-            tikane_request.save()
-            plan = tikane_request.plan or TiKanePlan.objects.filter(active=True).order_by('duration_days').first()
-            account, created = TiKaneAccount.objects.get_or_create(
-                user=tikane_request.user,
-                defaults={
-                    'request': tikane_request,
-                    'plan': plan,
-                    'status': 'active',
-                    'is_sdi_managed': True,
-                }
-            )
-            if not created:
-                account.request = tikane_request
-                account.status = 'active'
-                account.plan = plan
-                account.save(update_fields=['request', 'status', 'plan'])
+            if tikane_request.currency not in dict(TiKaneAccount.CURRENCY_CHOICES):
+                messages.error(request, 'Choisissez une devise valide avant de créer le compte Ti Kanè.')
+                return redirect('admin_tikane_requests')
+            existing_account = TiKaneAccount.objects.filter(user=tikane_request.user).first()
+            if existing_account and not existing_account.currency:
+                messages.error(request, 'Ce compte Ti Kanè historique doit être régularisé explicitement avant réactivation.')
+                return redirect('admin_tikane_requests')
+            if existing_account and existing_account.currency != tikane_request.currency:
+                messages.error(request, 'La devise de la demande ne correspond pas à celle du compte Ti Kanè existant.')
+                return redirect('admin_tikane_requests')
+            with transaction.atomic():
+                tikane_request.status = 'approved'
+                tikane_request.reviewed_by = request.user
+                tikane_request.reviewed_at = timezone.now()
+                tikane_request.admin_notes = ''
+                tikane_request.save()
+                plan = tikane_request.plan or TiKanePlan.objects.filter(active=True).order_by('duration_days').first()
+                account, created = TiKaneAccount.objects.get_or_create(
+                    user=tikane_request.user,
+                    defaults={
+                        'request': tikane_request,
+                        'plan': plan,
+                        'currency': tikane_request.currency,
+                        'status': 'active',
+                        'is_sdi_managed': True,
+                    }
+                )
+                if not created:
+                    account.request = tikane_request
+                    account.status = 'active'
+                    account.plan = plan
+                    account.save(update_fields=['request', 'status', 'plan'])
             messages.success(request, f'La demande de {tikane_request.user.username} a été approuvée immédiatement.')
-        elif action == 'approve_delayed':
-            schedule_at = timezone.now() + timedelta(minutes=30)
-            tikane_request.status = 'pending'
-            tikane_request.reviewed_by = request.user
-            tikane_request.reviewed_at = timezone.now()
-            tikane_request.admin_notes = f'Approbation différée programmée pour {schedule_at.strftime("%d/%m/%Y %H:%M")}. '
-            tikane_request.save(update_fields=['status', 'reviewed_by', 'reviewed_at', 'admin_notes'])
-            messages.success(request, f'Approbation différée prévue pour {schedule_at.strftime("%d/%m/%Y %H:%M")}.')
         elif action == 'refuse':
             tikane_request.status = 'refused'
             tikane_request.reviewed_by = request.user
@@ -3645,6 +3671,16 @@ def admin_tikane_requests(request):
                 account.save(update_fields=['status'])
             messages.success(request, f'La demande de {tikane_request.user.username} a été suspendue.')
         elif action == 'reactivate':
+            if tikane_request.currency not in dict(TiKaneAccount.CURRENCY_CHOICES):
+                messages.error(request, 'Choisissez une devise valide avant de réactiver le compte Ti Kanè.')
+                return redirect('admin_tikane_requests')
+            existing_account = TiKaneAccount.objects.filter(user=tikane_request.user).first()
+            if existing_account and not existing_account.currency:
+                messages.error(request, 'Ce compte Ti Kanè historique doit être régularisé explicitement avant réactivation.')
+                return redirect('admin_tikane_requests')
+            if existing_account and existing_account.currency != tikane_request.currency:
+                messages.error(request, 'La devise de la demande ne correspond pas à celle du compte Ti Kanè existant.')
+                return redirect('admin_tikane_requests')
             tikane_request.status = 'approved'
             tikane_request.reviewed_by = request.user
             tikane_request.reviewed_at = timezone.now()
@@ -3655,6 +3691,7 @@ def admin_tikane_requests(request):
                 defaults={
                     'request': tikane_request,
                     'plan': tikane_request.plan,
+                    'currency': tikane_request.currency,
                     'status': 'active',
                     'is_sdi_managed': True,
                 }
@@ -3665,6 +3702,8 @@ def admin_tikane_requests(request):
                 account.plan = tikane_request.plan
                 account.save(update_fields=['request', 'status', 'plan'])
             messages.success(request, f'La demande de {tikane_request.user.username} a été réactivée.')
+        else:
+            messages.error(request, 'Action Ti Kanè inconnue.')
 
         return redirect('admin_tikane_requests')
 
@@ -3672,6 +3711,33 @@ def admin_tikane_requests(request):
     return render(request, 'marketplace/admin_tikane_requests.html', {
         'requests_list': requests_list,
     })
+
+
+@login_required
+def admin_tikane_document(request, request_id, field_name):
+    if not is_tikane_admin(request.user):
+        messages.error(request, 'Accès refusé.')
+        return redirect('profile')
+
+    if field_name not in {
+        'identity_document',
+        'passport_document',
+        'driver_license_document',
+        'selfie',
+    }:
+        raise Http404
+
+    tikane_request = get_object_or_404(TiKaneAccessRequest, pk=request_id)
+    document = getattr(tikane_request, field_name)
+    if not document:
+        raise Http404
+
+    response = FileResponse(
+        document.open('rb'),
+        content_type=mimetypes.guess_type(document.name)[0] or 'application/octet-stream',
+    )
+    response['X-Content-Type-Options'] = 'nosniff'
+    return response
 
 
 @login_required
