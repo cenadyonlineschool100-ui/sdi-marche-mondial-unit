@@ -1,0 +1,55 @@
+{% extends "admin/base.html" %}
+{% load i18n static %}
+
+{% block title %}{% if subtitle %}{{ subtitle }} | {% endif %}{{ title }} | {{ site_title|default:_('Django site admin') }}{% endblock %}
+
+{% block branding %}
+<div id="site-name"><a href="{% url 'admin:index' %}">{{ site_header|default:_('Django administration') }}</a></div>
+{% if user.is_anonymous %}
+  {% include "admin/color_theme_toggle.html" %}
+{% endif %}
+{% endblock %}
+
+{% block nav-global %}{% endblock %}
+
+{% block responsive %}
+    {% if desktop_display_mode_enabled %}
+    <meta name="viewport" content="width=1280">
+    <script>
+        const isDesktopPhone = Math.min(window.screen.width, window.screen.height) <= 767
+            && window.matchMedia('(pointer: coarse)').matches;
+        function fitDesktopToPhone() {
+            if (!isDesktopPhone) return;
+            const screenWidth = window.matchMedia('(orientation: landscape)').matches
+                ? Math.max(window.screen.width, window.screen.height)
+                : Math.min(window.screen.width, window.screen.height);
+            const desktopFitWidth = Math.min(window.innerWidth, screenWidth);
+            document.documentElement.style.setProperty(
+                '--desktop-phone-scale',
+                String(desktopFitWidth / 1280)
+            );
+            document.documentElement.classList.add('desktop-phone-display');
+        }
+        fitDesktopToPhone();
+        window.addEventListener('resize', fitDesktopToPhone);
+        window.addEventListener('orientationchange', fitDesktopToPhone);
+    </script>
+    <style>
+        html.desktop-phone-display,
+        html.desktop-phone-display body {
+            height: auto !important;
+            overflow-x: hidden !important;
+        }
+
+        html.desktop-phone-display body {
+            width: 1280px;
+            min-width: 1280px;
+            zoom: var(--desktop-phone-scale, 1);
+        }
+    </style>
+    {% else %}
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    {% endif %}
+    <link rel="stylesheet" href="{% static "admin/css/responsive.css" %}">
+    {% if LANGUAGE_BIDI %}<link rel="stylesheet" href="{% static "admin/css/responsive_rtl.css" %}">{% endif %}
+{% endblock %}

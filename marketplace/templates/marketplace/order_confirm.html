@@ -18,9 +18,37 @@
                             <p><strong>Méthode de paiement:</strong> {{ order.get_payment_method_display }}</p>
                             <p><strong>Statut paiement:</strong> {{ order.get_payment_status_display }}</p>
                             <p><strong>Adresse de livraison:</strong> {{ order.delivery_address }}</p>
-                            {% if order.payment_status == 'pending' %}
+                            {% if order.payment_status == 'pending' or order.payment_status == 'failed' %}
                                 <div class="alert alert-warning" style="margin-top: 12px;">
-                                    Votre paiement est en attente. Nous vous contacterons bientôt avec les instructions pour finaliser le paiement.
+                                    {% if order.payment_status == 'failed' %}
+                                        {% if paypal_payment_status == 'expired' %}
+                                            La réservation de stock a expiré et a été libérée. Vous pouvez réessayer si le stock est encore disponible.
+                                        {% else %}
+                                            Le paiement PayPal a été refusé. Vous pouvez réessayer avec le bouton sécurisé ci-dessous.
+                                        {% endif %}
+                                    {% elif paypal_order %}
+                                        Votre paiement PayPal n’est pas encore confirmé. Utilisez le bouton sécurisé ci-dessous pour continuer.
+                                    {% else %}
+                                        Votre paiement est en attente. Nous vous contacterons bientôt avec les instructions pour finaliser le paiement.
+                                    {% endif %}
+                                </div>
+                            {% endif %}
+                            {% if paypal_order and order.payment_status != 'approved' %}
+                                <div class="card mt-3">
+                                    <div class="card-body">
+                                        <h5>Paiement sécurisé avec PayPal</h5>
+                                        <p>Montant débité par PayPal : <strong>{{ order.total_amount|floatformat:2 }} USD</strong>.</p>
+                                        {% if paypal_enabled %}
+                                            <div id="paypal-button-container"
+                                                 data-create-url="{% url 'paypal_create_order' order.id %}"
+                                                 data-cancel-url="{% url 'paypal_cancel_order' order.id %}"
+                                                 data-capture-url="{% url 'paypal_capture_order' order.id %}"></div>
+                                            <form id="paypal-csrf-form" hidden>{% csrf_token %}</form>
+                                            <p id="paypal-payment-message" role="status" aria-live="polite"></p>
+                                        {% else %}
+                                            <p role="status">PayPal Sandbox n’est pas encore configuré. Aucun paiement n’a été effectué.</p>
+                                        {% endif %}
+                                    </div>
                                 </div>
                             {% endif %}
                             {% if order.distance_km %}
@@ -283,5 +311,69 @@ window.gm_authFailure = function() {
     tryEnableSubmit();
 };
 </script>
+
+{% if order and paypal_enabled and paypal_order and order.payment_status != 'approved' %}
+<script src="https://www.paypal.com/sdk/js?client-id={{ paypal_client_id|urlencode }}&currency=USD&intent=capture"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const container = document.getElementById('paypal-button-container');
+    const message = document.getElementById('paypal-payment-message');
+    const csrfInput = document.querySelector('#paypal-csrf-form [name="csrfmiddlewaretoken"]');
+    if (!container || !message || !csrfInput || !window.paypal) {
+        if (message) message.textContent = 'Le bouton PayPal ne peut pas être chargé. Aucun paiement n’a été effectué.';
+        return;
+    }
+
+    async function sendPayPalRequest(url, body) {
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfInput.value
+            },
+            credentials: 'same-origin',
+            body: JSON.stringify(body || {})
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || 'Le paiement PayPal a échoué.');
+        return result;
+    }
+
+    window.paypal.Buttons({
+        createOrder: function () {
+            message.textContent = 'Préparation du paiement sécurisé…';
+            return sendPayPalRequest(container.dataset.createUrl, {}).then(function (result) {
+                return result.id;
+            });
+        },
+        onApprove: function (data) {
+            message.textContent = 'Confirmation du paiement…';
+            return sendPayPalRequest(container.dataset.captureUrl, {
+                paypal_order_id: data.orderID
+            }).then(function () {
+                window.location.reload();
+            }).catch(function () {
+                message.textContent = 'La confirmation PayPal n’a pas abouti. Rechargez cette page avant de réessayer.';
+            });
+        },
+        onCancel: function (data) {
+            message.textContent = 'Vérification de l’annulation du paiement…';
+            return sendPayPalRequest(container.dataset.cancelUrl, {
+                paypal_order_id: data.orderID
+            }).then(function () {
+                message.textContent = 'Paiement annulé. Aucun paiement n’a été confirmé. Vous pouvez réessayer.';
+            }).catch(function () {
+                message.textContent = 'Le paiement n’a pas pu être annulé côté serveur. Rechargez la page pour vérifier son statut.';
+            });
+        },
+        onError: function () {
+            message.textContent = 'PayPal est temporairement indisponible. Aucun paiement n’a été confirmé.';
+        }
+    }).render('#paypal-button-container').catch(function () {
+        message.textContent = 'Le bouton PayPal ne peut pas être chargé. Aucun paiement n’a été effectué.';
+    });
+});
+</script>
+{% endif %}
 
 {% endblock %}

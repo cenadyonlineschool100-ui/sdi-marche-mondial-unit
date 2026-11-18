@@ -1,29 +1,262 @@
 import base64
+import importlib
 import json
+import tempfile
+from io import BytesIO
+from datetime import timedelta
 from concurrent.futures import ThreadPoolExecutor
 from decimal import Decimal
 from threading import Barrier
 from types import SimpleNamespace
 from unittest.mock import call, patch
 
+from PIL import Image
+
 from django.contrib import admin
-from django.contrib.auth.models import Permission
+from django.contrib.auth.models import AnonymousUser, Permission
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db import close_old_connections
 from django.db.models import Sum
+from django.http import HttpResponse
 from django.test import Client, RequestFactory, TestCase, TransactionTestCase, override_settings
 from django.urls import reverse
+from django.utils import timezone
+from django.core.exceptions import ValidationError
 
 from .admin import MarketplaceSettingsAdmin
 from .context_processors import _build_banner_rotation_schedule, site_banner_context, system_settings_context
-from .forms import normalize_phone_number
+from .forms import TiKaneAccessRequestForm, normalize_phone_number
 from .models import (
-    User, Profile, Wallet, Agent, DepositCommissionConfig, Deposit, AgentCommission, Transaction, CommissionRule,
+    User, Profile, Wallet, Agent, DepositCommissionConfig, Deposit, DepositLimit, ExchangeRate, Receipt,
+    AgentCommission, Transaction, TransactionLog, CommissionRule, FinancialOperation,
     DepositReceipt, Shop, Product, ProductAccessRequest, ResellerProduct, MarketplaceSettings, Order, OrderItem,
-    Transfer, SDISolSettings, SDISolMember, SDISolPayment, RealEstateMembershipRequest, SystemSettings, PriorityGroup, SiteBanner, SiteBannerAccess, SiteBannerPayment, SiteBannerEvent, SiteBannerPermission,
-    PersistentNotification, PushSubscription, ReturnRequest, WithdrawalRequest, WithdrawalTransaction,
+    Transfer, SDISolSettings, SDISolPlan, SDISolGroup, SDISolMember, SDISolPayment, RealEstateMembershipRequest, SystemSettings, PriorityGroup, SiteBanner, SiteBannerAccess, SiteBannerPayment, SiteBannerEvent, SiteBannerPermission,
+    PersistentNotification, PushSubscription, ReturnRequest, WithdrawalRequest, WithdrawalTransaction, IPBlocklist,
+    WithdrawalCommissionTier, TiKaneAccount, TiKaneAccessRequest, TiKanePlan,
 )
-from .business_logic import PaymentManager, create_persistent_notification
+from .business_logic import PaymentManager, create_persistent_notification, get_usd_display_conversion
+from .middleware import SystemLockdownMiddleware
+from .security_enhanced import RateLimiter
+from .templatetags.image_tags import responsive_image, safe_image_url
 from .views_commission import get_commission_eligible_users
+
+
+class RateLimiterTests(TestCase):
+    class CacheStub:
+        def __init__(self):
+            self.values = {}
+            self.expires = {}
+            self.now = 0
+
+        def _expire(self, key):
+            if self.expires.get(key, 0) <= self.now:
+                self.values.pop(key, None)
+                self.expires.pop(key, None)
+
+        def add(self, key, value, timeout=None):
+            self._expire(key)
+            if key in self.values:
+                return False
+            self.values[key] = value
+            self.expires[key] = self.now + timeout
+            return True
+
+        def incr(self, key):
+            self._expire(key)
+            if key not in self.values:
+                raise ValueError('Key expired')
+            self.values[key] += 1
+            return self.values[key]
+
+        def get(self, key, default=None):
+            self._expire(key)
+            return self.values.get(key, default)
+
+    def test_limit_uses_a_fixed_window_and_only_creates_one_block(self):
+        test_cache = self.CacheStub()
+        with patch('marketplace.security_enhanced.cache', test_cache), patch.object(
+            RateLimiter, 'block_suspicious_ip'
+        ) as block_ip:
+            self.assertTrue(RateLimiter.check_rate_limit('192.0.2.1', '/api/test/', 2, 60))
+            test_cache.now = 30
+            self.assertTrue(RateLimiter.check_rate_limit('192.0.2.1', '/api/test/', 2, 60))
+            counter_key = 'rate_limit:192.0.2.1:/api/test/'
+            self.assertEqual(test_cache.expires[counter_key], 60)
+            self.assertFalse(RateLimiter.check_rate_limit('192.0.2.1', '/api/test/', 2, 60))
+            self.assertFalse(RateLimiter.check_rate_limit('192.0.2.1', '/api/test/', 2, 60))
+            block_ip.assert_called_once_with('192.0.2.1', 'Rate limit exceeded', duration_hours=1)
+
+            test_cache.now = 61
+            self.assertTrue(RateLimiter.check_rate_limit('192.0.2.1', '/api/test/', 2, 60))
+            self.assertEqual(test_cache.expires[counter_key], 121)
+
+    def test_automatic_blocks_expire_and_manual_blocks_remain_permanent(self):
+        future_expiry = int((timezone.now() + timedelta(minutes=1)).timestamp())
+        past_expiry = int((timezone.now() - timedelta(minutes=1)).timestamp())
+        self.assertTrue(RateLimiter.is_ip_blocked(SimpleNamespace(
+            reason=f'{RateLimiter.AUTO_BLOCK_PREFIX}:{future_expiry}:Rate limit exceeded',
+        )))
+        self.assertFalse(RateLimiter.is_ip_blocked(SimpleNamespace(
+            reason=f'{RateLimiter.AUTO_BLOCK_PREFIX}:{past_expiry}:Rate limit exceeded',
+        )))
+        for legacy_reason in RateLimiter.LEGACY_AUTO_BLOCK_REASONS:
+            self.assertFalse(RateLimiter.is_ip_blocked(SimpleNamespace(reason=legacy_reason)))
+        self.assertTrue(RateLimiter.is_ip_blocked(SimpleNamespace(reason='Blocked manually by admin')))
+
+    def test_automatic_block_persists_deadline_without_overwriting_manual_block(self):
+        now = timezone.now()
+        with patch('marketplace.security_enhanced.SecurityAlert.objects.create'), patch(
+            'marketplace.security_enhanced.SecurityLog.objects.create'
+        ):
+            RateLimiter.block_suspicious_ip('198.51.100.10', 'Rate limit exceeded')
+            automatic = IPBlocklist.objects.get(ip_address='198.51.100.10')
+            self.assertTrue(automatic.reason.startswith(f'{RateLimiter.AUTO_BLOCK_PREFIX}:'))
+            self.assertTrue(RateLimiter.is_ip_blocked(automatic))
+            with patch('marketplace.security_enhanced.timezone.now', return_value=now + timedelta(hours=2)):
+                self.assertFalse(RateLimiter.is_ip_blocked(automatic))
+
+            manual = IPBlocklist.objects.create(
+                ip_address='198.51.100.11',
+                reason='Blocked manually by admin',
+            )
+            RateLimiter.block_suspicious_ip('198.51.100.11', 'Rate limit exceeded')
+            manual.refresh_from_db()
+            self.assertEqual(manual.reason, 'Blocked manually by admin')
+            self.assertTrue(RateLimiter.is_ip_blocked(manual))
+
+    def test_ip_middleware_keeps_manual_blocks_and_ignores_expired_automatic_blocks(self):
+        manual_ip = '198.51.100.20'
+        IPBlocklist.objects.create(ip_address=manual_ip, reason='Blocked manually by admin')
+        manual_request = RequestFactory().get('/profile/')
+        manual_request.META['REMOTE_ADDR'] = manual_ip
+        manual_request.user = AnonymousUser()
+        with patch('marketplace.middleware.render', return_value=HttpResponse('blocked')) as render_blocked:
+            response = SystemLockdownMiddleware(lambda request: HttpResponse('allowed'))(manual_request)
+        self.assertEqual(response.content, b'blocked')
+        render_blocked.assert_called_once()
+
+        expired_ip = '198.51.100.21'
+        expired_at = int((timezone.now() - timedelta(minutes=1)).timestamp())
+        IPBlocklist.objects.create(
+            ip_address=expired_ip,
+            reason=f'{RateLimiter.AUTO_BLOCK_PREFIX}:{expired_at}:Rate limit exceeded',
+        )
+        expired_request = RequestFactory().get('/profile/')
+        expired_request.META['REMOTE_ADDR'] = expired_ip
+        expired_request.user = AnonymousUser()
+        response = SystemLockdownMiddleware(lambda request: HttpResponse('allowed'))(expired_request)
+        self.assertEqual(response.content, b'allowed')
+
+
+class MissingImageFallbackTests(TestCase):
+    def test_missing_product_photo_returns_a_neutral_placeholder(self):
+        product = Product(custom_image='products/photo_tenus_.jpeg')
+        self.assertIsNone(product.get_display_image())
+        self.assertEqual(safe_image_url(product.custom_image), '')
+
+        rendered = str(responsive_image(product.custom_image, 'Tenis sport', 'product-image'))
+        self.assertNotIn('/media/products/photo_tenus_.jpeg', rendered)
+        self.assertIn('Image indisponible', rendered)
+
+
+class MonCashReceiptWorkflowTest(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username='receipt-user', password='testpass123')
+        self.wallet, _ = Wallet.objects.get_or_create(user=self.user)
+        self.wallet.balance_htg = Decimal('125.00')
+        self.wallet.save(update_fields=['balance_htg'])
+
+    def make_image_upload(self, name='receipt.png', image_format='PNG', content_type='image/png'):
+        image_bytes = BytesIO()
+        Image.new('RGB', (2, 2), color='white').save(image_bytes, format=image_format)
+        return SimpleUploadedFile(name, image_bytes.getvalue(), content_type=content_type)
+
+    def test_upload_rejects_mislabelled_and_unsupported_files(self):
+        self.client.force_login(self.user)
+
+        for upload in (
+            SimpleUploadedFile('fake.png', b'not an image', content_type='image/png'),
+            self.make_image_upload('receipt.svg', content_type='image/svg+xml'),
+        ):
+            response = self.client.post(
+                reverse('upload_receipt'),
+                {'receipt_proof': upload},
+            )
+            self.assertEqual(response.status_code, 302)
+
+        self.assertFalse(Receipt.objects.exists())
+
+    def test_upload_rejects_files_over_five_megabytes(self):
+        self.client.force_login(self.user)
+        upload = SimpleUploadedFile(
+            'large.png',
+            b'x' * (5 * 1024 * 1024 + 1),
+            content_type='image/png',
+        )
+
+        response = self.client.post(
+            reverse('upload_receipt'),
+            {'receipt_proof': upload},
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(Receipt.objects.exists())
+
+    def test_receipt_upload_and_admin_decision_never_credit_wallet(self):
+        admin = User.objects.create_user(
+            username='receipt-admin',
+            password='testpass123',
+            role='super_admin',
+        )
+        self.client.force_login(self.user)
+
+        with tempfile.TemporaryDirectory() as media_root, override_settings(MEDIA_ROOT=media_root):
+            uploaded_receipts = []
+            for _ in range(2):
+                response = self.client.post(
+                    reverse('upload_receipt'),
+                    {'receipt_proof': self.make_image_upload()},
+                )
+                self.assertEqual(response.status_code, 302)
+                receipt = Receipt.objects.latest('pk')
+                self.assertEqual(receipt.status, 'pending')
+                uploaded_receipts.append(receipt)
+
+            self.wallet.refresh_from_db()
+            self.assertEqual(self.wallet.balance_htg, Decimal('125.00'))
+
+            self.client.force_login(admin)
+            for receipt, action, expected_status in (
+                (uploaded_receipts[0], 'approve', 'approved'),
+                (uploaded_receipts[1], 'reject', 'rejected'),
+            ):
+                response = self.client.post(
+                    reverse('process_receipt', args=[receipt.pk]),
+                    {'action': action},
+                )
+                self.assertEqual(response.status_code, 302)
+                receipt.refresh_from_db()
+                self.assertEqual(receipt.status, expected_status)
+
+            self.wallet.refresh_from_db()
+            self.assertEqual(self.wallet.balance_htg, Decimal('125.00'))
+
+    def test_non_admin_cannot_approve_a_receipt(self):
+        with tempfile.TemporaryDirectory() as media_root, override_settings(MEDIA_ROOT=media_root):
+            receipt = Receipt.objects.create(
+                user=self.user,
+                receipt_image=self.make_image_upload(),
+            )
+            self.client.force_login(self.user)
+
+            response = self.client.post(
+                reverse('process_receipt', args=[receipt.pk]),
+                {'action': 'approve'},
+            )
+
+        self.assertEqual(response.status_code, 302)
+        receipt.refresh_from_db()
+        self.assertEqual(receipt.status, 'pending')
 
 
 class PersistentNotificationsTest(TestCase):
@@ -75,11 +308,11 @@ class PersistentNotificationsTest(TestCase):
         notification.refresh_from_db()
         self.assertFalse(notification.is_read)
 
-    def test_sound_is_claimed_once_without_marking_notification_read(self):
+    def test_admin_credit_sound_repeats_after_interval_until_read(self):
         notification = self.create_notification(
             self.user,
             'test:sound:1',
-            notification_type='private_message',
+            notification_type='admin_money_received',
         )
 
         first_response = self.client.get(reverse('check_notifications_sound_api'))
@@ -94,6 +327,106 @@ class PersistentNotificationsTest(TestCase):
         notification.refresh_from_db()
         self.assertIsNotNone(notification.last_sound_at)
         self.assertFalse(notification.is_read)
+
+        notification.last_sound_at = timezone.now() - timedelta(minutes=2)
+        notification.save(update_fields=['last_sound_at'])
+        repeated_response = self.client.get(reverse('check_notifications_sound_api'))
+        self.assertEqual(
+            [item['id'] for item in repeated_response.json()['notifications_to_sound']],
+            [notification.pk],
+        )
+        notification.refresh_from_db()
+        self.assertFalse(notification.is_read)
+
+    def test_unread_notifications_keep_sounding_until_marked_read(self):
+        notification = self.create_notification(
+            self.user,
+            'test:sound:ordinary:1',
+            notification_type='important',
+        )
+
+        first_response = self.client.get(reverse('check_notifications_sound_api'))
+        self.assertEqual(
+            [item['id'] for item in first_response.json()['notifications_to_sound']],
+            [notification.pk],
+        )
+        notification.refresh_from_db()
+        notification.last_sound_at = timezone.now() - timedelta(minutes=2)
+        notification.save(update_fields=['last_sound_at'])
+
+        repeated_response = self.client.get(reverse('check_notifications_sound_api'))
+        self.assertEqual(
+            [item['id'] for item in repeated_response.json()['notifications_to_sound']],
+            [notification.pk],
+        )
+
+        read_response = self.client.post(
+            reverse('mark_persistent_notification_read_api', args=[notification.pk])
+        )
+        self.assertEqual(read_response.status_code, 200)
+        stopped_response = self.client.get(reverse('check_notifications_sound_api'))
+        self.assertEqual(stopped_response.json()['notifications_to_sound'], [])
+
+    def test_admin_credit_count_is_returned_without_marking_notifications_read(self):
+        credit = self.create_notification(
+            self.user,
+            'test:admin-credit:1',
+            notification_type='admin_money_received',
+        )
+        self.create_notification(self.user, 'test:other:1')
+
+        response = self.client.get(reverse('get_persistent_notifications_api'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['count'], 2)
+        self.assertEqual(response.json()['admin_money_received_count'], 1)
+        credit.refresh_from_db()
+        self.assertFalse(credit.is_read)
+
+        page_response = self.client.get(reverse('persistent_notifications_page'))
+        self.assertRegex(
+            page_response.content.decode(),
+            r'id="notification-toggle" class="[^"]*has-admin-credit-alert',
+        )
+
+        self.client.post(
+            reverse('mark_persistent_notification_read_api', args=[credit.pk])
+        )
+        page_after_read = self.client.get(reverse('persistent_notifications_page'))
+        self.assertNotRegex(
+            page_after_read.content.decode(),
+            r'id="notification-toggle" class="[^"]*has-admin-credit-alert',
+        )
+
+    def test_admin_credit_sounds_again_until_the_specific_notification_is_read(self):
+        credit = self.create_notification(
+            self.user,
+            'test:admin-credit-sound:1',
+            notification_type='admin_money_received',
+        )
+
+        first_response = self.client.get(reverse('check_notifications_sound_api'))
+        self.assertEqual(
+            [item['id'] for item in first_response.json()['notifications_to_sound']],
+            [credit.pk],
+        )
+
+        credit.refresh_from_db()
+        credit.last_sound_at = timezone.now() - timedelta(minutes=2)
+        credit.save(update_fields=['last_sound_at'])
+        repeated_response = self.client.get(reverse('check_notifications_sound_api'))
+        self.assertEqual(
+            [item['id'] for item in repeated_response.json()['notifications_to_sound']],
+            [credit.pk],
+        )
+
+        read_response = self.client.post(
+            reverse('mark_persistent_notification_read_api', args=[credit.pk])
+        )
+        self.assertEqual(read_response.status_code, 200)
+        stopped_response = self.client.get(reverse('check_notifications_sound_api'))
+        self.assertEqual(stopped_response.json()['notifications_to_sound'], [])
+        self.assertEqual(stopped_response.json()['count'], 0)
 
     def test_read_endpoint_schedules_browser_notification_dismissal(self):
         notification = self.create_notification(self.user, 'test:dismiss:1')
@@ -283,6 +616,186 @@ class MicrosDiCashAgentDepositTest(TestCase):
         self.client = Client()
         self.client.login(username='agent1', password='agentpass123')
 
+    def test_deposit_form_shows_only_active_currencies_and_effective_amount_limits(self):
+        DepositCommissionConfig.objects.create(
+            currency='USD',
+            commission_type='fixe',
+            commission_value=Decimal('1.00'),
+            min_deposit=Decimal('5.00'),
+            max_deposit=Decimal('500.00'),
+            is_active=False,
+        )
+        DepositLimit.objects.create(
+            min_amount=Decimal('10.00'),
+            max_amount=Decimal('300.00'),
+        )
+
+        response = self.client.get(reverse('agent_deposit'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.context['currencies'],
+            [{
+                'code': 'HTG',
+                'label': 'HTG',
+                'min_amount': Decimal('10.00'),
+                'max_amount': Decimal('300.00'),
+            }],
+        )
+        self.assertContains(response, '<select id="currency"')
+        self.assertContains(response, 'data-min-amount="10.00"')
+        self.assertContains(response, 'data-max-amount="300.00"')
+        currency_selector = response.content.decode('utf-8').split(
+            '<select id="currency"',
+            1,
+        )[1].split('</select>', 1)[0]
+        self.assertNotIn('<option value="USD"', currency_selector)
+        self.assertNotContains(response, 'Aucune devise de dépôt')
+
+    def test_agent_deposit_wizard_bypasses_native_validation_for_hidden_steps(self):
+        response = self.client.get(reverse('agent_deposit'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'id="agent-deposit-form" novalidate')
+        self.assertContains(
+            response,
+            'id="agent_pin" name="agent_pin" form="agent-deposit-form"',
+        )
+
+    def test_agent_deposit_rejects_invalid_amount_formats_and_limits(self):
+        DepositLimit.objects.create(
+            min_amount=Decimal('1.00'),
+            max_amount=Decimal('1000.00'),
+        )
+        payload = {
+            'account_number': self.client_user.account_code,
+            'currency': 'HTG',
+            'agent_pin': '1234',
+            'final_code': '0000',
+        }
+
+        for amount in ('0', '-1', '1000.01', '1,25'):
+            with self.subTest(amount=amount):
+                response = self.client.post(
+                    reverse('agent_deposit'),
+                    {**payload, 'amount': amount, 'idempotency_key': f'invalid-amount-{amount}'},
+                    follow=True,
+                )
+                self.assertEqual(response.status_code, 200)
+                self.assertFalse(Deposit.objects.exists())
+
+        self.agent_wallet.refresh_from_db()
+        self.client_wallet.refresh_from_db()
+        self.assertEqual(self.agent_wallet.balance_htg, Decimal('50000.00'))
+        self.assertEqual(self.client_wallet.balance_htg, Decimal('500.00'))
+
+    def test_agent_deposit_rejects_incomplete_and_non_agent_submissions(self):
+        incomplete_response = self.client.post(
+            reverse('agent_deposit'),
+            {'amount': '100', 'currency': 'HTG'},
+            follow=True,
+        )
+        self.assertContains(incomplete_response, 'Numéro de compte client requis')
+
+        self.client.force_login(self.client_user)
+        unauthorized_response = self.client.post(
+            reverse('agent_deposit'),
+            {
+                'account_number': self.client_user.account_code,
+                'amount': '100',
+                'currency': 'HTG',
+                'agent_pin': '1234',
+                'final_code': '0000',
+                'idempotency_key': 'non-agent-deposit-001',
+            },
+        )
+        self.assertEqual(unauthorized_response.status_code, 302)
+        self.assertEqual(unauthorized_response.url, reverse('dashboard'))
+        self.assertFalse(Deposit.objects.exists())
+
+    def test_deposit_form_explains_when_no_currency_is_active(self):
+        self.deposit_config.is_active = False
+        self.deposit_config.save(update_fields=['is_active'])
+
+        response = self.client.get(reverse('agent_deposit'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context['currencies'], [])
+        self.assertContains(response, "Aucune devise de dépôt n&#x27;est activée.")
+        self.assertContains(response, 'Aucune devise disponible')
+        self.assertContains(response, 'data-deposit-submit disabled')
+
+    def test_usd_deposit_receipt_uses_the_balance_usd_wallet_field(self):
+        self.client_wallet.balance = Decimal('40.00')
+        self.client_wallet.balance_usd = Decimal('60.00')
+        self.client_wallet.save(update_fields=['balance', 'balance_usd'])
+        deposit = Deposit.objects.create(
+            agent=self.agent_user,
+            client=self.client_user,
+            amount=Decimal('10.00'),
+            currency='USD',
+            status='confirmed',
+        )
+        receipt = DepositReceipt.objects.create(
+            receipt_number='DP-USD-RECEIPT-TEST',
+            client=self.client_user,
+            agent=self.agent_user,
+            deposit=deposit,
+        )
+
+        receipt.generate_content()
+
+        self.assertIn('Ancien Solde : 50.00 USD', receipt.content)
+        self.assertIn('Nouveau Solde : 60.00 USD', receipt.content)
+
+    def test_dop_deposit_receipt_uses_the_balance_peso_wallet_field(self):
+        self.client_wallet.balance_peso = Decimal('60.00')
+        self.client_wallet.save(update_fields=['balance_peso'])
+        deposit = Deposit.objects.create(
+            agent=self.agent_user,
+            client=self.client_user,
+            amount=Decimal('10.00'),
+            currency='DOP',
+            status='confirmed',
+        )
+        receipt = DepositReceipt.objects.create(
+            receipt_number='DP-DOP-RECEIPT-TEST',
+            client=self.client_user,
+            agent=self.agent_user,
+            deposit=deposit,
+        )
+
+        receipt.generate_content()
+
+        self.assertIn('Ancien Solde : 50.00 DOP', receipt.content)
+        self.assertIn('Nouveau Solde : 60.00 DOP', receipt.content)
+
+    def test_deposit_receipt_uses_fresh_wallet_balance_not_cached_pre_deposit_balance(self):
+        self.client_wallet.balance_htg = Decimal('10.00')
+        self.client_wallet.save(update_fields=['balance_htg'])
+        self.client_user._state.fields_cache['wallet'] = Wallet(
+            user=self.client_user,
+            balance_htg=Decimal('0.00'),
+        )
+        deposit = Deposit.objects.create(
+            agent=self.agent_user,
+            client=self.client_user,
+            amount=Decimal('10.00'),
+            currency='HTG',
+            status='confirmed',
+        )
+        receipt = DepositReceipt.objects.create(
+            receipt_number='DP-HTG-RECEIPT-STALE-WALLET-TEST',
+            client=self.client_user,
+            agent=self.agent_user,
+            deposit=deposit,
+        )
+
+        receipt.generate_content()
+
+        self.assertIn('Ancien Solde : 0.00 HTG', receipt.content)
+        self.assertIn('Nouveau Solde : 10.00 HTG', receipt.content)
+
     def test_agent_can_make_htg_deposit(self):
         url = reverse('agent_deposit')
         with patch('marketplace.web_push.send_notification_push') as send_push:
@@ -294,8 +807,12 @@ class MicrosDiCashAgentDepositTest(TestCase):
                     'agent_pin': '1234',
                     'final_code': '0000',
                     'idempotency_key': 'deposit-basic-001',
-                })
-        self.assertEqual(response.status_code, 302)
+                }, follow=True)
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(any(
+            message.tags == 'success' and 'Dépôt de 2000 HTG confirmé' in str(message)
+            for message in response.context['messages']
+        ))
         deposit = Deposit.objects.latest('created_at')
         self.assertEqual(deposit.agent, self.agent_user)
         self.assertEqual(deposit.client, self.client_user)
@@ -334,6 +851,76 @@ class MicrosDiCashAgentDepositTest(TestCase):
             [call(client_notification.pk), call(commission_notification.pk)],
         )
 
+    def test_agent_deposit_rejects_missing_or_invalid_pin_without_moving_balances(self):
+        payload = {
+            'account_number': self.client_user.account_code,
+            'amount': '2000',
+            'currency': 'HTG',
+            'final_code': '0000',
+        }
+
+        cases = (
+            ({}, 'PIN agent requis'),
+            ({'agent_pin': '9999'}, 'PIN incorrect.'),
+        )
+        for index, (pin_values, expected_error) in enumerate(cases):
+            with self.subTest(expected_error=expected_error):
+                response = self.client.post(
+                    reverse('agent_deposit'),
+                    {
+                        **payload,
+                        **pin_values,
+                        'idempotency_key': f'deposit-pin-rejected-{index}',
+                    },
+                    follow=True,
+                )
+                self.assertTrue(any(
+                    message.tags == 'error' and expected_error in str(message)
+                    for message in response.context['messages']
+                ))
+                self.assertFalse(any(
+                    message.tags == 'success' and 'Dépôt de ' in str(message)
+                    for message in response.context['messages']
+                ))
+
+        self.assertFalse(Deposit.objects.exists())
+        self.assertFalse(Transaction.objects.filter(type='deposit').exists())
+        self.agent_wallet.refresh_from_db()
+        self.client_wallet.refresh_from_db()
+        self.assertEqual(self.agent_wallet.balance_htg, Decimal('50000.00'))
+        self.assertEqual(self.client_wallet.balance_htg, Decimal('500.00'))
+
+    def test_invalid_final_confirmation_code_does_not_create_or_credit_a_deposit(self):
+        response = self.client.post(
+            reverse('agent_deposit'),
+            {
+                'account_number': self.client_user.account_code,
+                'amount': '2000',
+                'currency': 'HTG',
+                'agent_pin': '1234',
+                'final_code': '0001',
+                'idempotency_key': 'deposit-invalid-final-code-001',
+            },
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(any(
+            message.tags == 'error' and 'Code final de confirmation invalide.' in str(message)
+            for message in response.context['messages']
+        ))
+        self.assertFalse(any(
+            message.tags == 'success' and 'Dépôt de ' in str(message)
+            for message in response.context['messages']
+        ))
+        self.assertFalse(Deposit.objects.exists())
+        self.assertFalse(Transaction.objects.filter(type='deposit').exists())
+
+        self.agent_wallet.refresh_from_db()
+        self.client_wallet.refresh_from_db()
+        self.assertEqual(self.agent_wallet.balance_htg, Decimal('50000.00'))
+        self.assertEqual(self.client_wallet.balance_htg, Decimal('500.00'))
+
     def test_repeated_deposit_post_creates_only_one_deposit(self):
         payload = {
             'account_number': self.client_user.account_code,
@@ -350,6 +937,43 @@ class MicrosDiCashAgentDepositTest(TestCase):
         self.assertEqual(first.status_code, 302)
         self.assertEqual(repeated.status_code, 302)
         self.assertEqual(Deposit.objects.filter(agent=self.agent_user, client=self.client_user).count(), 1)
+        deposit = Deposit.objects.get(agent=self.agent_user, client=self.client_user)
+        self.assertEqual(
+            Transaction.objects.filter(
+                type='deposit',
+                sender=self.agent_user,
+                receiver=self.client_user,
+                amount=Decimal('2000.00'),
+                currency='HTG',
+            ).count(),
+            1,
+        )
+        self.assertEqual(
+            Transaction.objects.filter(
+                type='commission',
+                sender=self.admin_user,
+                receiver=self.agent_user,
+                amount=Decimal('5.00'),
+                currency='HTG',
+            ).count(),
+            1,
+        )
+        self.assertEqual(DepositReceipt.objects.filter(deposit=deposit).count(), 1)
+        self.assertEqual(
+            TransactionLog.objects.filter(
+                transaction_type='deposit',
+                transaction_ref=deposit.reference,
+            ).count(),
+            1,
+        )
+        self.assertEqual(
+            FinancialOperation.objects.filter(
+                actor=self.agent_user,
+                operation='agent_deposit',
+                idempotency_key='deposit-retry-001',
+            ).count(),
+            1,
+        )
         self.agent_wallet.refresh_from_db()
         self.client_wallet.refresh_from_db()
         self.assertEqual(self.agent_wallet.balance_htg, Decimal('48000.00'))
@@ -419,7 +1043,7 @@ class MicrosDiCashAgentDepositTest(TestCase):
         with patch(
             'marketplace.views_deposit.create_persistent_notification',
             side_effect=RuntimeError('simulated notification failure'),
-        ):
+        ), self.assertLogs('marketplace.views_deposit', level='ERROR') as deposit_logs:
             response = self.client.post(reverse('agent_deposit'), {
                 'account_number': self.client_user.account_code,
                 'amount': '2000',
@@ -427,9 +1051,13 @@ class MicrosDiCashAgentDepositTest(TestCase):
                 'agent_pin': '1234',
                 'final_code': '0000',
                 'idempotency_key': 'deposit-rollback-001',
-            })
+            }, follow=True)
 
-        self.assertEqual(response.status_code, 302)
+        self.assertContains(
+            response,
+            "Le dépôt n&#x27;a pas pu être effectué. Aucun solde n&#x27;a été modifié.",
+        )
+        self.assertIn('simulated notification failure', '\n'.join(deposit_logs.output))
         self.assertEqual(Deposit.objects.count(), 0)
         self.assertFalse(Transaction.objects.filter(type='deposit').exists())
         self.agent_wallet.refresh_from_db()
@@ -637,6 +1265,784 @@ class AgentWithdrawalNotificationTest(TestCase):
         self.assertEqual(self.wallet.balance, Decimal('100.00'))
         self.assertFalse(WithdrawalRequest.objects.filter(user=self.customer).exists())
         self.assertFalse(PersistentNotification.objects.filter(recipient=self.customer).exists())
+
+
+class PersonalWithdrawalControlTest(TestCase):
+    def setUp(self):
+        self.admin = User.objects.create_superuser(
+            username='personal-withdrawal-admin',
+            email='personal-withdrawal-admin@example.com',
+            password='adminpass123',
+        )
+        self.customer = User.objects.create_user(
+            username='personal-withdrawal-customer',
+            password='customerpass123',
+        )
+        self.profile = Profile.objects.get(user=self.customer)
+        self.profile.withdrawal_pin = '12345678'
+        self.profile.withdrawal_code = '1234'
+        self.profile.save(update_fields=['withdrawal_pin', 'withdrawal_code'])
+        self.wallet = Wallet.objects.get(user=self.customer)
+        self.wallet.balance = Decimal('100.00')
+        self.wallet.save(update_fields=['balance'])
+        self.admin_client = Client()
+        self.admin_client.force_login(self.admin)
+        self.customer_client = Client()
+        self.customer_client.force_login(self.customer)
+
+    def submit_personal_withdrawal(
+        self,
+        amount='10.00',
+        idempotency_key='personal-withdrawal-request-001',
+    ):
+        return self.customer_client.post(reverse('withdraw_funds'), {
+            'account': 'principal',
+            'amount': amount,
+            'currency': 'USD',
+            'pin': self.profile.withdrawal_pin,
+            'secure_code': self.profile.withdrawal_code,
+            'idempotency_key': idempotency_key,
+        })
+
+    def test_admin_can_disable_personal_withdrawals_and_block_new_requests(self):
+        settings = SystemSettings.objects.create(pk=1)
+        self.assertTrue(settings.personal_withdrawals_enabled)
+
+        admin_page = self.admin_client.get(reverse('manage_withdrawal_commissions'))
+        self.assertEqual(admin_page.status_code, 200)
+        self.assertContains(admin_page, 'Contrôle des retraits personnels')
+        self.assertContains(admin_page, 'Devise')
+
+        response = self.admin_client.post(reverse('manage_withdrawal_commissions'), {
+            'action': 'set_personal_withdrawals',
+            'enabled': 'off',
+        })
+        self.assertEqual(response.status_code, 302)
+        settings.refresh_from_db()
+        self.assertFalse(settings.personal_withdrawals_enabled)
+
+        profile_response = self.customer_client.get(reverse('profile'))
+        self.assertNotContains(profile_response, '💸 Retrait personnel</button>')
+        withdrawal_response = self.submit_personal_withdrawal()
+        self.assertEqual(withdrawal_response.status_code, 403)
+        self.assertFalse(withdrawal_response.json()['success'])
+        self.wallet.refresh_from_db()
+        self.assertEqual(self.wallet.balance, Decimal('100.00'))
+        self.assertFalse(WithdrawalRequest.objects.filter(user=self.customer).exists())
+
+    def test_personal_withdrawal_applies_admin_configured_currency_fee(self):
+        profile_response = self.customer_client.get(reverse('profile'))
+        self.assertContains(profile_response, '💸 Retrait personnel</button>')
+        default_tiers = json.loads(profile_response.context['withdrawal_commission_tiers_json'])
+        self.assertEqual(
+            {tier['currency'] for tier in default_tiers},
+            {'USD', 'HTG', 'DOP', 'EUR'},
+        )
+        self.assertContains(profile_response, 'Frais configurés')
+        configured_tier = WithdrawalCommissionTier.objects.get(
+            currency='USD',
+            min_amount__lte=Decimal('10.00'),
+            max_amount__gte=Decimal('10.00'),
+        )
+        self.assertTrue(
+            WithdrawalCommissionTier.objects.filter(
+                currency='USD',
+                min_amount__lte=Decimal('10.00'),
+                max_amount__gte=Decimal('10.00'),
+                active=True,
+            ).exists()
+        )
+
+        admin_response = self.admin_client.post(reverse('manage_withdrawal_commissions'), {
+            'action': 'update',
+            'tier_id': configured_tier.pk,
+            'currency': 'USD',
+            'min_amount': configured_tier.min_amount,
+            'max_amount': configured_tier.max_amount,
+            'total_fee': '2.00',
+            'system_fee': '1.50',
+            'agent_fee': '0.50',
+            'description': 'Retrait personnel USD',
+            'active': 'on',
+        })
+        self.assertEqual(admin_response.status_code, 302)
+        self.assertTrue(WithdrawalCommissionTier.objects.filter(currency='USD').exists())
+
+        response = self.submit_personal_withdrawal()
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()['success'])
+        withdrawal = WithdrawalRequest.objects.get(pk=response.json()['withdrawal_id'])
+        self.assertEqual(withdrawal.fee_total, Decimal('2.00'))
+        self.assertEqual(withdrawal.fee_system, Decimal('1.50'))
+        self.assertEqual(withdrawal.fee_agent, Decimal('0.50'))
+        self.wallet.refresh_from_db()
+        self.assertEqual(self.wallet.balance, Decimal('88.00'))
+
+    def test_small_usd_withdrawals_have_no_fee_and_regular_tiers_start_at_five(self):
+        WithdrawalCommissionTier.objects.create(
+            currency='USD',
+            min_amount=Decimal('0.01'),
+            max_amount=Decimal('1000.00'),
+            total_fee=Decimal('2.00'),
+            system_fee=Decimal('1.50'),
+            agent_fee=Decimal('0.50'),
+            description='Test USD withdrawal fee',
+        )
+        expected_balance = Decimal('100.00')
+        for amount in ('1.00', '2.00', '3.00', '4.00', '5.00', '10.00'):
+            with self.subTest(amount=amount):
+                response = self.submit_personal_withdrawal(
+                    amount=amount,
+                    idempotency_key=f'usd-withdrawal-{amount}',
+                )
+
+                self.assertEqual(response.status_code, 200)
+                self.assertTrue(response.json()['success'])
+                expected_fee = Decimal('0.00') if Decimal(amount) < Decimal('5.00') else Decimal('2.00')
+                self.assertEqual(Decimal(response.json()['fee_total']), expected_fee)
+                self.assertEqual(Decimal(response.json()['net_received']), Decimal(amount))
+
+                withdrawal = WithdrawalRequest.objects.get(pk=response.json()['withdrawal_id'])
+                self.assertEqual(withdrawal.fee_total, expected_fee)
+                self.assertEqual(withdrawal.fee_system, Decimal('0.00') if expected_fee == 0 else Decimal('1.50'))
+                self.assertEqual(withdrawal.fee_agent, Decimal('0.00') if expected_fee == 0 else Decimal('0.50'))
+
+                expected_balance -= Decimal(amount) + expected_fee
+                self.wallet.refresh_from_db()
+                self.assertEqual(self.wallet.balance, expected_balance)
+
+    def test_usd_withdrawals_below_one_are_rejected(self):
+        response = self.submit_personal_withdrawal(amount='0.99')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.json()['success'])
+        self.assertIn('1.00 USD', response.json()['message'])
+        self.wallet.refresh_from_db()
+        self.assertEqual(self.wallet.balance, Decimal('100.00'))
+        self.assertFalse(WithdrawalRequest.objects.filter(user=self.customer).exists())
+
+    def test_usd_withdrawal_above_available_balance_is_rejected(self):
+        WithdrawalCommissionTier.objects.create(
+            currency='USD',
+            min_amount=Decimal('0.01'),
+            max_amount=Decimal('1000.00'),
+            total_fee=Decimal('2.00'),
+            system_fee=Decimal('1.50'),
+            agent_fee=Decimal('0.50'),
+            description='Test USD withdrawal fee',
+        )
+        response = self.submit_personal_withdrawal(amount='101.00')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.json()['success'])
+        self.assertEqual(response.json()['message'], 'Solde insuffisant.')
+        self.wallet.refresh_from_db()
+        self.assertEqual(self.wallet.balance, Decimal('100.00'))
+        self.assertFalse(WithdrawalRequest.objects.filter(user=self.customer).exists())
+
+    def test_principal_withdrawal_is_rejected_without_a_matching_fee_tier(self):
+        response = self.submit_personal_withdrawal(amount='1000.00')
+
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(response.json()['success'])
+        self.assertIn('Aucun barème de frais', response.json()['message'])
+        self.wallet.refresh_from_db()
+        self.assertEqual(self.wallet.balance, Decimal('100.00'))
+        self.assertFalse(WithdrawalRequest.objects.filter(user=self.customer).exists())
+
+
+class TiKaneCurrencyWithdrawalTest(TestCase):
+    def setUp(self):
+        self.admin = User.objects.create_superuser(
+            username='tikane-system-admin',
+            email='tikane-admin@example.com',
+            password='testpass123',
+        )
+        self.customer = User.objects.create_user(
+            username='tikane-customer',
+            password='customerpass123',
+        )
+        self.profile = Profile.objects.get(user=self.customer)
+        self.profile.withdrawal_pin = '12345678'
+        self.profile.withdrawal_code = '1234'
+        self.profile.save(update_fields=['withdrawal_pin', 'withdrawal_code'])
+        self.plan = TiKanePlan.objects.create(
+            name='Test withdrawal plan',
+            duration_days=30,
+            commission_fixed=Decimal('2.50'),
+            commission_variable=Decimal('0.00'),
+        )
+        self.account = TiKaneAccount.objects.create(
+            user=self.customer,
+            account_number='TK-TEST-HTG',
+            unique_identifier='TKID-TEST-HTG',
+            plan=self.plan,
+            currency='HTG',
+            status='active',
+            maturity_date=timezone.now() - timedelta(days=1),
+            balance=Decimal('100.00'),
+        )
+        self.wallet = Wallet.objects.get(user=self.customer)
+        self.wallet.balance = Decimal('80.00')
+        self.wallet.balance_htg = Decimal('10.00')
+        self.wallet.balance_peso = Decimal('20.00')
+        self.wallet.balance_eur = Decimal('30.00')
+        self.wallet.save(update_fields=['balance', 'balance_htg', 'balance_peso', 'balance_eur'])
+        self.customer_client = Client()
+        self.customer_client.force_login(self.customer)
+
+    def test_tikane_balance_displays_the_account_currency(self):
+        dashboard_response = self.customer_client.get(reverse('dashboard'))
+        tikane_response = self.customer_client.get(reverse('tikane_access'))
+
+        self.assertRegex(dashboard_response.content.decode(), r'100[,.]00 HTG')
+        self.assertRegex(tikane_response.content.decode(), r'Solde actuel : 100[,.]00 HTG')
+
+    def test_principal_usd_countervalues_use_configured_rates_without_creating_balances(self):
+        ExchangeRate.objects.create(
+            usd_to_htg=Decimal('132'),
+            usd_to_peso=Decimal('58'),
+            eur_to_usd=Decimal('1.086957'),
+            is_active=True,
+        )
+        self.wallet.balance = Decimal('300.00')
+        self.wallet.save(update_fields=['balance'])
+
+        conversion = get_usd_display_conversion(Decimal('300.00'))
+        dashboard_response = self.customer_client.get(reverse('dashboard'))
+        profile_response = self.customer_client.get(reverse('profile'))
+
+        self.assertEqual(conversion['amounts'], {
+            'USD': Decimal('300.00'),
+            'HTG': Decimal('39600.00'),
+            'DOP': Decimal('17400.00'),
+            'EUR': Decimal('276.00'),
+        })
+        self.assertRegex(dashboard_response.content.decode(), r'39600[,.]00')
+        self.assertRegex(profile_response.content.decode(), r'39600[,.]00')
+        self.wallet.refresh_from_db()
+        self.assertEqual(self.wallet.balance, Decimal('300.00'))
+        self.assertEqual(self.wallet.balance_usd, Decimal('0.00'))
+        self.assertEqual(self.wallet.balance_htg, Decimal('10.00'))
+        self.assertEqual(self.wallet.balance_peso, Decimal('20.00'))
+        self.assertEqual(self.wallet.balance_eur, Decimal('30.00'))
+
+    def test_principal_countervalues_are_unavailable_without_valid_configured_rates(self):
+        ExchangeRate.objects.create(
+            usd_to_htg=0,
+            usd_to_peso=Decimal('58'),
+            eur_to_usd=0,
+            is_active=True,
+        )
+
+        conversion = get_usd_display_conversion(Decimal('300.00'))
+
+        self.assertEqual(conversion['amounts']['USD'], Decimal('300.00'))
+        self.assertIsNone(conversion['amounts']['HTG'])
+        self.assertEqual(conversion['amounts']['DOP'], Decimal('17400.00'))
+        self.assertIsNone(conversion['amounts']['EUR'])
+
+    def test_tikane_withdrawal_api_rejects_new_requests_when_control_is_off(self):
+        SystemSettings.objects.create(pk=1, tikane_withdrawals_enabled=False)
+
+        response = self.submit_tikane_withdrawal(key='tikane-disabled')
+
+        self.assertEqual(response.status_code, 403)
+        self.assertFalse(response.json()['success'])
+        self.account.refresh_from_db()
+        self.wallet.refresh_from_db()
+        self.assertEqual(self.account.balance, Decimal('100.00'))
+        self.assertEqual(self.wallet.balance_htg, Decimal('10.00'))
+        self.assertFalse(WithdrawalRequest.objects.filter(user=self.customer).exists())
+
+    def test_agent_withdrawal_api_stays_off_after_new_credits(self):
+        self.customer.is_agent = True
+        self.customer.save(update_fields=['is_agent'])
+        self.wallet.commission_balance_htg = Decimal('70.00')
+        self.wallet.save(update_fields=['commission_balance_htg'])
+        SystemSettings.objects.create(pk=1, agent_wallet_withdrawals_enabled=False)
+        Wallet.objects.filter(pk=self.wallet.pk).update(
+            commission_balance_htg=Decimal('90.00'),
+        )
+
+        response = self.customer_client.post(reverse('withdraw_funds'), {
+            'account': 'multidevice',
+            'amount': '20.00',
+            'currency': 'HTG',
+            'pin': self.profile.withdrawal_pin,
+            'secure_code': self.profile.withdrawal_code,
+            'idempotency_key': 'agent-disabled-withdrawal',
+        })
+
+        self.assertEqual(response.status_code, 403)
+        self.assertFalse(response.json()['success'])
+        self.wallet.refresh_from_db()
+        self.assertEqual(self.wallet.commission_balance_htg, Decimal('90.00'))
+        self.assertFalse(WithdrawalRequest.objects.filter(user=self.customer).exists())
+
+    def test_agent_wallet_withdrawal_remains_available_when_control_is_on(self):
+        self.customer.is_agent = True
+        self.customer.save(update_fields=['is_agent'])
+        self.wallet.commission_balance_htg = Decimal('100.00')
+        self.wallet.save(update_fields=['commission_balance_htg'])
+        SystemSettings.objects.create(pk=1, agent_wallet_withdrawals_enabled=True)
+
+        response = self.customer_client.post(reverse('withdraw_funds'), {
+            'account': 'multidevice',
+            'amount': '20.00',
+            'currency': 'HTG',
+            'pin': self.profile.withdrawal_pin,
+            'secure_code': self.profile.withdrawal_code,
+            'idempotency_key': 'agent-enabled-withdrawal',
+        })
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()['success'])
+        self.assertTrue(
+            WithdrawalRequest.objects.filter(
+                user=self.customer,
+                account_type='multidevice',
+                status='pending',
+            ).exists()
+        )
+
+    def test_financial_admin_can_toggle_tikane_and_agent_withdrawals(self):
+        admin_client = Client()
+        admin_client.force_login(self.admin)
+        SystemSettings.objects.create(pk=1)
+
+        agent_off = admin_client.post(reverse('manage_agent_commissions'), {
+            'action': 'set_agent_wallet_withdrawals',
+            'enabled': 'off',
+        })
+        tikane_off = admin_client.post(reverse('manage_withdrawal_commissions'), {
+            'action': 'set_tikane_withdrawals',
+            'enabled': 'off',
+        })
+
+        self.assertEqual(agent_off.status_code, 302)
+        self.assertEqual(tikane_off.status_code, 302)
+        settings = SystemSettings.objects.get(pk=1)
+        self.assertFalse(settings.agent_wallet_withdrawals_enabled)
+        self.assertFalse(settings.tikane_withdrawals_enabled)
+
+        agent_on = admin_client.post(reverse('manage_agent_commissions'), {
+            'action': 'set_agent_wallet_withdrawals',
+            'enabled': 'on',
+        })
+        tikane_on = admin_client.post(reverse('manage_withdrawal_commissions'), {
+            'action': 'set_tikane_withdrawals',
+            'enabled': 'on',
+        })
+
+        self.assertEqual(agent_on.status_code, 302)
+        self.assertEqual(tikane_on.status_code, 302)
+        settings.refresh_from_db()
+        self.assertTrue(settings.agent_wallet_withdrawals_enabled)
+        self.assertTrue(settings.tikane_withdrawals_enabled)
+
+    def test_admin_cannot_approve_tikane_or_agent_withdrawal_when_control_is_off(self):
+        admin_client = Client()
+        admin_client.force_login(self.admin)
+        self.admin.role = 'super_admin'
+        self.admin.save(update_fields=['role'])
+        self.customer.is_agent = True
+        self.customer.save(update_fields=['is_agent'])
+
+        cases = (
+            ('tikane', 'HTG', 'tikane_withdrawals_enabled'),
+            ('multidevice', 'USD', 'agent_wallet_withdrawals_enabled'),
+        )
+        for account_type, currency, setting_field in cases:
+            with self.subTest(account_type=account_type):
+                SystemSettings.objects.update_or_create(
+                    pk=1,
+                    defaults={setting_field: False},
+                )
+                withdrawal = WithdrawalRequest.objects.create(
+                    user=self.customer,
+                    amount=Decimal('20.00'),
+                    currency=currency,
+                    account_type=account_type,
+                    status='pending',
+                    amount_debited=True,
+                )
+
+                response = admin_client.post(reverse('profile'), {
+                    'withdrawal_decision': '1',
+                    'withdrawal_id': withdrawal.pk,
+                    'action': 'approve',
+                })
+
+                self.assertEqual(response.status_code, 302)
+                withdrawal.refresh_from_db()
+                self.assertEqual(withdrawal.status, 'pending')
+                self.assertIsNone(withdrawal.confirmed_at)
+                self.assertIsNone(withdrawal.confirmed_by)
+                self.assertFalse(withdrawal.receipt_generated)
+
+    def submit_tikane_withdrawal(self, currency='HTG', amount='20.00', key='tikane-withdrawal-1'):
+        return self.customer_client.post(reverse('withdraw_funds'), {
+            'account': 'tikane',
+            'amount': amount,
+            'currency': currency,
+            'pin': self.profile.withdrawal_pin,
+            'secure_code': self.profile.withdrawal_code,
+            'idempotency_key': key,
+        })
+
+    def test_tikane_withdrawal_debits_principal_once_and_fee_from_matching_wallet_currency(self):
+        response = self.submit_tikane_withdrawal()
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()['success'])
+        self.account.refresh_from_db()
+        self.wallet.refresh_from_db()
+        withdrawal = WithdrawalRequest.objects.get(pk=response.json()['withdrawal_id'])
+        self.assertEqual(self.account.balance, Decimal('80.00'))
+        self.assertEqual(self.account.total_withdrawals, Decimal('20.00'))
+        self.assertEqual(self.wallet.balance, Decimal('80.00'))
+        self.assertEqual(self.wallet.balance_htg, Decimal('7.50'))
+        self.assertEqual(self.wallet.balance_peso, Decimal('20.00'))
+        self.assertEqual(self.wallet.balance_eur, Decimal('30.00'))
+        self.assertEqual(withdrawal.status, 'pending')
+        self.assertEqual(withdrawal.fee_total, Decimal('2.50'))
+        self.assertEqual(withdrawal.fee_system, Decimal('2.50'))
+        self.assertTrue(withdrawal.amount_debited)
+        self.assertEqual(response.json()['amount'], '20.00')
+        self.assertEqual(response.json()['fee_total'], '2.50')
+        self.assertEqual(response.json()['net_received'], '20.00')
+        self.assertIn('frais prélevés séparément', response.json()['message'])
+        self.assertEqual(
+            Transaction.objects.filter(
+                sender=self.customer,
+                receiver=self.admin,
+                type='withdrawal_system_commission',
+                amount=Decimal('2.50'),
+                currency='HTG',
+            ).count(),
+            1,
+        )
+
+        repeated = self.submit_tikane_withdrawal()
+        self.assertTrue(repeated.json()['duplicate'])
+        self.account.refresh_from_db()
+        self.wallet.refresh_from_db()
+        self.assertEqual(self.account.balance, Decimal('80.00'))
+        self.assertEqual(self.wallet.balance_htg, Decimal('7.50'))
+        self.assertEqual(WithdrawalRequest.objects.filter(user=self.customer).count(), 1)
+
+    def test_tikane_withdrawal_rejects_currency_mismatch_without_financial_movement(self):
+        response = self.submit_tikane_withdrawal(currency='USD', key='tikane-currency-mismatch')
+
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(response.json()['success'])
+        self.account.refresh_from_db()
+        self.wallet.refresh_from_db()
+        self.assertEqual(self.account.balance, Decimal('100.00'))
+        self.assertEqual(self.wallet.balance, Decimal('80.00'))
+        self.assertEqual(self.wallet.balance_htg, Decimal('10.00'))
+        self.assertFalse(WithdrawalRequest.objects.filter(user=self.customer).exists())
+        self.assertFalse(Transaction.objects.filter(type='withdrawal_system_commission').exists())
+
+    def test_insufficient_tikane_principal_does_not_debit_wallet_fee(self):
+        self.account.balance = Decimal('10.00')
+        self.account.save(update_fields=['balance'])
+
+        response = self.submit_tikane_withdrawal(key='tikane-insufficient-principal')
+
+        self.assertFalse(response.json()['success'])
+        self.account.refresh_from_db()
+        self.wallet.refresh_from_db()
+        self.assertEqual(self.account.balance, Decimal('10.00'))
+        self.assertEqual(self.wallet.balance_htg, Decimal('10.00'))
+        self.assertFalse(WithdrawalRequest.objects.filter(user=self.customer).exists())
+
+    def test_insufficient_wallet_fee_does_not_debit_tikane_principal(self):
+        self.wallet.balance_htg = Decimal('1.00')
+        self.wallet.save(update_fields=['balance_htg'])
+
+        response = self.submit_tikane_withdrawal(key='tikane-insufficient-fee')
+
+        self.assertFalse(response.json()['success'])
+        self.account.refresh_from_db()
+        self.wallet.refresh_from_db()
+        self.assertEqual(self.account.balance, Decimal('100.00'))
+        self.assertEqual(self.wallet.balance_htg, Decimal('1.00'))
+        self.assertFalse(WithdrawalRequest.objects.filter(user=self.customer).exists())
+
+    def test_tikane_withdrawal_debits_fees_only_from_the_matching_wallet_currency_field(self):
+        wallet_fields = {
+            'USD': 'balance',
+            'HTG': 'balance_htg',
+            'DOP': 'balance_peso',
+            'EUR': 'balance_eur',
+        }
+
+        for currency, wallet_field in wallet_fields.items():
+            with self.subTest(currency=currency):
+                TiKaneAccount.objects.filter(pk=self.account.pk).update(
+                    currency=currency,
+                    balance=Decimal('100.00'),
+                    total_withdrawals=Decimal('0.00'),
+                )
+                self.wallet.refresh_from_db()
+                for field in wallet_fields.values():
+                    setattr(self.wallet, field, Decimal('100.00'))
+                self.wallet.save(update_fields=list(wallet_fields.values()))
+
+                response = self.submit_tikane_withdrawal(
+                    currency=currency,
+                    key=f'tikane-currency-fee-{currency.lower()}',
+                )
+
+                self.assertTrue(response.json()['success'])
+                self.account.refresh_from_db()
+                self.wallet.refresh_from_db()
+                self.assertEqual(self.account.balance, Decimal('80.00'))
+                for field in wallet_fields.values():
+                    expected = Decimal('97.50') if field == wallet_field else Decimal('100.00')
+                    self.assertEqual(getattr(self.wallet, field), expected)
+
+    def test_legacy_account_without_currency_cannot_withdraw(self):
+        self.account.delete()
+        legacy_account = TiKaneAccount(
+            user=self.customer,
+            account_number='TK-LEGACY-UNKNOWN',
+            unique_identifier='TKID-LEGACY-UNKNOWN',
+            plan=self.plan,
+            currency=None,
+            status='active',
+            maturity_date=timezone.now() - timedelta(days=1),
+            balance=Decimal('100.00'),
+        )
+        TiKaneAccount.objects.bulk_create([legacy_account])
+
+        response = self.submit_tikane_withdrawal(key='tikane-legacy-unknown')
+
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(response.json()['success'])
+        self.assertEqual(TiKaneAccount.objects.get(user=self.customer).balance, Decimal('100.00'))
+        self.wallet.refresh_from_db()
+        self.assertEqual(self.wallet.balance_htg, Decimal('10.00'))
+        self.assertFalse(WithdrawalRequest.objects.filter(user=self.customer).exists())
+
+    def test_agent_processing_same_pending_tikane_withdrawal_does_not_debit_again(self):
+        request_response = self.submit_tikane_withdrawal(key='tikane-agent-process-once')
+        withdrawal_id = request_response.json()['withdrawal_id']
+        agent = User.objects.create_user(
+            username='tikane-withdrawal-agent',
+            password='agentpass123',
+            is_agent=True,
+        )
+        Agent.objects.filter(user=agent).update(is_active=True)
+        agent_client = Client()
+        agent_client.force_login(agent)
+
+        with patch('marketplace.web_push.send_notification_push'):
+            with self.captureOnCommitCallbacks(execute=True):
+                first = agent_client.post(reverse('agent_process_withdrawal'), {'withdrawal_id': withdrawal_id})
+                repeated = agent_client.post(reverse('agent_process_withdrawal'), {'withdrawal_id': withdrawal_id})
+
+        self.assertEqual(first.status_code, 302)
+        self.assertEqual(repeated.status_code, 302)
+        self.account.refresh_from_db()
+        self.wallet.refresh_from_db()
+        withdrawal = WithdrawalRequest.objects.get(pk=withdrawal_id)
+        self.assertEqual(withdrawal.status, 'completed')
+        self.assertEqual(self.account.balance, Decimal('80.00'))
+        self.assertEqual(self.account.total_withdrawals, Decimal('20.00'))
+        self.assertEqual(self.wallet.balance_htg, Decimal('7.50'))
+        self.assertEqual(
+            Transaction.objects.filter(
+                sender=self.customer,
+                receiver=agent,
+                type='withdrawal_agent',
+                amount=Decimal('20.00'),
+                currency='HTG',
+            ).count(),
+            1,
+        )
+
+    def test_agent_cannot_complete_already_debited_tikane_withdrawal_while_off(self):
+        request_response = self.submit_tikane_withdrawal(key='tikane-agent-off-pending')
+        withdrawal_id = request_response.json()['withdrawal_id']
+        SystemSettings.objects.create(pk=1, tikane_withdrawals_enabled=False)
+        agent = User.objects.create_user(
+            username='tikane-disabled-agent',
+            password='agentpass123',
+            is_agent=True,
+        )
+        Agent.objects.filter(user=agent).update(is_active=True)
+        agent_client = Client()
+        agent_client.force_login(agent)
+
+        response = agent_client.post(
+            reverse('agent_process_withdrawal'),
+            {'withdrawal_id': withdrawal_id},
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(
+            WithdrawalRequest.objects.get(pk=withdrawal_id).status,
+            'pending',
+        )
+        self.assertFalse(
+            WithdrawalTransaction.objects.filter(
+                withdrawal_request_id=withdrawal_id,
+                status='completed',
+            ).exists()
+        )
+
+    def test_agent_cannot_complete_already_debited_agent_wallet_withdrawal_while_off(self):
+        self.customer.is_agent = True
+        self.customer.save(update_fields=['is_agent'])
+        self.wallet.commission_balance_htg = Decimal('100.00')
+        self.wallet.save(update_fields=['commission_balance_htg'])
+        agent_request_response = self.customer_client.post(reverse('withdraw_funds'), {
+            'account': 'multidevice',
+            'amount': '20.00',
+            'currency': 'HTG',
+            'pin': self.profile.withdrawal_pin,
+            'secure_code': self.profile.withdrawal_code,
+            'idempotency_key': 'agent-withdrawal-pending',
+        })
+        withdrawal_id = agent_request_response.json()['withdrawal_id']
+        SystemSettings.objects.create(pk=1, agent_wallet_withdrawals_enabled=False)
+        payout_agent = User.objects.create_user(
+            username='agent-wallet-disabled-payout',
+            password='agentpass123',
+            is_agent=True,
+        )
+        Agent.objects.filter(user=payout_agent).update(is_active=True)
+        agent_client = Client()
+        agent_client.force_login(payout_agent)
+
+        response = agent_client.post(
+            reverse('agent_process_withdrawal'),
+            {'withdrawal_id': withdrawal_id},
+        )
+
+        self.assertEqual(response.status_code, 302)
+        withdrawal = WithdrawalRequest.objects.get(pk=withdrawal_id)
+        self.assertEqual(withdrawal.status, 'pending')
+        self.wallet.refresh_from_db()
+        self.assertEqual(
+            self.wallet.commission_balance_htg,
+            Decimal('100.00') - withdrawal.amount - withdrawal.fee_total,
+        )
+
+    def test_tikane_access_form_requires_explicit_currency(self):
+        self.assertTrue(TiKaneAccessRequestForm.base_fields['currency'].required)
+        self.assertEqual(
+            [value for value, _label in TiKaneAccessRequestForm.base_fields['currency'].choices],
+            ['USD', 'HTG', 'DOP', 'EUR'],
+        )
+        with self.assertRaises(ValidationError):
+            TiKaneAccount.objects.create(
+                user=self.customer,
+                account_number='TK-MISSING-CURRENCY',
+                unique_identifier='TKID-MISSING-CURRENCY',
+                currency=None,
+            )
+        with self.assertRaises(ValidationError):
+            TiKaneAccessRequest.objects.create(
+                user=self.customer,
+                full_name='Test Customer',
+                email='tikane-customer@example.com',
+                phone='50900000000',
+                currency=None,
+            )
+
+    def test_admin_creates_tikane_account_with_request_currency(self):
+        self.account.delete()
+        access_request = TiKaneAccessRequest.objects.create(
+            user=self.customer,
+            full_name='Test Customer',
+            email='tikane-customer@example.com',
+            phone='50900000000',
+            currency='EUR',
+            plan=self.plan,
+            acceptance_clause=True,
+        )
+        admin_client = Client()
+        admin_client.force_login(self.admin)
+
+        response = admin_client.post(reverse('admin_tikane_requests'), {
+            'action': 'approve_immediate',
+            'request_id': access_request.pk,
+        })
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(TiKaneAccount.objects.get(user=self.customer).currency, 'EUR')
+
+    def test_agent_tikane_deposit_rejects_currency_mismatch_without_movement(self):
+        agent = User.objects.create_user(
+            username='tikane-deposit-agent',
+            password='agentpass123',
+            is_agent=True,
+        )
+        Agent.objects.filter(user=agent).update(is_active=True)
+        agent.set_security_pin('12345678')
+        agent.set_otp_code('1234')
+        agent_wallet = Wallet.objects.get(user=agent)
+        agent_wallet.balance_htg = Decimal('500.00')
+        agent_wallet.save(update_fields=['balance_htg'])
+        agent_client = Client()
+        agent_client.force_login(agent)
+
+        response = agent_client.post(
+            reverse('agent_deposit'),
+            {
+                'account_number': self.customer.account_code,
+                'amount': '20.00',
+                'currency': 'USD',
+                'tikane_deposit': 'on',
+                'agent_pin': '12345678',
+                'final_code': '1234',
+                'idempotency_key': 'tikane-deposit-mismatch',
+            },
+            follow=True,
+        )
+
+        self.assertContains(response, 'La devise du compte Ti Kanè est HTG')
+        self.account.refresh_from_db()
+        agent_wallet.refresh_from_db()
+        self.assertEqual(self.account.balance, Decimal('100.00'))
+        self.assertEqual(agent_wallet.balance_htg, Decimal('500.00'))
+        self.assertFalse(Deposit.objects.filter(client=self.customer, tikane_deposit=True).exists())
+
+    def test_tikane_daily_payment_rejects_deposit_in_other_currency(self):
+        deposit = Deposit.objects.create(
+            client=self.customer,
+            amount=Decimal('10.00'),
+            currency='USD',
+            tikane_deposit=True,
+            tikane_account=self.account,
+            status='confirmed',
+        )
+
+        with self.assertRaises(ValueError):
+            self.account.mark_next_unpaid_day_paid(deposit=deposit)
+
+        self.assertFalse(self.account.daily_payments.filter(paid=True).exists())
+
+    def test_tikane_currency_migration_keeps_existing_rows_unknown(self):
+        migration = importlib.import_module('marketplace.migrations.0109_tikane_currency').Migration
+        added_fields = {
+            (operation.model_name, operation.name): operation.field
+            for operation in migration.operations
+            if operation.__class__.__name__ == 'AddField'
+        }
+
+        account_currency = added_fields[('tikaneaccount', 'currency')]
+        request_currency = added_fields[('tikaneaccessrequest', 'currency')]
+        self.assertTrue(account_currency.null)
+        self.assertFalse(account_currency.blank)
+        self.assertTrue(request_currency.null)
+        self.assertFalse(request_currency.blank)
+        self.assertFalse(any(operation.__class__.__name__ == 'RunPython' for operation in migration.operations))
 
 
 class SiteBannerAdminAccessTest(TestCase):
@@ -1694,6 +3100,118 @@ class AdminAddAgentViewTest(TestCase):
         self.assertEqual(transaction_record.currency, 'HTG')
         self.assertEqual(transaction_record.status, 'approved')
         self.assertEqual(Transaction.objects.filter(type='admin_add_agent').count(), 1)
+        credit_notification = PersistentNotification.objects.get(
+            recipient=self.target_user,
+            notification_type='admin_money_received',
+        )
+        self.assertEqual(
+            credit_notification.deduplication_key,
+            f'admin-wallet-credit:{transaction_record.pk}:{self.target_user.pk}',
+        )
+        self.assertIn('7.50 HTG', credit_notification.message)
+
+    def test_admin_funding_of_user_wallet_creates_credit_notification(self):
+        user = User.objects.create_user(
+            username='funded_wallet_user',
+            password='userpass123',
+        )
+        wallet, _ = Wallet.objects.get_or_create(user=user)
+
+        response = self.client.post(
+            reverse('admin_add_money'),
+            {
+                'action': 'add',
+                'target': 'single',
+                'user_id': str(user.pk),
+                'account_type': 'principal',
+                'currency': 'USD',
+                'amount': '12.34',
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        wallet.refresh_from_db()
+        self.assertEqual(wallet.balance, Decimal('12.34'))
+        funding_transaction = Transaction.objects.get(
+            type='admin_add',
+            receiver=user,
+        )
+        notification = PersistentNotification.objects.get(
+            recipient=user,
+            notification_type='admin_money_received',
+        )
+        self.assertEqual(funding_transaction.status, 'approved')
+        self.assertIn('12.34 USD', notification.message)
+        self.assertEqual(
+            notification.deduplication_key,
+            f'admin-wallet-credit:{funding_transaction.pk}:{user.pk}',
+        )
+
+    def test_admin_credit_notification_failure_rolls_back_agent_credit(self):
+        self.target_user.is_agent = True
+        self.target_user.save(update_fields=['is_agent'])
+        agent, _ = Agent.objects.get_or_create(user=self.target_user)
+        agent.is_active = True
+        agent.save(update_fields=['is_active'])
+        wallet, _ = Wallet.objects.get_or_create(user=self.target_user)
+        wallet.balance_htg = Decimal('10.00')
+        wallet.save(update_fields=['balance_htg'])
+
+        with patch(
+            'marketplace.views.create_persistent_notification',
+            side_effect=RuntimeError('simulated notification creation failure'),
+        ):
+            with self.assertRaises(RuntimeError):
+                self.client.post(
+                    reverse('admin_add_money'),
+                    {
+                        'action': 'add',
+                        'target': 'single',
+                        'user_id': str(self.target_user.pk),
+                        'account_type': 'agent',
+                        'currency': 'HTG',
+                        'amount': '5.00',
+                        'idempotency_key': 'admin-agent-funding-notification-rollback-001',
+                    },
+                )
+
+        wallet.refresh_from_db()
+        self.assertEqual(wallet.balance_htg, Decimal('10.00'))
+        self.assertFalse(Transaction.objects.filter(type='admin_add_agent').exists())
+        self.assertFalse(
+            PersistentNotification.objects.filter(
+                recipient=self.target_user,
+                notification_type='admin_money_received',
+            ).exists()
+        )
+
+    def test_principal_admin_can_fund_own_operational_wallet_once(self):
+        wallet, _ = Wallet.objects.get_or_create(user=self.admin_user)
+        wallet.balance_htg = Decimal('10.00')
+        wallet.save(update_fields=['balance_htg'])
+        payload = {
+            'action': 'add',
+            'target': 'single',
+            'user_id': str(self.admin_user.pk),
+            'account_type': 'agent',
+            'currency': 'HTG',
+            'amount': '7.50',
+            'idempotency_key': 'admin-self-funding-001',
+        }
+
+        first = self.client.post(reverse('admin_add_money'), payload)
+        repeated = self.client.post(reverse('admin_add_money'), payload)
+
+        self.assertEqual(first.status_code, 302)
+        self.assertEqual(repeated.status_code, 302)
+        wallet.refresh_from_db()
+        self.assertEqual(wallet.balance_htg, Decimal('17.50'))
+        transaction_record = Transaction.objects.get(type='admin_add_agent')
+        self.assertEqual(transaction_record.sender, self.admin_user)
+        self.assertEqual(transaction_record.receiver, self.admin_user)
+        self.assertEqual(transaction_record.amount, Decimal('7.50'))
+        self.assertEqual(transaction_record.currency, 'HTG')
+        self.assertEqual(Transaction.objects.filter(type='admin_add_agent').count(), 1)
 
     def test_agent_funding_rejects_invalid_requests_without_credit(self):
         self.target_user.is_agent = True
@@ -1725,10 +3243,6 @@ class AdminAddAgentViewTest(TestCase):
 
         self.client.post(
             reverse('admin_add_money'),
-            {**base_payload, 'user_id': str(self.admin_user.pk), 'amount': '5.00'},
-        )
-        self.client.post(
-            reverse('admin_add_money'),
             {**base_payload, 'user_id': str(ordinary_user.pk), 'amount': '5.00'},
         )
         self.client.post(
@@ -1739,6 +3253,12 @@ class AdminAddAgentViewTest(TestCase):
         wallet.refresh_from_db()
         self.assertEqual(wallet.balance_htg, Decimal('10.00'))
         self.assertFalse(Transaction.objects.filter(type='admin_add_agent').exists())
+        self.assertFalse(
+            PersistentNotification.objects.filter(
+                recipient=self.target_user,
+                notification_type='admin_money_received',
+            ).exists()
+        )
 
     def test_nonprincipal_staff_and_agent_cannot_fund_agent_wallet(self):
         self.target_user.is_agent = True
@@ -2018,6 +3538,30 @@ class TestSDISolFlow(TestCase):
         self.client = Client()
         self.user = User.objects.create_user(username='testuser', email='test@example.com', password='testpass')
         self.settings = SDISolSettings.get_solo()
+        self.plan = SDISolPlan.objects.create(
+            name='Plan test 15 jours',
+            duration_days=15,
+            amount_usd=Decimal('100.00'),
+            amount_htg=Decimal('2600.00'),
+            is_active=True,
+        )
+
+    def create_approved_member_payment(self, user, receipt_number):
+        member = SDISolMember.objects.create(
+            user=user,
+            plan=self.plan,
+            plan_name=self.plan.name,
+            active=True,
+            admin_approved=True,
+        )
+        payment = SDISolPayment.objects.create(
+            member=member,
+            amount=Decimal('100.00'),
+            currency='USD',
+            receipt_number=receipt_number,
+            due_date=timezone.now() + timedelta(days=1),
+        )
+        return member, payment
 
     def test_join_and_payment_flow(self):
         logged_in = self.client.login(username='testuser', password='testpass')
@@ -2027,11 +3571,13 @@ class TestSDISolFlow(TestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertIn('can_join', resp.context)
 
-        resp = self.client.post(reverse('sdi_sol_join'), follow=True)
+        resp = self.client.post(reverse('sdi_sol_join'), {'plan_id': self.plan.pk}, follow=True)
         self.assertEqual(resp.status_code, 200)
         member = SDISolMember.objects.filter(user=self.user, active=True).first()
         self.assertIsNotNone(member)
         self.assertFalse(member.admin_approved)
+        self.assertEqual(member.plan, self.plan)
+        self.assertEqual(member.plan_duration_days, 15)
 
         pay_url = reverse('sdi_sol_make_payment')
         amount = str(self.settings.contribution_amount_usd)
@@ -2040,17 +3586,28 @@ class TestSDISolFlow(TestCase):
         data = resp.json()
         self.assertEqual(data.get('error'), 'Votre adhésion doit être approuvée par un admin avant de payer.')
 
-        admin_user = User.objects.create_user(username='admin', email='admin@example.com', password='adminpass', is_staff=True)
+        admin_user = User.objects.create_superuser(username='admin', email='admin@example.com', password='adminpass')
         self.client.logout()
         self.client.login(username='admin', password='adminpass')
         approve_url = reverse('sdi_sol_admin_approve_member', args=[member.id])
-        resp = self.client.post(approve_url, follow=True)
+        group = SDISolGroup.objects.get(plan=self.plan)
+        resp = self.client.post(approve_url, {'group_id': group.pk}, follow=True)
         self.assertEqual(resp.status_code, 200)
         member.refresh_from_db()
         self.assertTrue(member.admin_approved)
         self.client.logout()
         self.client.login(username='testuser', password='testpass')
+        principal = User.objects.create_superuser(
+            username='principal', email='principal@example.com', password='principalpass'
+        )
 
+        payments_url = reverse('sdi_sol_payments')
+        resp = self.client.get(payments_url, {'member_id': member.pk})
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'id="amount"')
+        self.assertNotRegex(resp.content.decode(), r'<input[^>]*id="amount"[^>]*readonly')
+
+        amount = '75.50'
         resp = self.client.post(pay_url, {'amount': amount, 'currency': 'USD'}, HTTP_X_REQUESTED_WITH='XMLHttpRequest')
         self.assertEqual(resp.status_code, 200)
         data = resp.json()
@@ -2060,9 +3617,697 @@ class TestSDISolFlow(TestCase):
 
         payment = SDISolPayment.objects.filter(receipt_number=receipt).first()
         self.assertIsNotNone(payment)
-        self.assertEqual(payment.status, 'completed')
+        self.assertEqual(payment.amount, Decimal(amount))
+        self.assertEqual(payment.status, 'pending')
+        pending_receipt = self.client.get(reverse('sdi_sol_payment_receipt', args=[receipt]))
+        self.assertContains(pending_receipt, 'Paiement : reçu en attente de confirmation')
+        self.assertContains(
+            pending_receipt,
+            'il ne confirme pas encore la réception du paiement.',
+        )
+        member.refresh_from_db()
+        self.assertEqual(member.total_paid_usd, Decimal('0.00'))
 
+        self.assertTrue(PersistentNotification.objects.filter(
+            recipient=principal,
+            notification_type='sdi_sol_payment_review',
+        ).exists())
+        self.client.logout()
+        self.client.login(username='principal', password='principalpass')
+        approve_payment_url = reverse('sdi_sol_admin_approve_payment', args=[payment.pk])
+        resp = self.client.post(approve_payment_url, follow=True)
+        self.assertEqual(resp.status_code, 200)
+        payment.refresh_from_db()
+        member.refresh_from_db()
+        self.assertIn(payment.status, ('completed', 'late'))
+        self.assertEqual(member.total_paid_usd, Decimal(amount))
+
+        self.client.post(approve_payment_url, follow=True)
+        member.refresh_from_db()
+        self.assertEqual(member.total_paid_usd, Decimal(amount))
+
+        self.client.logout()
+        self.client.login(username='testuser', password='testpass')
         receipt_url = reverse('sdi_sol_payment_receipt', args=[receipt])
         resp = self.client.get(receipt_url)
         self.assertEqual(resp.status_code, 200)
         self.assertIn(receipt, resp.content.decode('utf-8'))
+        self.assertContains(resp, 'Paiement confirmé et reçu')
+        self.assertContains(resp, 'L’administrateur a confirmé la réception de votre paiement.')
+        self.assertContains(
+            resp,
+            'Ce reçu confirme que l’administrateur a validé la réception du paiement.',
+        )
+
+    def test_principal_admin_cannot_approve_own_payment_or_change_financial_data(self):
+        principal = User.objects.create_superuser(
+            username='principal-member',
+            email='principal-member@example.com',
+            password='principalpass',
+        )
+        member, payment = self.create_approved_member_payment(principal, 'SDISOL-SELF-REVIEW')
+        transactions_before = Transaction.objects.count()
+        self.client.login(username='principal-member', password='principalpass')
+
+        response = self.client.post(
+            reverse('sdi_sol_admin_approve_payment', args=[payment.pk]),
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payment.refresh_from_db()
+        member.refresh_from_db()
+        self.assertEqual(payment.status, 'pending')
+        self.assertIsNone(payment.paid_at)
+        self.assertEqual(member.total_paid_usd, Decimal('0.00'))
+        self.assertEqual(member.total_paid_htg, Decimal('0.00'))
+        self.assertEqual(Transaction.objects.count(), transactions_before)
+
+    def test_principal_admin_can_approve_another_members_payment_only_once(self):
+        member_user = User.objects.create_user(
+            username='payment-owner',
+            email='payment-owner@example.com',
+            password='ownerpass',
+        )
+        member, payment = self.create_approved_member_payment(member_user, 'SDISOL-OTHER-REVIEW')
+        principal = User.objects.create_superuser(
+            username='principal-reviewer',
+            email='principal-reviewer@example.com',
+            password='principalpass',
+        )
+        self.client.login(username='principal-reviewer', password='principalpass')
+        approve_url = reverse('sdi_sol_admin_approve_payment', args=[payment.pk])
+
+        first_response = self.client.post(approve_url, follow=True)
+
+        self.assertEqual(first_response.status_code, 200)
+        payment.refresh_from_db()
+        member.refresh_from_db()
+        self.assertIn(payment.status, ('completed', 'late'))
+        self.assertEqual(payment.reviewed_by, principal)
+        self.assertEqual(member.total_paid_usd, Decimal('100.00'))
+        first_paid_at = payment.paid_at
+
+        second_response = self.client.post(approve_url, follow=True)
+
+        self.assertEqual(second_response.status_code, 200)
+        payment.refresh_from_db()
+        member.refresh_from_db()
+        self.assertEqual(payment.paid_at, first_paid_at)
+        self.assertEqual(member.total_paid_usd, Decimal('100.00'))
+
+    def test_non_principal_cannot_approve_payment_or_change_financial_data(self):
+        member_user = User.objects.create_user(
+            username='protected-payment-owner',
+            email='protected-payment-owner@example.com',
+            password='ownerpass',
+        )
+        member, payment = self.create_approved_member_payment(member_user, 'SDISOL-UNAUTHORIZED')
+        staff = User.objects.create_user(
+            username='unprivileged-staff',
+            email='unprivileged-staff@example.com',
+            password='staffpass',
+            is_staff=True,
+        )
+        transactions_before = Transaction.objects.count()
+        self.client.login(username='unprivileged-staff', password='staffpass')
+
+        response = self.client.post(
+            reverse('sdi_sol_admin_approve_payment', args=[payment.pk]),
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payment.refresh_from_db()
+        member.refresh_from_db()
+        self.assertEqual(payment.status, 'pending')
+        self.assertIsNone(payment.paid_at)
+        self.assertIsNone(payment.reviewed_by)
+        self.assertEqual(member.total_paid_usd, Decimal('0.00'))
+        self.assertEqual(member.total_paid_htg, Decimal('0.00'))
+        self.assertEqual(Transaction.objects.count(), transactions_before)
+
+    def test_past_start_date_is_allowed_and_sets_plan_schedule(self):
+        start_date = timezone.localdate() - timedelta(days=45)
+        self.settings.start_date = start_date
+        self.settings.save(update_fields=['start_date'])
+        self.client.login(username='testuser', password='testpass')
+
+        response = self.client.post(reverse('sdi_sol_join'), {'plan_id': self.plan.pk}, follow=True)
+
+        self.assertEqual(response.status_code, 200)
+        member = SDISolMember.objects.get(user=self.user)
+        self.assertEqual(member.plan_start_date, start_date)
+        self.assertEqual(member.next_due_date.date(), start_date + timedelta(days=15))
+
+    def test_rejected_payment_does_not_change_member_totals(self):
+        self.client.login(username='testuser', password='testpass')
+        self.client.post(reverse('sdi_sol_join'), {'plan_id': self.plan.pk})
+        member = SDISolMember.objects.get(user=self.user)
+        staff = User.objects.create_superuser(
+            username='staff',
+            email='staff@example.com',
+            password='staffpass',
+        )
+        self.client.logout()
+        self.client.login(username='staff', password='staffpass')
+        group = SDISolGroup.objects.get(plan=self.plan)
+        self.client.post(
+            reverse('sdi_sol_admin_approve_member', args=[member.pk]),
+            {'group_id': group.pk},
+        )
+        self.client.logout()
+        self.client.login(username='testuser', password='testpass')
+        principal = User.objects.create_superuser(
+            username='principal', email='principal@example.com', password='principalpass'
+        )
+        response = self.client.post(
+            reverse('sdi_sol_make_payment'),
+            {'amount': '100.00', 'currency': 'USD'},
+            HTTP_X_REQUESTED_WITH='XMLHttpRequest',
+        )
+        payment = SDISolPayment.objects.get(receipt_number=response.json()['receipt_number'])
+        self.client.logout()
+        self.client.login(username='principal', password='principalpass')
+
+        response = self.client.post(reverse('sdi_sol_admin_reject_payment', args=[payment.pk]), follow=True)
+
+        self.assertEqual(response.status_code, 200)
+        payment.refresh_from_db()
+        member.refresh_from_db()
+        self.assertEqual(payment.status, 'rejected')
+        self.assertIsNone(payment.paid_at)
+        self.assertEqual(member.total_paid_usd, Decimal('0.00'))
+        self.assertTrue(PersistentNotification.objects.filter(
+            recipient=self.user,
+            notification_type='sdi_sol_payment_result',
+        ).exists())
+
+    def test_principal_admin_can_add_a_plan(self):
+        principal = User.objects.create_superuser(
+            username='principal', email='principal@example.com', password='principalpass'
+        )
+        self.client.login(username='principal', password='principalpass')
+
+        response = self.client.post(reverse('sdi_sol_admin_save_plan'), {
+            'name': 'Plan spécial',
+            'duration_days': '45',
+            'amount_usd': '125.00',
+            'amount_htg': '3250.00',
+            'is_active': 'on',
+        }, follow=True)
+
+        self.assertEqual(response.status_code, 200)
+        plan = SDISolPlan.objects.get(name='Plan spécial')
+        self.assertEqual(plan.duration_days, 45)
+        self.assertEqual(plan.amount_usd, Decimal('125.00'))
+        self.assertTrue(plan.is_active)
+        self.assertTrue(SDISolGroup.objects.filter(plan=plan).exists())
+
+    def test_existing_member_can_request_a_second_plan_without_joining_it_early(self):
+        second_plan = SDISolPlan.objects.create(
+            name='Plan test 30 jours',
+            duration_days=30,
+            amount_usd=Decimal('150.00'),
+            is_active=True,
+        )
+        first_group = SDISolGroup.objects.create(plan=self.plan)
+        first_membership = SDISolMember.objects.create(
+            user=self.user,
+            plan=self.plan,
+            group=first_group,
+            plan_name=self.plan.name,
+            position=1,
+            group_position=1,
+            active=True,
+            admin_approved=True,
+        )
+        self.client.login(username='testuser', password='testpass')
+
+        second_response = self.client.post(
+            reverse('sdi_sol_join'),
+            {'plan_id': second_plan.pk, 'group_id': 9999, 'position': 1},
+        )
+
+        self.assertEqual(second_response.status_code, 302)
+        memberships = SDISolMember.objects.filter(user=self.user, active=True).order_by('plan_id')
+        self.assertEqual(memberships.count(), 2)
+        self.assertEqual(set(memberships.values_list('plan_id', flat=True)), {self.plan.pk, second_plan.pk})
+        first_membership.refresh_from_db()
+        second_membership = memberships.get(plan=second_plan)
+        self.assertTrue(first_membership.admin_approved)
+        self.assertEqual(first_membership.group, first_group)
+        self.assertFalse(second_membership.admin_approved)
+        self.assertIsNone(second_membership.group)
+        self.assertEqual(second_membership.position, 0)
+        self.assertEqual(second_membership.group_position, 0)
+
+    def test_principal_admin_assigns_group_and_cannot_approve_own_request(self):
+        self.client.login(username='testuser', password='testpass')
+        self.client.post(reverse('sdi_sol_join'), {'plan_id': self.plan.pk})
+        member = SDISolMember.objects.get(user=self.user, plan=self.plan)
+        group = SDISolGroup.objects.get(plan=self.plan)
+        principal = User.objects.create_superuser(
+            username='principal',
+            email='principal@example.com',
+            password='principalpass',
+        )
+        self.client.logout()
+        self.client.login(username='principal', password='principalpass')
+
+        response = self.client.post(
+            reverse('sdi_sol_admin_approve_member', args=[member.pk]),
+            {'group_id': group.pk},
+        )
+
+        self.assertEqual(response.status_code, 302)
+        member.refresh_from_db()
+        self.assertTrue(member.admin_approved)
+        self.assertEqual(member.group, group)
+        self.assertEqual(member.position, 1)
+        self.assertEqual(member.group_position, 1)
+
+        self.client.post(reverse('sdi_sol_join'), {'plan_id': self.plan.pk})
+        self_member = SDISolMember.objects.get(user=principal, plan=self.plan)
+        response = self.client.post(
+            reverse('sdi_sol_admin_approve_member', args=[self_member.pk]),
+            {'group_id': group.pk},
+        )
+        self.assertEqual(response.status_code, 403)
+        self_member.refresh_from_db()
+        self.assertFalse(self_member.admin_approved)
+        self.assertIsNone(self_member.group)
+
+    def test_non_principal_staff_cannot_approve_or_reject_membership(self):
+        self.client.login(username='testuser', password='testpass')
+        self.client.post(reverse('sdi_sol_join'), {'plan_id': self.plan.pk})
+        member = SDISolMember.objects.get(user=self.user, plan=self.plan)
+        group = SDISolGroup.objects.get(plan=self.plan)
+        staff = User.objects.create_user(username='staff', password='staffpass', is_staff=True)
+        self.client.logout()
+        self.client.login(username='staff', password='staffpass')
+
+        approve_response = self.client.post(
+            reverse('sdi_sol_admin_approve_member', args=[member.pk]),
+            {'group_id': group.pk},
+        )
+        reject_response = self.client.post(reverse('sdi_sol_admin_reject_member', args=[member.pk]))
+        legacy_remove_response = self.client.post(reverse('sdi_sol_admin_remove_member', args=[member.pk]))
+
+        self.assertEqual(approve_response.status_code, 302)
+        self.assertEqual(reject_response.status_code, 302)
+        self.assertEqual(legacy_remove_response.status_code, 403)
+        member.refresh_from_db()
+        self.assertTrue(member.active)
+        self.assertFalse(member.admin_approved)
+        self.assertFalse(member.admin_rejected)
+
+    def test_full_group_cannot_be_overfilled_and_rejection_preserves_request(self):
+        self.settings.max_members = 1
+        self.settings.save(update_fields=['max_members'])
+        group = SDISolGroup.objects.create(plan=self.plan)
+        other_user = User.objects.create_user(username='first-place', password='testpass')
+        SDISolMember.objects.create(
+            user=other_user,
+            plan=self.plan,
+            group=group,
+            plan_name=self.plan.name,
+            position=1,
+            group_position=1,
+            active=True,
+            admin_approved=True,
+        )
+        self.client.login(username='testuser', password='testpass')
+        full_join_response = self.client.post(
+            reverse('sdi_sol_join'),
+            {'plan_id': self.plan.pk},
+        )
+        self.assertEqual(full_join_response.status_code, 302)
+        self.assertFalse(SDISolMember.objects.filter(user=self.user, plan=self.plan).exists())
+
+    def test_pending_request_reserves_a_group_place(self):
+        self.settings.max_members = 1
+        self.settings.save(update_fields=['max_members'])
+        self.client.login(username='testuser', password='testpass')
+
+        response = self.client.post(
+            reverse('sdi_sol_join'),
+            {'plan_id': self.plan.pk},
+        )
+
+        self.assertEqual(response.status_code, 302)
+        group = SDISolGroup.objects.get(plan=self.plan)
+        self.assertEqual(group.available_places, 0)
+
+        pending_user = User.objects.create_user(username='waiting-user', password='testpass')
+        pending = SDISolMember.objects.create(
+            user=pending_user,
+            plan=self.plan,
+            plan_name=self.plan.name,
+            active=True,
+            admin_approved=False,
+        )
+        principal = User.objects.create_superuser(
+            username='principal',
+            email='principal@example.com',
+            password='principalpass',
+        )
+        self.client.login(username='principal', password='principalpass')
+
+        response = self.client.post(
+            reverse('sdi_sol_admin_approve_member', args=[pending.pk]),
+            {'group_id': group.pk},
+        )
+
+        self.assertEqual(response.status_code, 302)
+        pending.refresh_from_db()
+        self.assertFalse(pending.admin_approved)
+        self.assertIsNone(pending.group)
+        self.assertEqual(self.plan.members.filter(active=True, admin_approved=True).count(), 0)
+        self.assertEqual(self.plan.members.filter(active=True).count(), 2)
+
+        self.client.post(reverse('sdi_sol_admin_reject_member', args=[pending.pk]))
+        pending.refresh_from_db()
+        self.assertFalse(pending.active)
+        self.assertTrue(pending.admin_rejected)
+        self.assertIsNone(pending.group)
+
+    def test_members_only_see_real_names_inside_their_own_group(self):
+        second_plan = SDISolPlan.objects.create(
+            name='Plan privé 30 jours',
+            duration_days=30,
+            amount_usd=Decimal('150.00'),
+            is_active=True,
+        )
+        first_group = SDISolGroup.objects.create(plan=self.plan)
+        second_group = SDISolGroup.objects.create(plan=second_plan)
+        SDISolMember.objects.create(
+            user=self.user,
+            plan=self.plan,
+            group=first_group,
+            plan_name=self.plan.name,
+            position=1,
+            group_position=1,
+            active=True,
+            admin_approved=True,
+        )
+        same_group_user = User.objects.create_user(
+            username='same-group-user',
+            first_name='PrénomGroupe',
+            last_name='NomGroupe',
+            password='testpass',
+        )
+        SDISolMember.objects.create(
+            user=same_group_user,
+            plan=self.plan,
+            group=first_group,
+            plan_name=self.plan.name,
+            position=2,
+            group_position=2,
+            active=True,
+            admin_approved=True,
+        )
+        for index in (1, 2):
+            group_user = User.objects.create_user(
+                username=f'other-group-user-{index}',
+                password='testpass',
+            )
+            SDISolMember.objects.create(
+                user=group_user,
+                plan=second_plan,
+                group=second_group,
+                plan_name=second_plan.name,
+                position=index + 2,
+                group_position=index,
+                active=True,
+                admin_approved=True,
+            )
+        private_user = User.objects.create_user(
+            username='private-outsider-secret',
+            first_name='NomPriveSecret',
+            last_name='FamillePrivee',
+            password='testpass',
+        )
+        SDISolMember.objects.create(
+            user=private_user,
+            plan=second_plan,
+            group=second_group,
+            plan_name=second_plan.name,
+            position=3,
+            group_position=3,
+            active=True,
+            admin_approved=True,
+        )
+        self.client.login(username='testuser', password='testpass')
+
+        response = self.client.get(reverse('sdi_sol'))
+        page = response.content.decode('utf-8')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('PrénomGroupe NomGroupe', page)
+        self.assertNotIn('private-outsider-secret', page)
+        self.assertNotIn('NomPriveSecret', page)
+        self.assertNotIn('FamillePrivee', page)
+        self.assertIn('Place 3', page)
+        self.assertIn('Membre masqué 3', page)
+
+        principal = User.objects.create_superuser(
+            username='principal',
+            email='principal@example.com',
+            password='principalpass',
+        )
+        self.client.logout()
+        self.client.login(username='principal', password='principalpass')
+        admin_response = self.client.get(reverse('sdi_sol'))
+        admin_page = admin_response.content.decode('utf-8')
+        self.assertIn('NomPriveSecret FamillePrivee', admin_page)
+        self.assertNotIn('Membre masqué 3', admin_page)
+
+    def test_member_cannot_open_another_users_payment_record_or_assign_themselves(self):
+        other_user = User.objects.create_user(username='other-member', password='testpass')
+        other_group = SDISolGroup.objects.create(plan=self.plan)
+        other_member = SDISolMember.objects.create(
+            user=other_user,
+            plan=self.plan,
+            group=other_group,
+            plan_name=self.plan.name,
+            position=1,
+            active=True,
+            admin_approved=True,
+        )
+        self.client.login(username='testuser', password='testpass')
+
+        self.client.post(
+            reverse('sdi_sol_join'),
+            {'plan_id': self.plan.pk, 'group_id': other_group.pk, 'position': 1},
+        )
+        response = self.client.get(
+            reverse('sdi_sol_payments'),
+            {'member_id': other_member.pk},
+        )
+        own_request = SDISolMember.objects.get(user=self.user, plan=self.plan)
+
+        self.assertEqual(response.status_code, 404)
+        self.assertFalse(own_request.admin_approved)
+        self.assertIsNone(own_request.group)
+        self.assertEqual(own_request.position, 0)
+        self.assertEqual(own_request.group_position, 0)
+
+        payment_response = self.client.post(
+            reverse('sdi_sol_make_payment'),
+            {
+                'member_id': other_member.pk,
+                'amount': '100.00',
+                'currency': 'USD',
+            },
+            HTTP_X_REQUESTED_WITH='XMLHttpRequest',
+        )
+        self.assertEqual(payment_response.status_code, 403)
+        self.assertFalse(SDISolPayment.objects.filter(member=other_member).exists())
+
+
+class TiKaneAccessRegistrationTest(TestCase):
+    def setUp(self):
+        self.media_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(self.media_dir.cleanup)
+        media_settings = override_settings(MEDIA_ROOT=self.media_dir.name)
+        media_settings.enable()
+        self.addCleanup(media_settings.disable)
+
+        self.admin = User.objects.create_superuser(
+            username='tikane-review-admin',
+            email='tikane-admin@example.com',
+            password='testpass123',
+        )
+        self.customer = User.objects.create_user(
+            username='tikane-registration-customer',
+            email='customer@example.com',
+            password='customerpass123',
+        )
+        self.plan = TiKanePlan.objects.create(
+            name='Registration test plan',
+            duration_days=30,
+        )
+        self.customer_client = Client()
+        self.customer_client.force_login(self.customer)
+        self.admin_client = Client()
+        self.admin_client.force_login(self.admin)
+
+    def make_image(self, name):
+        stream = BytesIO()
+        Image.new('RGB', (2, 2), 'white').save(stream, format='PNG')
+        return SimpleUploadedFile(name, stream.getvalue(), content_type='image/png')
+
+    def submit_registration(self, include_currency=True, omitted_fields=()):
+        data = {
+            'full_name': 'Test TiKane Customer',
+            'email': 'customer@example.com',
+            'phone': '5090000000',
+            'plan': str(self.plan.pk),
+            'acceptance_clause': 'on',
+            'identity_document': self.make_image('identity.png'),
+            'passport_document': self.make_image('passport.png'),
+            'driver_license_document': self.make_image('license.png'),
+            'selfie': self.make_image('selfie.png'),
+        }
+        for field_name in omitted_fields:
+            data.pop(field_name)
+        if include_currency:
+            data['currency'] = 'HTG'
+        return self.customer_client.post(reverse('tikane_access'), data)
+
+    def test_registration_form_displays_required_currency(self):
+        response = self.customer_client.get(reverse('tikane_access'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'name="currency"')
+        self.assertContains(response, 'Devise du compte Ti Kanè')
+
+    def test_registration_image_inputs_allow_gallery_or_camera_selection(self):
+        image_fields = (
+            'identity_document',
+            'passport_document',
+            'driver_license_document',
+            'selfie',
+        )
+
+        for field_name in image_fields:
+            with self.subTest(field=field_name):
+                widget_attrs = TiKaneAccessRequestForm.base_fields[field_name].widget.attrs
+                self.assertEqual(widget_attrs.get('accept'), 'image/*')
+                self.assertNotIn('capture', widget_attrs)
+
+    def test_missing_currency_is_explained_and_does_not_create_request(self):
+        response = self.submit_registration(include_currency=False)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('currency', response.context['form'].errors)
+        self.assertContains(response, 'Ce champ est obligatoire.')
+        self.assertFalse(TiKaneAccessRequest.objects.filter(user=self.customer).exists())
+
+    def test_missing_documents_and_responsibility_clause_show_validation_errors(self):
+        omitted_fields = (
+            'identity_document',
+            'passport_document',
+            'driver_license_document',
+            'selfie',
+            'acceptance_clause',
+        )
+        response = self.submit_registration(omitted_fields=omitted_fields)
+
+        self.assertEqual(response.status_code, 200)
+        errors = response.context['form'].errors
+        for field_name in omitted_fields[:-1]:
+            self.assertIn(field_name, errors)
+        self.assertIn('__all__', errors)
+        self.assertContains(response, 'Vous devez accepter la clause de responsabilité')
+        self.assertFalse(TiKaneAccessRequest.objects.filter(user=self.customer).exists())
+
+    def test_valid_registration_is_saved_and_notifies_principal_admin(self):
+        response = self.submit_registration()
+
+        self.assertRedirects(response, reverse('tikane_access'), fetch_redirect_response=False)
+        access_request = TiKaneAccessRequest.objects.get(user=self.customer)
+        self.assertEqual(access_request.status, 'pending')
+        self.assertEqual(access_request.currency, 'HTG')
+        self.assertTrue(access_request.identity_document)
+        self.assertTrue(access_request.passport_document)
+        self.assertTrue(access_request.driver_license_document)
+        self.assertTrue(access_request.selfie)
+
+        notification = PersistentNotification.objects.get(
+            recipient=self.admin,
+            notification_type='tikane_access_review',
+        )
+        self.assertEqual(notification.target_url, reverse('admin_tikane_requests'))
+        self.assertFalse(PushSubscription.objects.filter(user=self.admin).exists())
+
+    def test_admin_can_review_uploaded_documents_but_customer_cannot_open_them(self):
+        self.submit_registration()
+        access_request = TiKaneAccessRequest.objects.get(user=self.customer)
+
+        admin_page = self.admin_client.get(reverse('admin_tikane_requests'))
+        self.assertContains(admin_page, 'Carte d’identité')
+        self.assertContains(admin_page, 'customer@example.com')
+        self.assertNotContains(admin_page, 'Planifier approbation +30 min')
+
+        document_url = reverse(
+            'admin_tikane_document',
+            args=[access_request.pk, 'identity_document'],
+        )
+        document_response = self.admin_client.get(document_url)
+        self.assertEqual(document_response.status_code, 200)
+        self.assertEqual(document_response['Content-Type'], 'image/png')
+        self.assertEqual(b''.join(document_response.streaming_content)[:8], b'\x89PNG\r\n\x1a\n')
+
+        customer_response = self.customer_client.get(document_url)
+        self.assertEqual(customer_response.status_code, 302)
+
+    def test_admin_approval_activates_account_and_customer_can_access_it(self):
+        access_request = TiKaneAccessRequest.objects.create(
+            user=self.customer,
+            full_name='Test TiKane Customer',
+            email='customer@example.com',
+            phone='5090000000',
+            currency='HTG',
+            plan=self.plan,
+            acceptance_clause=True,
+        )
+
+        response = self.admin_client.post(reverse('admin_tikane_requests'), {
+            'action': 'approve_immediate',
+            'request_id': access_request.pk,
+        })
+
+        self.assertEqual(response.status_code, 302)
+        access_request.refresh_from_db()
+        self.assertEqual(access_request.status, 'approved')
+        account = TiKaneAccount.objects.get(user=self.customer)
+        self.assertEqual(account.status, 'active')
+        self.assertEqual(account.currency, 'HTG')
+
+        customer_page = self.customer_client.get(reverse('tikane_access'))
+        self.assertEqual(customer_page.status_code, 200)
+        self.assertContains(customer_page, 'Compte Ti Kanè actif')
+        self.assertNotContains(customer_page, 'Soumettre la demande')
+
+    def test_admin_can_refuse_request_without_creating_account(self):
+        access_request = TiKaneAccessRequest.objects.create(
+            user=self.customer,
+            full_name='Test TiKane Customer',
+            email='customer@example.com',
+            phone='5090000000',
+            currency='HTG',
+            plan=self.plan,
+            acceptance_clause=True,
+        )
+
+        response = self.admin_client.post(reverse('admin_tikane_requests'), {
+            'action': 'refuse',
+            'request_id': access_request.pk,
+        })
+
+        self.assertEqual(response.status_code, 302)
+        access_request.refresh_from_db()
+        self.assertEqual(access_request.status, 'refused')
+        self.assertFalse(TiKaneAccount.objects.filter(user=self.customer).exists())

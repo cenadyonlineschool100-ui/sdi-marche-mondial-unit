@@ -184,7 +184,7 @@
 
     .payment-row {
         display: grid;
-        grid-template-columns: 1fr 1fr 1fr 1fr;
+        grid-template-columns: 1.4fr 1fr 1fr 1fr 1.5fr;
         gap: 10px;
         padding: 15px;
         border-bottom: 1px solid rgba(30, 64, 175, 0.1);
@@ -224,6 +224,11 @@
     .status-pending {
         background: rgba(59, 130, 246, 0.1);
         color: #3b82f6;
+    }
+
+    .status-rejected {
+        background: rgba(239, 68, 68, 0.1);
+        color: #dc2626;
     }
 
     .late-members {
@@ -285,8 +290,8 @@
     <!-- Statistiques -->
     <div class="admin-grid">
         <div class="stat-box">
-            <div class="stat-label">Membres actifs</div>
-            <div class="stat-value">{{ total_members }}/{{ settings.max_members }}</div>
+            <div class="stat-label">Participants actifs / capacités cumulées</div>
+            <div class="stat-value">{{ total_members }}/{{ total_group_capacity }}</div>
         </div>
         <div class="stat-box">
             <div class="stat-label">Paiements total</div>
@@ -316,7 +321,7 @@
             
             <div class="form-row">
                 <div class="form-group">
-                    <label for="max_members">Nombre maximum de membres</label>
+                    <label for="max_members">Capacité maximale par groupe de plan</label>
                     <input type="number" id="max_members" name="max_members" 
                         value="{{ settings.max_members }}" min="1" required>
                 </div>
@@ -329,6 +334,14 @@
                     </select>
                 </div>
             </div>
+
+            {% if is_principal_admin %}
+            <div class="form-group">
+                <label for="start_date">Date de commencement du Sol</label>
+                <input type="date" id="start_date" name="start_date" value="{{ settings.start_date|date:'Y-m-d' }}">
+                <small>Une date passée est acceptée; les échéances restent calculées selon la durée du plan.</small>
+            </div>
+            {% endif %}
 
             <hr style="margin: 30px 0; border: 1px solid rgba(30, 64, 175, 0.1);">
 
@@ -370,6 +383,36 @@
         </form>
     </div>
 
+    {% if is_principal_admin %}
+    <div class="admin-section">
+        <h2>Gestion des plans SDI Sol Microtech</h2>
+        <p>Les plans sans prix restent inactifs. Les nouvelles inscriptions ne voient que les plans actifs.</p>
+        <form method="post" action="{% url 'sdi_sol_admin_save_plan' %}" class="form-row">
+            {% csrf_token %}
+            <div class="form-group"><label for="new-plan-name">Nom du plan</label><input id="new-plan-name" name="name" maxlength="100" required></div>
+            <div class="form-group"><label for="new-plan-duration">Durée en jours</label><input id="new-plan-duration" type="number" name="duration_days" min="1" value="15" required></div>
+            <div class="form-group"><label for="new-plan-usd">Prix USD</label><input id="new-plan-usd" type="number" name="amount_usd" min="0" step="0.01"></div>
+            <div class="form-group"><label for="new-plan-htg">Prix HTG</label><input id="new-plan-htg" type="number" name="amount_htg" min="0" step="0.01"></div>
+            <div class="form-group"><label><input type="checkbox" name="is_active"> Activer</label></div>
+            <button type="submit" class="submit-button">Ajouter le plan</button>
+        </form>
+
+        {% for plan in plans %}
+        <form method="post" action="{% url 'sdi_sol_admin_update_plan' plan.id %}" class="form-row" style="margin-top: 16px;">
+            {% csrf_token %}
+            <div class="form-group"><label>Nom</label><input name="name" value="{{ plan.name }}" maxlength="100" required></div>
+            <div class="form-group"><label>Durée en jours</label><input type="number" name="duration_days" min="1" value="{{ plan.duration_days }}" required></div>
+            <div class="form-group"><label>Prix USD</label><input type="number" name="amount_usd" min="0" step="0.01" value="{{ plan.amount_usd|default_if_none:'' }}"></div>
+            <div class="form-group"><label>Prix HTG</label><input type="number" name="amount_htg" min="0" step="0.01" value="{{ plan.amount_htg|default_if_none:'' }}"></div>
+            <div class="form-group"><label><input type="checkbox" name="is_active" {% if plan.is_active %}checked{% endif %}> Actif</label></div>
+            <button type="submit" class="submit-button">Enregistrer</button>
+        </form>
+        {% empty %}
+        <p>Aucun plan configuré.</p>
+        {% endfor %}
+    </div>
+    {% endif %}
+
     <!-- Membres en retard -->
     {% if late_members %}
     <div class="admin-section">
@@ -377,7 +420,7 @@
         <div class="late-members">
             {% for member in late_members %}
                 <div class="late-member-card">
-                    <div class="late-member-name">#{{ member.position }} - {{ member.user.get_full_name|default:member.user.username }}</div>
+                    <div class="late-member-name">#{{ member.group_position }} - {{ member.user.get_full_name|default:member.user.username }}</div>
                     <div class="late-member-info">
                         <div>📧 {{ member.user.email }}</div>
                         <div>Dernier paiement: {{ member.last_payment_date|date:"d/m/Y"|default:"N/A" }}</div>
@@ -397,19 +440,32 @@
                 <div class="member-item">
                     <div>
                         <div class="member-name">{{ pending.user.get_full_name|default:pending.user.username }}</div>
+                        <div class="member-status">Plan demandé : {{ pending.plan_name|default:"Plan historique sans plan" }}</div>
                         <div class="member-status">🟡 En attente d'approbation</div>
                         <div class="member-status">Demandé le: {{ pending.joined_at|date:"d/m/Y H:i" }}</div>
                     </div>
+                    {% if is_principal_admin %}
                     <div style="display: flex; gap: 10px;">
                         <form method="post" action="{% url 'sdi_sol_admin_approve_member' pending.id %}" style="margin: 0;">
                             {% csrf_token %}
-                            <button type="submit" class="submit-button" style="background: linear-gradient(135deg, #22c55e, #16a34a);">Approuver</button>
+                            {% if pending.available_groups %}
+                                <label for="sdi-group-{{ pending.id }}">Groupe</label>
+                                <select id="sdi-group-{{ pending.id }}" name="group_id" required>
+                                    {% for group in pending.available_groups %}
+                                        <option value="{{ group.pk }}">{{ group.plan.name }} — places disponibles : {{ group.available_places }}/{{ group.capacity }}</option>
+                                    {% endfor %}
+                                </select>
+                                <button type="submit" class="submit-button" style="background: linear-gradient(135deg, #22c55e, #16a34a);">Approuver et affecter</button>
+                            {% else %}
+                                <span class="member-status">Aucun groupe correspondant au plan; cette demande historique doit être examinée.</span>
+                            {% endif %}
                         </form>
-                        <form method="post" action="{% url 'sdi_sol_admin_remove_member' pending.id %}" style="margin: 0;">
+                        <form method="post" action="{% url 'sdi_sol_admin_reject_member' pending.id %}" style="margin: 0;">
                             {% csrf_token %}
                             <button type="submit" class="remove-btn">Refuser</button>
                         </form>
                     </div>
+                    {% endif %}
                 </div>
             {% endfor %}
         </div>
@@ -423,7 +479,8 @@
             {% for member in members %}
                 <div class="member-item">
                     <div>
-                        <div class="member-name">#{{ member.position }} - {{ member.user.get_full_name|default:member.user.username }}</div>
+                        <div class="member-name">#{{ member.group_position }} - {{ member.user.get_full_name|default:member.user.username }}</div>
+                        <div class="member-status">Groupe : {{ member.group.plan.name|default:"Sol SDI historique" }}</div>
                         <div class="member-status">{{ member.get_status_badge }} {{ member.get_status_display }}</div>
                         <div class="member-status">Paiements: {{ member.payments.count }}</div>
                     </div>
@@ -437,23 +494,45 @@
         </div>
     </div>
 
+    {% if pending_payments %}
+    <div class="admin-section">
+        <h2>Paiements à valider ({{ pending_payments|length }})</h2>
+        {% for payment in pending_payments %}
+        <div class="payment-row" style="grid-template-columns: 1.2fr 1fr 1.2fr 1.5fr 1.5fr;">
+            <div class="payment-receipt">{{ payment.receipt_number }}</div>
+            <div class="payment-amount">{{ payment.amount }} {{ payment.currency }}</div>
+            <div class="payment-amount">{{ payment.member.user.get_full_name|default:payment.member.user.username }}<br>{{ payment.created_at|date:"d/m/Y H:i" }}</div>
+            <div class="payment-amount">{{ payment.plan_name|default:"Plan historique" }}{% if payment.plan_duration_days %} · {{ payment.plan_duration_days }} jours{% endif %}<br>Référence : {{ payment.notes|default:"Non fournie" }}</div>
+            {% if is_principal_admin %}
+            <div style="display:flex; gap:8px; align-items:center;">
+                <form method="post" action="{% url 'sdi_sol_admin_approve_payment' payment.id %}">{% csrf_token %}<button type="submit" class="submit-button">Approuver</button></form>
+                <form method="post" action="{% url 'sdi_sol_admin_reject_payment' payment.id %}">{% csrf_token %}<input name="reason" maxlength="2000" placeholder="Motif facultatif"><button type="submit" class="remove-btn">Refuser</button></form>
+            </div>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
     <!-- Historique des paiements -->
     <div class="admin-section">
         <h2>📄 Historique des paiements</h2>
         <div class="payment-list">
-            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 10px; padding: 15px; font-weight: 700; border-bottom: 2px solid rgba(30, 64, 175, 0.1); color: #1d4ed8;">
+            <div style="display: grid; grid-template-columns: 1.4fr 1fr 1fr 1fr 1.5fr; gap: 10px; padding: 15px; font-weight: 700; border-bottom: 2px solid rgba(30, 64, 175, 0.1); color: #1d4ed8;">
                 <div>Reçu</div>
                 <div>Montant</div>
                 <div>Date</div>
+                <div>Membre</div>
                 <div>Statut</div>
             </div>
             {% for payment in payments %}
                 <div class="payment-row">
                     <div class="payment-receipt">{{ payment.receipt_number }}</div>
                     <div class="payment-amount">{{ payment.amount }} {{ payment.currency }}</div>
-                    <div class="payment-amount">{{ payment.paid_at|date:"d/m/Y H:i"|default:"N/A" }}</div>
+                    <div class="payment-amount">{% if payment.paid_at %}{{ payment.paid_at|date:"d/m/Y H:i" }}{% else %}{{ payment.created_at|date:"d/m/Y H:i" }}{% endif %}</div>
+                    <div class="payment-amount">{{ payment.member.user.get_full_name|default:payment.member.user.username }}</div>
                     <div class="payment-status status-{{ payment.status }}">
-                        {% if payment.status == 'completed' %}✅ Effectué{% elif payment.status == 'late' %}⚠️ En retard{% else %}⏳ En attente{% endif %}
+                        {% if payment.status == 'completed' %}✅ Effectué{% elif payment.status == 'late' %}⚠️ En retard{% elif payment.status == 'rejected' %}❌ Refusé{% else %}⏳ En attente de validation{% endif %}
                     </div>
                 </div>
             {% empty %}

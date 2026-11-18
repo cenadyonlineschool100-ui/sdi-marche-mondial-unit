@@ -9,7 +9,10 @@ from django.db.models import F, Q
 from django.utils import timezone
 import logging
 
-from .models import Agent, User, Wallet, WithdrawalRequest, Transaction, WithdrawalTransaction
+from .models import (
+    Agent, User, Wallet, WithdrawalRequest, Transaction,
+    WithdrawalTransaction, SystemSettings,
+)
 from .business_logic import create_persistent_notification
 
 logger = logging.getLogger(__name__)
@@ -86,6 +89,29 @@ def agent_process_withdrawal(request):
         if not withdrawal:
             messages.error(request, 'Cette demande est introuvable ou a déjà été traitée.')
             return redirect('agent_process_withdrawal')
+
+        if withdrawal.account_type == 'tikane':
+            withdrawals_enabled = SystemSettings.objects.filter(pk=1).values_list(
+                'tikane_withdrawals_enabled',
+                flat=True,
+            ).first()
+            if withdrawals_enabled is False:
+                messages.error(request, 'Les retraits Ti Kanè sont désactivés. Cette demande reste en attente.')
+                return redirect('agent_process_withdrawal')
+        elif (
+            withdrawal.account_type == 'multidevice'
+            and (withdrawal.user.is_agent or withdrawal.user.role == 'agent')
+        ):
+            withdrawals_enabled = SystemSettings.objects.filter(pk=1).values_list(
+                'agent_wallet_withdrawals_enabled',
+                flat=True,
+            ).first()
+            if withdrawals_enabled is False:
+                messages.error(
+                    request,
+                    'Les retraits du portefeuille de commissions agent sont désactivés. Cette demande reste en attente.',
+                )
+                return redirect('agent_process_withdrawal')
 
         withdrawal_transactions = list(
             WithdrawalTransaction.objects.select_for_update().filter(

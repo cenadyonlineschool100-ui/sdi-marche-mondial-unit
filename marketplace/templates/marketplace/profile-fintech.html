@@ -1,4 +1,5 @@
 {% extends 'marketplace/base.html' %}
+{% load image_tags %}
 {% load static %}
 
 {% block content %}
@@ -301,11 +302,13 @@
 <div class="profile-header">
     <div class="profile-container">
         <div class="profile-header-content">
-            {% if profile.photo %}
-                <img src="{{ profile.photo.url }}" alt="Photo de profil" class="profile-avatar">
-            {% else %}
-                <div class="profile-avatar">👤</div>
-            {% endif %}
+            {% with photo_url=profile.photo|safe_image_url %}
+                {% if photo_url %}
+                    <img src="{{ photo_url }}" alt="Photo de profil" class="profile-avatar">
+                {% else %}
+                    <div class="profile-avatar">👤</div>
+                {% endif %}
+            {% endwith %}
             <div class="profile-info">
                 <h1>{{ request.user.first_name }} {{ request.user.last_name }}</h1>
                 <p>{{ request.user.username }} • {{ request.user.email }}</p>
@@ -333,11 +336,13 @@
     <div class="profile-sidebar">
         <div class="profile-header">
             <div class="profile-header-content">
-                {% if profile.photo %}
-                    <img src="{{ profile.photo.url }}" alt="Photo de profil" class="profile-avatar">
-                {% else %}
-                    <div class="profile-avatar">👤</div>
-                {% endif %}
+                {% with photo_url=profile.photo|safe_image_url %}
+                    {% if photo_url %}
+                        <img src="{{ photo_url }}" alt="Photo de profil" class="profile-avatar">
+                    {% else %}
+                        <div class="profile-avatar">👤</div>
+                    {% endif %}
+                {% endwith %}
                 <div class="profile-info">
                     <h1>{{ request.user.first_name }} {{ request.user.last_name }}</h1>
                     <p>{{ request.user.username }}</p>
@@ -661,7 +666,7 @@
                 </div>
                 <div class="form-group">
                     <label class="form-label">Montant</label>
-                    <input type="number" class="form-input" step="0.01" min="5" name="amount" placeholder="Montant à retirer" required>
+                    <input type="number" class="form-input" step="0.01" min="1" name="amount" placeholder="Montant à retirer" required>
                 </div>
                 <div class="form-group">
                     <p id="withdraw-fee-text" class="form-text text-muted" style="margin:0; display:none; font-size:0.95rem;"></p>
@@ -790,8 +795,17 @@
         var accountType = form.querySelector('select[name="account_type"]').value;
         var currency = form.querySelector('select[name="currency"]').value;
         var amount = form.querySelector('input[name="amount"]').value;
+        var amountInput = form.querySelector('input[name="amount"]');
         var feeText = document.getElementById('withdraw-fee-text');
         if (!feeText) return;
+
+        amountInput.min = currency === 'USD' ? '1' : '5';
+        var amountValue = parseFloat(amount);
+        if (currency === 'USD' && amount && amountValue >= 1 && amountValue < 5) {
+            feeText.textContent = 'Aucun frais de retrait pour les montants de 1 à 4 USD.';
+            feeText.style.display = 'block';
+            return;
+        }
 
         if (accountType === 'multidevice' && currency === 'HTG') {
             var fee = calculateHtgWithdrawalFee(amount);
@@ -813,6 +827,7 @@
         withdrawForm.querySelector('select[name="account_type"]').addEventListener('change', updateWithdrawalFeeText);
         withdrawForm.querySelector('select[name="currency"]').addEventListener('change', updateWithdrawalFeeText);
         withdrawForm.querySelector('input[name="amount"]').addEventListener('input', updateWithdrawalFeeText);
+        updateWithdrawalFeeText();
     }
 
     document.getElementById('btn-add-receipt')?.addEventListener('click', function() {
@@ -979,6 +994,7 @@
             if (data.success) {
                 closeModal('withdraw-modal');
                 form.reset();
+                updateWithdrawalFeeText();
             }
         })
         .catch(function() {

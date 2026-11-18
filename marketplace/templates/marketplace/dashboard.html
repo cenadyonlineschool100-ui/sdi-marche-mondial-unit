@@ -27,7 +27,12 @@
                 <span class="summary-chip {% if wallet.is_blocked %}chip-danger{% else %}chip-success{% endif %}">{% if wallet.is_blocked %}Bloqué{% else %}Actif{% endif %}</span>
             </div>
             <div class="summary-value">{{ wallet.balance|default:0|floatformat:2 }}</div>
-            <p class="summary-subtitle">USD disponible</p>
+            <p class="summary-subtitle">USD disponible — contre-valeurs du même capital, ne pas additionner</p>
+            <p class="summary-subtitle">
+                HTG : {% if wallet_currency_conversion.amounts.HTG is not None %}{{ wallet_currency_conversion.amounts.HTG|floatformat:2 }}{% else %}Taux indisponible{% endif %}
+                · DOP : {% if wallet_currency_conversion.amounts.DOP is not None %}{{ wallet_currency_conversion.amounts.DOP|floatformat:2 }}{% else %}Taux indisponible{% endif %}
+                · EUR : {% if wallet_currency_conversion.amounts.EUR is not None %}{{ wallet_currency_conversion.amounts.EUR|floatformat:2 }}{% else %}Taux indisponible{% endif %}
+            </p>
         </article>
 
         <article class="summary-card fintech-card">
@@ -62,7 +67,7 @@
                 <span>Ti Kanè Digital</span>
                 <span class="summary-chip chip-primary">{% if tikane_account %}{{ tikane_account.get_status_display }}{% else %}{% if tikane_request %}{{ tikane_request.get_status_display }}{% else %}Pas de demande{% endif %}{% endif %}</span>
             </div>
-            <div class="summary-value">{% if tikane_account %}{{ tikane_account.balance|default:0|floatformat:2 }}{% else %}0.00{% endif %}</div>
+            <div class="summary-value">{% if tikane_account %}{{ tikane_account.balance|default:0|floatformat:2 }} {{ tikane_account.currency|default:"Devise inconnue" }}{% else %}0.00{% endif %}</div>
             <p class="summary-subtitle">{% if tikane_account and tikane_account.plan %}{{ tikane_account.plan.name }}{% else %}Accès KYC requis{% endif %}</p>
         </article>
 
@@ -204,7 +209,7 @@
                                 <p class="activity-meta">Plan {% if tikane_account.plan %}{{ tikane_account.plan.name }}{% else %}non défini{% endif %} • {% if tikane_account.days_until_maturity is not None %}{{ tikane_account.days_until_maturity }} jours jusqu'à maturité{% else %}Date de maturité non définie{% endif %}</p>
                             </div>
                         </div>
-                        <div class="activity-right">{{ tikane_account.balance|floatformat:2 }} USD</div>
+                        <div class="activity-right">{{ tikane_account.balance|floatformat:2 }} {{ tikane_account.currency|default:"Devise inconnue" }}</div>
                     </div>
                     {% if tikane_daily_payments %}
                     <article class="activity-item">
@@ -356,15 +361,15 @@
                 </div>
                 <div class="exchange-row">
                     <span>USD → HTG</span>
-                    <strong>62.50</strong>
+                    <strong>{% if wallet_currency_conversion.rates.HTG is not None %}{{ wallet_currency_conversion.rates.HTG|floatformat:6 }}{% else %}Taux indisponible{% endif %}</strong>
                 </div>
                 <div class="exchange-row">
                     <span>USD → EUR</span>
-                    <strong>0.92</strong>
+                    <strong>{% if wallet_currency_conversion.rates.EUR is not None %}{{ wallet_currency_conversion.rates.EUR|floatformat:6 }}{% else %}Taux indisponible{% endif %}</strong>
                 </div>
                 <div class="exchange-row">
                     <span>USD → DOP</span>
-                    <strong>57.30</strong>
+                    <strong>{% if wallet_currency_conversion.rates.DOP is not None %}{{ wallet_currency_conversion.rates.DOP|floatformat:6 }}{% else %}Taux indisponible{% endif %}</strong>
                 </div>
             </div>
         </div>

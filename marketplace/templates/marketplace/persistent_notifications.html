@@ -107,16 +107,131 @@ async function initializeWebPushControl() {
         return;
     }
 
+    let registration = null;
+    let subscription = null;
+
     try {
-        const registration = await navigator.serviceWorker.getRegistration('/');
-        const subscription = registration && await registration.pushManager.getSubscription();
-        status.textContent = subscription ? 'Notifications activées sur cet appareil.' : 'Notifications désactivées sur cet appareil.';
+        registration = await navigator.serviceWorker.getRegistration('/');
+        subscription = registration && await registration.pushManager.getSubscription();
+
+        if (subscription) {
+            const keyResponse = await fetch('/api/web-push/vapid-public-key/');
+            if (!keyResponse.ok) throw new Error('Clé Push indisponible');
+            const keyData = await keyResponse.json();
+            if (!keyData.public_key) throw new Error('Clé Push invalide');
+
+            const existingKey = subscription.options && subscription.options.applicationServerKey;
+            const currentKeyBytes = urlBase64ToUint8Array(keyData.public_key);
+            let keysMatch = false;
+            if (existingKey) {
+                const existingKeyBytes = new Uint8Array(existingKey);
+                keysMatch = existingKeyBytes.length === currentKeyBytes.length
+                    && existingKeyBytes.every((value, index) => value === currentKeyBytes[index]);
+            } else {
+                keysMatch = getRememberedSubscriptionVapidKey(subscription.endpoint)
+                    === keyData.public_key;
+            }
+
+            if (!keysMatch) {
+                button.disabled = true;
+                status.textContent = 'Renouvellement des notifications en cours…';
+                await removeWebPushSubscription(subscription);
+                await subscription.unsubscribe();
+                forgetSubscriptionVapidKey(subscription.endpoint);
+                subscription = null;
+                subscription = await createWebPushSubscription(registration, keyData.public_key);
+            } else {
+                rememberSubscriptionVapidKey(subscription.endpoint, keyData.public_key);
+            }
+        }
+
+        status.textContent = subscription
+            ? 'Notifications activées sur cet appareil.'
+            : 'Notifications désactivées sur cet appareil.';
         button.textContent = subscription ? 'Désactiver les notifications' : 'Activer les notifications';
+        button.disabled = false;
         button.onclick = () => toggleWebPush(subscription);
     } catch (error) {
-        status.textContent = 'Erreur lors de la vérification des notifications.';
+        status.textContent = 'Erreur lors de la vérification ou du renouvellement des notifications.';
         button.disabled = false;
-        button.onclick = () => toggleWebPush(null);
+        button.textContent = subscription ? 'Désactiver les notifications' : 'Activer les notifications';
+        button.onclick = () => toggleWebPush(subscription);
+    }
+
+    async function removeWebPushSubscription(currentSubscription) {
+        const response = await fetch('/api/web-push/subscriptions/', {
+            method: 'DELETE',
+            headers: {'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken()},
+            body: JSON.stringify({endpoint: currentSubscription.endpoint})
+        });
+        if (!response.ok) throw new Error('Suppression de l’ancienne souscription impossible');
+    }
+
+    async function createWebPushSubscription(serviceWorkerRegistration, publicKey) {
+        const readyRegistration = await navigator.serviceWorker.ready;
+        const newSubscription = await (readyRegistration || serviceWorkerRegistration).pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: urlBase64ToUint8Array(publicKey)
+        });
+        const saveResponse = await fetch('/api/web-push/subscriptions/', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken()},
+            body: JSON.stringify(newSubscription.toJSON())
+        });
+        if (!saveResponse.ok) {
+            await newSubscription.unsubscribe();
+            throw new Error('Enregistrement de l’abonnement impossible');
+        }
+        rememberSubscriptionVapidKey(newSubscription.endpoint, publicKey);
+        return newSubscription;
+    }
+
+    function subscriptionVapidMarkerKey(endpoint) {
+        return `sdi-web-push-vapid:${endpoint}`;
+    }
+
+    function getRememberedSubscriptionVapidKey(endpoint) {
+        const markerKey = subscriptionVapidMarkerKey(endpoint);
+        try {
+            const persistentKey = localStorage.getItem(markerKey);
+            if (persistentKey) return persistentKey;
+        } catch (error) {
+            try {
+                return sessionStorage.getItem(markerKey);
+            } catch (sessionError) {
+                console.warn('Impossible de lire la clé VAPID mémorisée.', sessionError);
+            }
+        }
+        return null;
+    }
+
+    function rememberSubscriptionVapidKey(endpoint, publicKey) {
+        try {
+            localStorage.setItem(subscriptionVapidMarkerKey(endpoint), publicKey);
+        } catch (error) {
+            try {
+                sessionStorage.setItem(subscriptionVapidMarkerKey(endpoint), publicKey);
+            } catch (sessionError) {
+                console.warn('Impossible de mémoriser la clé VAPID de cet abonnement.', sessionError);
+            }
+        }
+    }
+
+    function forgetSubscriptionVapidKey(endpoint) {
+        try {
+            localStorage.removeItem(subscriptionVapidMarkerKey(endpoint));
+        } catch (error) {
+            try {
+                sessionStorage.removeItem(subscriptionVapidMarkerKey(endpoint));
+            } catch (sessionError) {
+                console.warn('Impossible d’effacer la clé VAPID mémorisée.', sessionError);
+            }
+        }
+        try {
+            sessionStorage.removeItem(subscriptionVapidMarkerKey(endpoint));
+        } catch (error) {
+            console.warn('Impossible d’effacer la clé VAPID de session.', error);
+        }
     }
 
     async function toggleWebPush(currentSubscription) {
@@ -124,13 +239,9 @@ async function initializeWebPushControl() {
         status.textContent = 'Mise à jour en cours…';
         try {
             if (currentSubscription) {
-                const response = await fetch('/api/web-push/subscriptions/', {
-                    method: 'DELETE',
-                    headers: {'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken()},
-                    body: JSON.stringify({endpoint: currentSubscription.endpoint})
-                });
-                if (!response.ok) throw new Error('Suppression du navigateur impossible');
+                await removeWebPushSubscription(currentSubscription);
                 await currentSubscription.unsubscribe();
+                forgetSubscriptionVapidKey(currentSubscription.endpoint);
             } else {
                 if (Notification.permission !== 'granted') {
                     const permission = await Notification.requestPermission();
@@ -147,20 +258,7 @@ async function initializeWebPushControl() {
                 if (!keyResponse.ok) throw new Error('Clé Push indisponible');
                 const keyData = await keyResponse.json();
                 const registration = await navigator.serviceWorker.register('/service-worker.js', {scope: '/'});
-                const readyRegistration = await navigator.serviceWorker.ready;
-                const subscription = await (readyRegistration || registration).pushManager.subscribe({
-                    userVisibleOnly: true,
-                    applicationServerKey: urlBase64ToUint8Array(keyData.public_key)
-                });
-                const saveResponse = await fetch('/api/web-push/subscriptions/', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken()},
-                    body: JSON.stringify(subscription.toJSON())
-                });
-                if (!saveResponse.ok) {
-                    await subscription.unsubscribe();
-                    throw new Error('Enregistrement de l’abonnement impossible');
-                }
+                await createWebPushSubscription(registration, keyData.public_key);
             }
             await initializeWebPushControl();
         } catch (error) {

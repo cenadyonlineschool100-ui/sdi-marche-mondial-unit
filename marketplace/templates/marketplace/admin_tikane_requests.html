@@ -8,8 +8,10 @@
         <table style="width:100%; border-collapse:collapse; margin-top:18px;">
             <thead>
                 <tr style="background:#eff6ff; color:#0f172a; text-align:left;">
-                    <th style="padding:12px; border-bottom:1px solid rgba(148,163,184,0.3);">Utilisateur</th>
+                    <th style="padding:12px; border-bottom:1px solid rgba(148,163,184,0.3);">Demandeur</th>
                     <th style="padding:12px; border-bottom:1px solid rgba(148,163,184,0.3);">Plan</th>
+                    <th style="padding:12px; border-bottom:1px solid rgba(148,163,184,0.3);">Devise</th>
+                    <th style="padding:12px; border-bottom:1px solid rgba(148,163,184,0.3);">Pièces justificatives</th>
                     <th style="padding:12px; border-bottom:1px solid rgba(148,163,184,0.3);">Statut</th>
                     <th style="padding:12px; border-bottom:1px solid rgba(148,163,184,0.3);">Demandé le</th>
                     <th style="padding:12px; border-bottom:1px solid rgba(148,163,184,0.3);">Actions</th>
@@ -18,13 +20,20 @@
             <tbody>
                 {% for request in requests_list %}
                 <tr style="border-bottom:1px solid rgba(148,163,184,0.15);">
-                    <td style="padding:14px;">{{ request.user.username }}<br><small>{{ request.full_name }}</small></td>
+                    <td style="padding:14px;">{{ request.user.username }}<br><strong>{{ request.full_name }}</strong><br><small>{{ request.email }}<br>{{ request.phone }}</small></td>
                     <td style="padding:14px;">
                         {% if request.plan %}
                             {{ request.plan.name }}
                         {% else %}
                             Aucun plan sélectionné
                         {% endif %}
+                    </td>
+                    <td style="padding:14px;">{{ request.currency }}</td>
+                    <td style="padding:14px;">
+                        {% if request.identity_document %}<a href="{% url 'admin_tikane_document' request.id 'identity_document' %}" target="_blank" rel="noopener">Carte d’identité</a><br>{% endif %}
+                        {% if request.passport_document %}<a href="{% url 'admin_tikane_document' request.id 'passport_document' %}" target="_blank" rel="noopener">Passeport</a><br>{% endif %}
+                        {% if request.driver_license_document %}<a href="{% url 'admin_tikane_document' request.id 'driver_license_document' %}" target="_blank" rel="noopener">Permis de conduire</a><br>{% endif %}
+                        {% if request.selfie %}<a href="{% url 'admin_tikane_document' request.id 'selfie' %}" target="_blank" rel="noopener">Selfie</a>{% endif %}
                     </td>
                     <td style="padding:14px;"><strong>{{ request.get_status_display }}</strong></td>
                     <td style="padding:14px;">{{ request.requested_at|date:'d/m/Y H:i' }}</td>
@@ -33,7 +42,6 @@
                             {% csrf_token %}
                             <input type="hidden" name="request_id" value="{{ request.id }}">
                             <button type="submit" name="action" value="approve_immediate" class="fintech-btn btn-primary" style="padding:8px 12px;">Approuver immédiatement</button>
-                            <button type="submit" name="action" value="approve_delayed" class="fintech-btn btn-secondary" style="padding:8px 12px;">Planifier approbation +30 min</button>
                             <button type="submit" name="action" value="refuse" class="fintech-btn btn-danger" style="padding:8px 12px;">Refuser</button>
                             {% if request.status != 'suspended' %}
                             <button type="submit" name="action" value="suspend" class="fintech-btn btn-warning" style="padding:8px 12px;">Suspendre</button>
@@ -50,7 +58,7 @@
                 </tr>
                 {% empty %}
                 <tr>
-                    <td colspan="5" style="padding:18px; text-align:center; color:#475569;">Aucune demande Ti Kanè n’est en attente pour le moment.</td>
+                    <td colspan="7" style="padding:18px; text-align:center; color:#475569;">Aucune demande Ti Kanè n’est en attente pour le moment.</td>
                 </tr>
                 {% endfor %}
             </tbody>

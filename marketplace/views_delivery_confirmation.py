@@ -40,6 +40,7 @@ def confirm_delivery_buyer(request, order_id):
                 title="✅ Confirmation de livraison",
                 message=f"Commande #{order.id} de {order.buyer.username} a été confirmée livrée. Montant: {order.total_amount} HTG",
                 notification_type='delivery_confirmed',
+                deduplication_key=f'delivery-confirmed:{order.pk}:{admin_user.pk}',
                 related_assignment=None,
                 sound_interval_minutes=1  # Sonner chaque minute
             )
@@ -96,6 +97,7 @@ def confirm_delivery_driver(request, assignment_id):
                 title="🚚 Livraison confirmée par le livreur",
                 message=f"Livreur {assignment.employee.identifier} - Commande #{order.id} de {order.buyer.username}. Montant: {order.total_amount} HTG",
                 notification_type='driver_confirmed_delivery',
+                deduplication_key=f'delivery-completed:{assignment.pk}:{admin_user.pk}',
                 related_assignment=assignment,
                 sound_interval_minutes=1
             )
@@ -106,6 +108,7 @@ def confirm_delivery_driver(request, assignment_id):
             title="📦 Votre commande est en cours de livraison!",
             message=f"Le livreur {assignment.employee.identifier} a confirmé qu'il achemine votre commande #{order.id}.",
             notification_type='delivery_in_progress',
+            deduplication_key=f'delivery-in-progress:{assignment.pk}:{order.buyer_id}',
             sound_interval_minutes=5  # Moins urgent pour l'acheteur
         )
         
@@ -183,5 +186,4 @@ def list_pending_deliveries(request):
     }
     
     return render(request, 'marketplace/pending_deliveries.html', context)
-
 

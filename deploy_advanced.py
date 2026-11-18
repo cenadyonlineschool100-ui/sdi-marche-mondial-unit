@@ -86,14 +86,17 @@ class AdvancedPythonAnywhereDeployer:
         wsgi_content = f"""import os
 import sys
 
-# Ajouter le projet au chemin Python
-path = '/home/{self.username}/sdi-market'
-if path not in sys.path:
-    sys.path.append(path)
+# Ajouter le dossier du projet au chemin Python et retirer sa copie parente
+project_path = '/home/{self.username}/sdi-market/sdi_market'
+parent_path = os.path.dirname(project_path)
+sys.path[:] = [
+    entry for entry in sys.path
+    if os.path.realpath(entry or os.getcwd()) != os.path.realpath(parent_path)
+]
+sys.path.insert(0, project_path)
 
 # Configurer Django
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'sdi_market.settings')
-os.environ['DJANGO_SECRET_KEY'] = 'django-insecure-change-me'
 os.environ['DEBUG'] = 'False'
 os.environ['ALLOWED_HOSTS'] = '{self.domain}'
 

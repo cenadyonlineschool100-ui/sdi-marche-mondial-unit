@@ -6,7 +6,256 @@
 {% load static %}
 <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="{% if desktop_display_mode_enabled %}width=1280{% else %}width=device-width, initial-scale=1.0{% endif %}" />
+    {% if desktop_display_mode_enabled %}
+    <script>
+        const desktopPhoneOrientation = window.matchMedia('(orientation: landscape)');
+        const desktopPhoneHeaderSelector = 'body > .site-top-banner, body > header';
+
+        function adjustDesktopPhoneHeaderFlow() {
+            if (!document.documentElement.classList.contains('desktop-phone-display')) return;
+            document.querySelectorAll(desktopPhoneHeaderSelector).forEach((element) => {
+                const extraHeight = Math.ceil(Math.max(
+                    0,
+                    element.getBoundingClientRect().height - element.offsetHeight
+                )) + 1;
+                element.style.setProperty('--desktop-phone-flow-compensation', `${extraHeight}px`);
+            });
+        }
+
+        function fitDesktopToPhone() {
+            const screenWidth = desktopPhoneOrientation.matches
+                ? Math.max(window.screen.width, window.screen.height)
+                : Math.min(window.screen.width, window.screen.height);
+            const screenShortSide = Math.min(window.screen.width, window.screen.height);
+            const isTouchScreen = window.matchMedia('(pointer: coarse)').matches;
+            const isSmallTouchScreen = screenShortSide <= 767;
+            const isTabletTouchScreen = isTouchScreen && screenShortSide > 767 && screenShortSide <= 1024;
+            const viewportMeta = document.querySelector('meta[name="viewport"]');
+            if (isSmallTouchScreen) {
+                if (viewportMeta.content !== 'width=device-width, initial-scale=1.0') {
+                    viewportMeta.content = 'width=device-width, initial-scale=1.0';
+                }
+                document.documentElement.classList.add('desktop-phone-display');
+                document.documentElement.classList.remove('desktop-tablet-display');
+                document.documentElement.style.removeProperty('--desktop-phone-scale');
+                document.documentElement.style.removeProperty('--desktop-tablet-scale');
+                return;
+            }
+            if (viewportMeta.content !== 'width=1280') {
+                viewportMeta.content = 'width=1280';
+            }
+            const desktopFitWidth = Math.min(window.innerWidth, screenWidth);
+            if ((!isSmallTouchScreen && !isTabletTouchScreen) || desktopFitWidth >= 1280) {
+                document.documentElement.classList.remove('desktop-phone-display');
+                document.documentElement.classList.remove('desktop-tablet-display');
+                document.documentElement.style.removeProperty('--desktop-phone-scale');
+                document.documentElement.style.removeProperty('--desktop-tablet-scale');
+                document.querySelectorAll(desktopPhoneHeaderSelector).forEach((element) => {
+                    element.style.removeProperty('--desktop-phone-flow-compensation');
+                });
+                return;
+            }
+            if (isTabletTouchScreen) {
+                document.documentElement.classList.remove('desktop-phone-display');
+                document.documentElement.classList.add('desktop-tablet-display');
+                document.documentElement.style.removeProperty('--desktop-phone-scale');
+                document.documentElement.style.setProperty(
+                    '--desktop-tablet-scale',
+                    String(desktopFitWidth / 1280)
+                );
+                document.querySelectorAll(desktopPhoneHeaderSelector).forEach((element) => {
+                    element.style.removeProperty('--desktop-phone-flow-compensation');
+                });
+                return;
+            }
+            document.documentElement.classList.remove('desktop-tablet-display');
+            document.documentElement.style.removeProperty('--desktop-tablet-scale');
+            document.documentElement.style.setProperty(
+                '--desktop-phone-scale',
+                String(desktopFitWidth / 1280)
+            );
+            document.documentElement.classList.add('desktop-phone-display');
+            adjustDesktopPhoneHeaderFlow();
+        }
+        fitDesktopToPhone();
+        window.addEventListener('resize', fitDesktopToPhone);
+        window.addEventListener('orientationchange', fitDesktopToPhone);
+        document.addEventListener('DOMContentLoaded', adjustDesktopPhoneHeaderFlow, { once: true });
+        window.addEventListener('load', adjustDesktopPhoneHeaderFlow);
+    </script>
+    <style>
+        html.desktop-phone-display,
+        html.desktop-phone-display body.desktop-display-mode {
+            height: auto !important;
+            overflow: visible !important;
+            overflow-x: clip !important;
+        }
+
+        html.desktop-phone-display body.desktop-display-mode {
+            display: flex;
+            flex-direction: column;
+            box-sizing: border-box;
+            width: 100%;
+            min-width: 0;
+            min-height: 100vh;
+            zoom: 1;
+        }
+
+        html.desktop-phone-display body.desktop-display-mode .responsive-scroll-shell {
+            display: flex;
+            flex: 1 0 auto;
+            flex-direction: column;
+            width: 100%;
+            min-width: 0;
+            height: auto !important;
+            min-height: 0;
+            overflow: visible !important;
+            padding-top: 0;
+            padding-bottom: 0;
+        }
+
+        html.desktop-phone-display body.desktop-display-mode .professional-footer {
+            margin-top: auto;
+        }
+
+        body.desktop-display-mode .compact-footer {
+            display: none !important;
+        }
+
+        html.desktop-tablet-display,
+        html.desktop-tablet-display body.desktop-display-mode {
+            height: auto !important;
+            overflow: visible !important;
+        }
+
+        html.desktop-phone-display,
+        html.desktop-tablet-display {
+            overflow-x: clip !important;
+        }
+
+        html.desktop-tablet-display body.desktop-display-mode {
+            display: flex;
+            flex-direction: column;
+            box-sizing: border-box;
+            width: 1280px;
+            min-width: 1280px;
+            min-height: calc(100vh / var(--desktop-tablet-scale, 1));
+            zoom: var(--desktop-tablet-scale, 1);
+        }
+
+        html.desktop-tablet-display body.desktop-display-mode .responsive-scroll-shell {
+            display: flex;
+            flex: 1 0 auto;
+            flex-direction: column;
+            height: auto !important;
+            min-height: 0;
+            overflow: visible !important;
+            padding-top: 0;
+            padding-bottom: 0;
+        }
+
+        html.desktop-tablet-display body.desktop-display-mode .professional-footer {
+            margin-top: auto;
+        }
+
+        html.desktop-phone-display body.desktop-display-mode > .site-top-banner,
+        html.desktop-phone-display body.desktop-display-mode > header {
+            position: relative !important;
+            top: auto !important;
+            right: auto !important;
+            left: auto !important;
+            width: 100% !important;
+            transform: none !important;
+            margin-bottom: 0;
+        }
+
+        html.desktop-phone-display body.desktop-display-mode header .nav-bar {
+            width: min(100% - 18px, 430px) !important;
+            grid-template-columns: minmax(0, 1fr) auto auto !important;
+            grid-template-areas: "brand menu notifications" "search search search" !important;
+            gap: 5px 8px;
+            align-items: center;
+        }
+
+        html.desktop-phone-display body.desktop-display-mode header .brand {
+            grid-area: brand !important;
+            min-width: 0;
+            gap: 8px;
+        }
+
+        html.desktop-phone-display body.desktop-display-mode header .brand-logo {
+            flex: 0 0 40px;
+            width: 40px;
+            height: 40px;
+        }
+
+        html.desktop-phone-display body.desktop-display-mode header .brand-copy {
+            flex: 1;
+            min-width: 0;
+        }
+
+        html.desktop-phone-display body.desktop-display-mode header .brand-copy strong.sdi-sol-text {
+            font-size: 0.9rem !important;
+            line-height: 1.12 !important;
+        }
+
+        html.desktop-phone-display body.desktop-display-mode header .main-nav {
+            display: none !important;
+        }
+
+        html.desktop-phone-display body.desktop-display-mode header .mobile-nav-toggle {
+            grid-area: menu !important;
+            position: static;
+            display: inline-flex !important;
+            flex: 0 0 auto;
+            width: auto;
+            height: 36px;
+            padding: 0 8px;
+        }
+
+        html.desktop-phone-display body.desktop-display-mode header .mobile-nav-toggle strong {
+            font-size: 0.76rem;
+        }
+
+        html.desktop-phone-display body.desktop-display-mode header .notification-dropdown-wrapper {
+            grid-area: notifications !important;
+        }
+
+        html.desktop-phone-display body.desktop-display-mode header .header-search {
+            grid-area: search !important;
+            gap: 6px;
+            width: 100%;
+            min-width: 0;
+            padding: 4px;
+        }
+
+        html.desktop-phone-display body.desktop-display-mode header .header-search input {
+            min-width: 0;
+            flex: 1 1 0;
+            min-height: 32px;
+            padding: 6px 10px;
+            font-size: 0.82rem;
+        }
+
+        html.desktop-phone-display body.desktop-display-mode header .header-search button {
+            min-width: 62px;
+            min-height: 30px;
+            padding: 4px 6px;
+            font-size: 0.68rem;
+        }
+
+        html.desktop-phone-display body.desktop-display-mode .mobile-bottom-tabs {
+            display: none !important;
+        }
+
+        html.desktop-phone-display body.desktop-display-mode .sdi-support-card {
+            position: static;
+            width: min(100% - 24px, 430px);
+            margin: 12px auto;
+        }
+    </style>
+    {% endif %}
     <title>MicroSDICash - Plateforme Fintech</title>
 
     <!-- Instant click handler: pointerdown capturing for ultra-fast feedback, prefetch and perfIndicator trigger -->
@@ -498,6 +747,13 @@
             background: #16a34a;
             animation: notification-badge-pulse 1.2s ease-in-out infinite;
         }
+        .notification-toggle.has-admin-credit-alert {
+            animation: admin-credit-notification-pulse 1s ease-in-out infinite;
+        }
+        @keyframes admin-credit-notification-pulse {
+            0%, 100% { text-shadow: 0 0 2px rgba(22, 163, 74, 0.45); }
+            50% { text-shadow: 0 0 10px rgba(22, 163, 74, 1); }
+        }
         @keyframes notification-badge-pulse {
             0%, 100% { box-shadow: 0 0 0 0 rgba(22, 163, 74, 0.48); }
             50% { box-shadow: 0 0 0 5px rgba(22, 163, 74, 0); }
@@ -540,6 +796,7 @@
         .notification-panel__empty { padding: 18px 8px; color: #64748b; text-align: center; }
         @media (prefers-reduced-motion: reduce) {
             .notification-toggle.has-unread .notification-badge { animation: none; }
+            .notification-toggle.has-admin-credit-alert { animation: none; }
         }
         .main-nav {
             display: flex;
@@ -658,7 +915,6 @@
         }
 
         header .brand-copy strong,
-        header .brand-copy span,
         header .main-nav a,
         header .mobile-nav-toggle,
         header .currency-selector label,
@@ -841,7 +1097,7 @@
         }
         .brand-copy { display: flex; flex-direction: column; gap: 4px; }
         .brand-copy strong { font-size: 1.05rem; letter-spacing: .01em; color: var(--primary-blue); }
-        .brand-copy span { font-size: 0.88rem; color: rgba(147, 197, 253, 0.95); }
+        .brand-copy span { font-size: 0.88rem; color: #0b2f6b !important; }
 
         /* Amélioration de la lisibilité du texte */
         html, body, button, input, textarea, select {
@@ -1258,7 +1514,7 @@
             box-shadow: none;
         }
         .header-search input::placeholder {
-            color: rgba(255,255,255,0.75);
+            color: #0b2f6b !important;
         }
         .header-search button {
             min-width: 120px;
@@ -5999,9 +6255,52 @@
                 grid-template-areas: "brand notifications" "search search" !important;
             }
         }
+        @media (max-width: 520px) {
+            header .nav-bar {
+                width: min(100% - 18px, 430px);
+                grid-template-columns: minmax(0, 1fr) auto auto !important;
+                grid-template-areas: "brand menu notifications" "search search search" !important;
+                gap: 5px 8px;
+                align-items: center;
+            }
+            header .brand {
+                grid-area: brand !important;
+                width: auto;
+                min-width: 0;
+                justify-content: flex-start;
+            }
+            header .brand-logo {
+                flex: 0 0 40px;
+                width: 40px;
+                height: 40px;
+            }
+            header .mobile-nav-toggle {
+                grid-area: menu !important;
+            }
+            header .notification-dropdown-wrapper {
+                grid-area: notifications !important;
+            }
+            header .header-search {
+                grid-area: search !important;
+            }
+        }
+        @media (min-width: 1200px) {
+            body.desktop-display-mode header .nav-bar {
+                grid-template-columns: minmax(220px, 0.9fr) minmax(260px, 1fr) minmax(0, 1.5fr) auto !important;
+                grid-template-areas: "brand search nav notifications" !important;
+            }
+            body.desktop-display-mode header .main-nav {
+                display: flex !important;
+                min-width: 0;
+                flex-wrap: nowrap;
+            }
+            body.desktop-display-mode header .mobile-nav-toggle {
+                display: none !important;
+            }
+        }
     </style>
 </head>
-<body>
+<body{% if desktop_display_mode_enabled %} class="desktop-display-mode"{% endif %}>
     {% if site_banner %}{% include 'marketplace/site_banner.html' %}{% endif %}
     <header>
         <div class="container nav-bar">
@@ -6075,6 +6374,9 @@
                                 <button id="account-toggle" class="account-button" aria-haspopup="true" aria-expanded="false">Compte</button>
                                 <div class="nav-dropdown-panel" id="account-dropdown">
                                     <a href="{% url 'profile' %}">Mon Compte</a>
+                                    {% if request.user.is_seller or request.user.is_staff %}
+                                        <a href="{% url 'my_shop' %}">Ma boutique</a>
+                                    {% endif %}
                                     <a href="{% url 'sdi_sol' %}">SDI Sol</a>
                                     <a href="{% url 'transfer_funds' %}">Transférer</a>
                                     <form action="{% url 'logout' %}" method="post" style="margin:6px 0 0 0; padding:0;">
@@ -6086,6 +6388,19 @@
                         {% endif %}
                     </div>
                 </div>
+                {% if can_manage_display_mode or request.user.is_superuser or request.user.is_staff and perms.marketplace.view_paypalpayment %}
+                <div class="nav-group nav-group-administration">
+                    <span class="nav-group-title">Administration</span>
+                    <div class="header-special-buttons">
+                        {% if can_manage_display_mode %}
+                            <a href="{% url 'display_mode_control' %}" class="nav-item" data-icon="🖥️">Contrôle du mode d’affichage</a>
+                        {% endif %}
+                        {% if request.user.is_staff and perms.marketplace.view_paypalpayment %}
+                            <a href="{% url 'paypal_payment_admin' %}" class="nav-item" data-icon="⭐">⭐ Gestion Carte Visa</a>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endif %}
                 <div class="nav-group nav-group-more">
                     <span class="nav-group-title">Plus</span>
                     <div class="header-special-buttons">
@@ -6096,6 +6411,11 @@
                                 <a id="peuple-button" href="{% url 'view_peuple_commission' %}">Cadeau Argent</a>
                                 <a href="#" id="install-app-mobile" onclick="window.openInstaller();return false;">Installer l'Application</a>
                                 <a href="{% url 'sdi_sol' %}">SDI Sol</a>
+                                {% with support_card=site_configs.support_card %}
+                                    {% if support_card and support_card.is_active and support_card.whatsapp_link %}
+                                        <a href="{{ support_card.whatsapp_link }}" target="_blank" rel="noopener noreferrer">Contact SDI</a>
+                                    {% endif %}
+                                {% endwith %}
                             </div>
                         </div>
                     </div>
@@ -6103,7 +6423,7 @@
             </nav>
             {% if request.user.is_authenticated %}
                 <div class="notification-dropdown-wrapper" id="notification-dropdown-wrapper">
-                    <button type="button" id="notification-toggle" class="icon-link notification-toggle{% if notification_count %} has-unread{% endif %}"
+                    <button type="button" id="notification-toggle" class="icon-link notification-toggle{% if notification_count %} has-unread{% endif %}{% if admin_money_received_count %} has-admin-credit-alert{% endif %}"
                             aria-label="Notifications" aria-expanded="false" aria-controls="notification-panel">
                         🔔<span class="notification-badge" data-notification-badge{% if not notification_count %} hidden{% endif %}>{{ notification_count|default:0 }}</span>
                     </button>
@@ -6162,6 +6482,9 @@
                         <div class="mobile-nav-grid">
                             {% if request.user.is_authenticated %}
                                 <a href="{% url 'profile' %}" class="mobile-nav-card" data-icon="👤">Profil</a>
+                                {% if request.user.is_seller or request.user.is_staff %}
+                                    <a href="{% url 'my_shop' %}" class="mobile-nav-card" data-icon="🏪">Ma boutique</a>
+                                {% endif %}
                                 <a href="{% url 'order_history' %}" class="mobile-nav-card" data-icon="📦">Commandes</a>
                                 <a href="{% url 'sdi_sol' %}" class="mobile-nav-card" data-icon="💎">SDI Sol</a>
                                 <a href="{% url 'transfer_funds' %}" class="mobile-nav-card" data-icon="💸">Transférer</a>
@@ -6179,6 +6502,11 @@
                             <a href="{% url 'private_chat_contacts' %}" class="mobile-nav-card" data-icon="✉️">Messages</a>
                             <a href="{% url 'delivery_tracking' %}" class="mobile-nav-card" data-icon="🚚">Suivi</a>
                             <a href="{% url 'client_deposit_receipts' %}" class="mobile-nav-card" data-icon="🧾">Reçus</a>
+                            {% with support_card=site_configs.support_card %}
+                                {% if support_card and support_card.is_active and support_card.whatsapp_link %}
+                                    <a href="{{ support_card.whatsapp_link }}" target="_blank" rel="noopener noreferrer" class="mobile-nav-card" data-icon="💬">Contact SDI</a>
+                                {% endif %}
+                            {% endwith %}
                         </div>
                     </div>
 
@@ -6187,6 +6515,9 @@
                         <summary class="mobile-nav-group-title">Administration</summary>
                         <div class="mobile-nav-grid mobile-nav-grid-full">
                             <a href="{% url 'admin:index' %}" class="mobile-nav-card" data-icon="⚙️">Admin</a>
+                            {% if perms.marketplace.view_paypalpayment %}
+                                <a href="{% url 'paypal_payment_admin' %}" class="mobile-nav-card" data-icon="⭐">⭐ Gestion Carte Visa</a>
+                            {% endif %}
                             <a href="{% url 'dashboard' %}" class="mobile-nav-card" data-icon="📊">Tableau de bord</a>
                             <a href="{% url 'manage_projet' %}" class="mobile-nav-card" data-icon="🗂️">Manage Projet</a>
                             <a href="{% url 'admin_tikane_requests' %}" class="mobile-nav-card" data-icon="💰">Admin Ti Kanè</a>
@@ -6196,6 +6527,9 @@
                             <a href="{% url 'manage_withdrawal_commissions' %}" class="mobile-nav-card" data-icon="💸">Retraits</a>
                             <a href="{% url 'manage_delivery_assignments' %}" class="mobile-nav-card" data-icon="🚗">Livreurs</a>
                             <a href="{% url 'view_receipts' %}" class="mobile-nav-card" data-icon="📄">Reçus</a>
+                            {% if can_manage_display_mode %}
+                                <a href="{% url 'display_mode_control' %}" class="mobile-nav-card" data-icon="🖥️">Contrôle du mode d’affichage</a>
+                            {% endif %}
                             {% if request.user.role == 'super_admin' or request.user.is_superuser %}
                                 <a href="{% url 'site_banner_dashboard' %}" class="mobile-nav-card" data-icon="🎯">🎯 Gestion de la bannière</a>
                                 <a href="{% url 'site_banner_activation' %}" class="mobile-nav-card" data-icon="🔘">Activation bannière</a>
@@ -6399,12 +6733,187 @@
 
     <!-- JavaScript pour les notifications persistantes avec sonnerie -->
     <script>
+        window.sdiNotificationPollers = window.sdiNotificationPollers || {};
+        window.sdiNotificationTabId = window.sdiNotificationTabId
+            || (window.crypto && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`);
+
+        function createNotificationPoller(name, intervalMs, fetcher) {
+            const registry = window.sdiNotificationPollers;
+            if (registry[name]) return registry[name];
+
+            const leaseKey = `sdi-notification-poll:${name}`;
+            const maxBackoffMs = 300000;
+            let timer = null;
+            let inFlight = false;
+            let backoffMs = intervalMs;
+            let retryUntil = 0;
+            let lastFetchAt = 0;
+            let releaseLeaderWait = null;
+
+            function updateLease(delayMs) {
+                try {
+                    localStorage.setItem(leaseKey, JSON.stringify({
+                        owner: window.sdiNotificationTabId,
+                        until: Date.now() + Math.max(intervalMs, delayMs) + 5000,
+                    }));
+                } catch (error) {
+                    console.warn('Coordination des notifications entre onglets indisponible.', error);
+                }
+            }
+
+            async function claimLease() {
+                try {
+                    const current = JSON.parse(localStorage.getItem(leaseKey) || 'null');
+                    if (
+                        current
+                        && current.until > Date.now()
+                        && current.owner !== window.sdiNotificationTabId
+                    ) return false;
+                    updateLease(intervalMs);
+                    await new Promise(resolve => setTimeout(resolve, 50));
+                    const confirmed = JSON.parse(localStorage.getItem(leaseKey) || 'null');
+                    return confirmed && confirmed.owner === window.sdiNotificationTabId;
+                } catch (error) {
+                    return true;
+                }
+            }
+
+            function waitForLeadership(delayMs) {
+                return new Promise(resolve => {
+                    let timeout = null;
+                    const finish = () => {
+                        if (timeout) clearTimeout(timeout);
+                        if (releaseLeaderWait === finish) releaseLeaderWait = null;
+                        resolve();
+                    };
+                    releaseLeaderWait = finish;
+                    timeout = setTimeout(finish, delayMs);
+                });
+            }
+
+            function releaseLease() {
+                try {
+                    const current = JSON.parse(localStorage.getItem(leaseKey) || 'null');
+                    if (current && current.owner === window.sdiNotificationTabId) {
+                        localStorage.removeItem(leaseKey);
+                    }
+                } catch (error) {
+                    console.warn('Libération de la coordination des notifications impossible.', error);
+                }
+            }
+
+            function scheduleFetch(delayMs = intervalMs) {
+                if (timer) clearTimeout(timer);
+                timer = null;
+                if (document.visibilityState !== 'visible') return;
+                const waitMs = Math.max(delayMs, retryUntil - Date.now());
+                timer = setTimeout(run, waitMs);
+            }
+
+            function retryAfterMs(response) {
+                const value = response.headers.get('Retry-After');
+                if (!value) return 0;
+                const seconds = Number(value);
+                if (Number.isFinite(seconds)) return Math.max(0, seconds * 1000);
+                const retryDate = Date.parse(value);
+                return Number.isNaN(retryDate) ? 0 : Math.max(0, retryDate - Date.now());
+            }
+
+            async function run() {
+                timer = null;
+                if (document.visibilityState !== 'visible') return;
+                if (inFlight) {
+                    scheduleFetch(intervalMs);
+                    return;
+                }
+                if (!claimLease()) {
+                    scheduleFetch(intervalMs);
+                    return;
+                }
+
+                inFlight = true;
+                let nextDelay = intervalMs;
+                let acquired = false;
+                const hasWebLocks = navigator.locks && typeof navigator.locks.request === 'function';
+                try {
+                    const performFetch = async () => {
+                        const response = await fetcher();
+                        lastFetchAt = Date.now();
+                        if (response && response.status === 429) {
+                            backoffMs = Math.min(Math.max(intervalMs, backoffMs * 2), maxBackoffMs);
+                            nextDelay = Math.max(backoffMs, retryAfterMs(response));
+                            retryUntil = Date.now() + nextDelay;
+                        } else {
+                            if (response && !response.ok) {
+                                console.warn(`Vérification des notifications refusée (${response.status}).`);
+                            }
+                            backoffMs = intervalMs;
+                            retryUntil = 0;
+                        }
+                    };
+
+                    if (hasWebLocks) {
+                        await navigator.locks.request(leaseKey, { ifAvailable: true }, async lock => {
+                            if (!lock || document.visibilityState !== 'visible') return;
+                            acquired = true;
+                            await performFetch();
+                            if (document.visibilityState === 'visible') {
+                                await waitForLeadership(nextDelay);
+                            }
+                        });
+                    } else {
+                        acquired = await claimLease();
+                        if (acquired && document.visibilityState === 'visible') {
+                            await performFetch();
+                            updateLease(nextDelay);
+                        } else {
+                            acquired = false;
+                            releaseLease();
+                        }
+                    }
+                } catch (error) {
+                    console.error('Échec de la vérification des notifications.', error);
+                } finally {
+                    inFlight = false;
+                    if (!acquired) {
+                        if (document.visibilityState === 'visible') scheduleFetch(intervalMs);
+                    } else if (document.visibilityState === 'visible') {
+                        scheduleFetch(nextDelay);
+                    } else {
+                        releaseLease();
+                    }
+                }
+            }
+
+            const poller = {
+                start(immediate) {
+                    scheduleFetch(immediate ? 0 : intervalMs);
+                },
+                scheduleFetch,
+            };
+            document.addEventListener('visibilitychange', () => {
+                if (document.visibilityState === 'hidden') {
+                    if (timer) clearTimeout(timer);
+                    timer = null;
+                    if (releaseLeaderWait) releaseLeaderWait();
+                    releaseLease();
+                } else {
+                    scheduleFetch(Math.max(5000, intervalMs - (Date.now() - lastFetchAt)));
+                }
+            });
+            window.addEventListener('beforeunload', releaseLease, { once: true });
+            registry[name] = poller;
+            return poller;
+        }
+
         class PersistentNotificationManager {
             constructor() {
                 this.audioContext = null;
                 this.checkInterval = 30000;
                 this.soundEnabled = true;
                 this.audioUnlocked = false;
+                this.activeOscillator = null;
+                this.soundCheckInProgress = false;
                 this.listUrl = '{% url "get_persistent_notifications_api" %}';
                 this.soundUrl = '{% url "check_notifications_sound_api" %}';
                 this.readUrl = '{% url "mark_persistent_notification_read_api" 0 %}';
@@ -6422,7 +6931,7 @@
                     const opening = panel.hidden;
                     panel.hidden = !opening;
                     toggle.setAttribute('aria-expanded', String(opening));
-                    if (opening) this.refreshNotifications();
+                    if (opening && this.poller) this.poller.scheduleFetch(0);
                 });
                 document.addEventListener('click', event => {
                     if (!wrapper.contains(event.target)) this.closePanel();
@@ -6441,32 +6950,42 @@
                 const unlockAudio = () => this.unlockAudio();
                 document.addEventListener('pointerdown', unlockAudio, { once: true });
                 document.addEventListener('keydown', unlockAudio, { once: true });
-                this.startChecking();
+                this.poller = createNotificationPoller(
+                    'persistent',
+                    this.checkInterval,
+                    () => this.pollNotifications(),
+                );
+                this.poller.start(true);
             }
 
-            startChecking() {
-                this.refreshNotifications();
-                setInterval(() => {
-                    this.refreshNotifications();
-                    if (this.audioUnlocked && document.visibilityState === 'visible') {
-                        this.checkNotifications();
-                    }
-                }, this.checkInterval);
+            async pollNotifications() {
+                const listResponse = await this.refreshNotifications();
+                if (listResponse && listResponse.status === 429) return listResponse;
+                if (this.audioUnlocked && document.visibilityState === 'visible') {
+                    const soundResponse = await this.checkNotifications();
+                    if (soundResponse && soundResponse.status === 429) return soundResponse;
+                }
+                return listResponse;
             }
 
             async refreshNotifications() {
                 try {
                     const response = await fetch(this.listUrl, { credentials: 'same-origin', cache: 'no-store' });
-                    if (!response.ok) throw new Error(`Notifications indisponibles (${response.status})`);
+                    if (!response.ok) return response;
                     const data = await response.json();
-                    this.updateBadge(data.count || 0);
+                    this.updateBadge(
+                        data.count || 0,
+                        data.admin_money_received_count || 0,
+                    );
                     this.renderNotifications(data.notifications || []);
+                    return response;
                 } catch (error) {
                     console.error('Erreur lors du chargement des notifications:', error);
+                    throw error;
                 }
             }
 
-            updateBadge(count) {
+            updateBadge(count, adminMoneyReceivedCount) {
                 const toggle = document.getElementById('notification-toggle');
                 const badge = document.querySelector('[data-notification-badge]');
                 const panelCount = document.querySelector('[data-notification-panel-count]');
@@ -6475,6 +6994,7 @@
                 badge.hidden = count < 1;
                 panelCount.textContent = String(count);
                 toggle.classList.toggle('has-unread', count > 0);
+                toggle.classList.toggle('has-admin-credit-alert', adminMoneyReceivedCount > 0);
                 toggle.setAttribute('aria-label', count > 0
                     ? `Notifications, ${count} non lue${count > 1 ? 's' : ''}`
                     : 'Notifications');
@@ -6516,6 +7036,7 @@
 
             async openNotification(event, link) {
                 event.preventDefault();
+                this.stopCurrentSound();
                 const id = link.dataset.notificationId;
                 const target = link.dataset.targetUrl || this.notificationsUrl;
                 try {
@@ -6549,29 +7070,44 @@
                     if (!this.audioContext) this.audioContext = new AudioContextClass();
                     await this.audioContext.resume();
                     this.audioUnlocked = this.audioContext.state === 'running';
-                    if (this.audioUnlocked) this.checkNotifications();
+                    if (this.audioUnlocked && this.poller) this.poller.scheduleFetch(0);
                 } catch (error) {
                     console.warn('Le navigateur ne permet pas la lecture du son pour le moment.', error);
                 }
             }
 
             async checkNotifications() {
-                if (!this.soundEnabled || !this.audioUnlocked) return;
+                if (
+                    !this.soundEnabled
+                    || !this.audioUnlocked
+                    || this.soundCheckInProgress
+                ) return;
+                this.soundCheckInProgress = true;
                 try {
                     const response = await fetch(this.soundUrl, { credentials: 'same-origin', cache: 'no-store' });
-                    if (!response.ok) throw new Error(`Vérification sonore impossible (${response.status})`);
+                    if (!response.ok) return response;
                     const data = await response.json();
                     const notifications = data.notifications_to_sound || [];
                     if (notifications.length) this.playSound(notifications);
+                    return response;
                 } catch (error) {
                     console.error('Erreur lors de la vérification sonore:', error);
+                    throw error;
+                } finally {
+                    this.soundCheckInProgress = false;
                 }
             }
 
             playSound(notifications) {
                 if (!this.soundEnabled || !this.audioContext || this.audioContext.state !== 'running') return;
+                notifications.forEach(notification => this.showBrowserNotification(notification));
+                if (this.activeOscillator) return;
                 const oscillator = this.audioContext.createOscillator();
                 const gainNode = this.audioContext.createGain();
+                this.activeOscillator = oscillator;
+                oscillator.addEventListener('ended', () => {
+                    if (this.activeOscillator === oscillator) this.activeOscillator = null;
+                }, { once: true });
                 oscillator.connect(gainNode);
                 gainNode.connect(this.audioContext.destination);
                 oscillator.frequency.setValueAtTime(800, this.audioContext.currentTime);
@@ -6581,7 +7117,16 @@
                 gainNode.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + 0.3);
                 oscillator.start();
                 oscillator.stop(this.audioContext.currentTime + 0.3);
-                notifications.forEach(notification => this.showBrowserNotification(notification));
+            }
+
+            stopCurrentSound() {
+                if (!this.activeOscillator) return;
+                try {
+                    this.activeOscillator.stop();
+                } catch (error) {
+                    console.debug('La sonnerie de notification est déjà arrêtée.', error);
+                }
+                this.activeOscillator = null;
             }
 
             showBrowserNotification(notification) {
@@ -6628,13 +7173,15 @@
         document.addEventListener('DOMContentLoaded', function() {
             // Ne pas initialiser si l'utilisateur n'est pas connecté
             const userAuthenticated = {{ request.user.is_authenticated|lower }};
-            if (userAuthenticated) {
+            if (userAuthenticated && !window.notificationManager) {
                 window.notificationManager = new PersistentNotificationManager();
             }
         });
     </script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
+            if (window.__sdiPrivateUnreadManagerInitialized) return;
+            window.__sdiPrivateUnreadManagerInitialized = true;
             const userAuthenticated = {{ request.user.is_authenticated|yesno:"true,false" }};
             const initialUnread = {{ private_unread_message_count|default:0 }};
             const indicator = document.getElementById('private-message-indicator');
@@ -6643,7 +7190,6 @@
             const pollIntervalMs = 20000;
             const soundIntervalMs = 8000;
             let unreadCount = initialUnread;
-            let pollTimer = null;
             let soundTimer = null;
             let audioContext = null;
 
@@ -6683,10 +7229,12 @@
             }
 
             function scheduleSoundNotification() {
-                stopSoundNotifications();
-                if (unreadCount <= 0) return;
+                if (soundTimer || unreadCount <= 0 || document.visibilityState !== 'visible') return;
                 playNotificationSound();
-                soundTimer = setTimeout(scheduleSoundNotification, soundIntervalMs);
+                soundTimer = setTimeout(() => {
+                    soundTimer = null;
+                    scheduleSoundNotification();
+                }, soundIntervalMs);
             }
 
             function unlockAudio() {
@@ -6694,27 +7242,30 @@
             }
 
             async function fetchUnreadCount() {
-                if (!userAuthenticated) return;
-                try {
-                    const response = await fetch(unreadUrl, {cache: 'no-store'});
-                    if (!response.ok) return;
-                    const data = await response.json();
-                    unreadCount = parseInt(data.unread_count || 0, 10);
-                    updateBadge(unreadCount);
-                    if (unreadCount > 0) scheduleSoundNotification();
-                    else stopSoundNotifications();
-                } catch (error) {
-                    console.error('Erreur récupération messages privés :', error);
-                }
+                if (!userAuthenticated) return null;
+                const response = await fetch(unreadUrl, {cache: 'no-store', credentials: 'same-origin'});
+                if (!response.ok) return response;
+                const data = await response.json();
+                unreadCount = parseInt(data.unread_count || 0, 10);
+                updateBadge(unreadCount);
+                if (unreadCount > 0) scheduleSoundNotification();
+                else stopSoundNotifications();
+                return response;
             }
 
             updateBadge(initialUnread);
             if (initialUnread > 0) scheduleSoundNotification();
 
             if (userAuthenticated) {
-                pollTimer = setInterval(fetchUnreadCount, pollIntervalMs);
+                const unreadPoller = createNotificationPoller(
+                    'private-unread',
+                    pollIntervalMs,
+                    fetchUnreadCount,
+                );
+                unreadPoller.start(false);
                 document.addEventListener('visibilitychange', () => {
-                    if (document.visibilityState === 'visible') fetchUnreadCount();
+                    if (document.visibilityState === 'hidden') stopSoundNotifications();
+                    else if (unreadCount > 0) scheduleSoundNotification();
                 });
                 document.addEventListener('pointerdown', unlockAudio, {once: false, passive: true});
                 document.addEventListener('keydown', unlockAudio, {once: false, passive: true});
@@ -6772,7 +7323,8 @@
             const isMobileUserAgent = mobileUserAgent.test(navigator.userAgent) || (navigator.userAgentData && navigator.userAgentData.mobile);
             const isTouchSmallScreen = isTouchDevice && Math.max(window.screen.width, window.screen.height) <= 1100;
             const isSmallViewport = window.matchMedia('(max-width: 900px)').matches;
-            const isMobileDevice = isMobileUserAgent || isTouchSmallScreen || isSmallViewport;
+            const isDesktopDisplayMode = document.body.classList.contains('desktop-display-mode');
+            const isMobileDevice = !isDesktopDisplayMode && (isMobileUserAgent || isTouchSmallScreen || isSmallViewport);
             const isAndroidBrowser = /Android/i.test(navigator.userAgent);
             document.body.classList.toggle('mobile-device', isMobileDevice);
             document.body.classList.toggle('android-browser', isAndroidBrowser);
@@ -7221,15 +7773,22 @@
             </span>
             <span class="tab-label">Cart</span>
         </a>
-        <a href="{% url 'profile' %}" class="mobile-bottom-tab">
-            <span class="tab-icon" aria-hidden="true">
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                    <circle cx="12" cy="8" r="4"></circle>
-                    <path d="M4.5 19a7.5 7.5 0 0 1 15 0"></path>
-                </svg>
-            </span>
-            <span class="tab-label">My SDI</span>
-        </a>
+        <div class="mobile-bottom-tab-group">
+            <div class="sdi-screen-size-control" aria-label="Contrôle de taille d'écran" role="group">
+                <button type="button" class="sdi-screen-size-control__button" data-screen-scale-action="decrease" aria-label="Réduire la taille">−</button>
+                <button type="button" class="sdi-screen-size-control__button" data-screen-scale-action="reset" aria-label="Remettre à 100 %">↺</button>
+                <button type="button" class="sdi-screen-size-control__button" data-screen-scale-action="increase" aria-label="Augmenter la taille">+</button>
+            </div>
+            <a href="{% url 'profile' %}" class="mobile-bottom-tab">
+                <span class="tab-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <circle cx="12" cy="8" r="4"></circle>
+                        <path d="M4.5 19a7.5 7.5 0 0 1 15 0"></path>
+                    </svg>
+                </span>
+                <span class="tab-label">My SDI</span>
+            </a>
+        </div>
     </nav>
 
     {% with support_card=site_configs.support_card %}
@@ -7249,13 +7808,6 @@
         {% endif %}
     {% endwith %}
 
-    {% if site_configs.support_card and site_configs.support_card.screen_size_control_enabled %}
-    <div class="sdi-screen-size-control" aria-label="Contrôle de taille d'écran" role="group">
-        <button type="button" class="sdi-screen-size-control__button" data-screen-scale-action="decrease" aria-label="Réduire la taille">−</button>
-        <button type="button" class="sdi-screen-size-control__button" data-screen-scale-action="reset" aria-label="Remettre à 100 %">↺</button>
-        <button type="button" class="sdi-screen-size-control__button" data-screen-scale-action="increase" aria-label="Augmenter la taille">+</button>
-    </div>
-    {% endif %}
     {% endif %}
 
     <style>
@@ -7491,19 +8043,17 @@
         }
 
         .sdi-screen-size-control {
-            position: fixed;
-            right: 16px;
-            bottom: 84px;
-            z-index: 120;
             display: inline-flex;
             align-items: center;
-            gap: 6px;
-            padding: 6px 8px;
-            border-radius: 999px;
+            justify-content: center;
+            flex: 0 0 20px;
+            min-width: 0;
+            gap: 0;
+            margin: 0;
+            padding: 0;
             background: transparent;
-            border: 1px solid rgba(37, 99, 235, 0.28);
-            box-shadow: 0 3px 10px rgba(37, 99, 235, 0.16);
-            backdrop-filter: blur(2px);
+            border: 0;
+            box-shadow: none;
         }
 
         .sdi-screen-size-control__button {
@@ -7511,8 +8061,8 @@
             border: none;
             background: transparent;
             color: #2563eb;
-            width: 28px;
-            height: 28px;
+            width: 24px;
+            height: 30px;
             border-radius: 50%;
             font-size: 1rem;
             line-height: 1;
@@ -7521,7 +8071,7 @@
             align-items: center;
             justify-content: center;
             cursor: pointer;
-            text-shadow: 0 1px 2px rgba(37, 99, 235, 0.28);
+            text-shadow: none;
             transition: transform 0.2s ease, background 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
             padding: 0;
         }
@@ -7540,18 +8090,36 @@
         }
 
         @media (max-width: 767px) {
+            .mobile-bottom-tab-group {
+                display: flex;
+                flex: 1 1 0;
+                flex-direction: column;
+                align-items: stretch;
+                justify-content: flex-start;
+                min-width: 0;
+                overflow: hidden;
+            }
+
+            .mobile-bottom-tab-group > .mobile-bottom-tab {
+                flex: 1 1 auto;
+                width: 100%;
+                min-height: 0;
+            }
+
             .sdi-screen-size-control {
-                right: 12px;
-                bottom: 78px;
-                padding: 5px 7px;
+                gap: 0;
+                width: 100%;
+                height: 20px;
             }
 
             .sdi-screen-size-control__button {
-                width: 26px;
-                height: 26px;
+                width: 24px;
+                height: 20px;
                 font-size: 0.9rem;
             }
         }
+    </style>
+    <style>
         /* Last-resort override to ensure activity dropdown menu is visible when open */
         .activity-dropdown.open .activity-dropdown-menu {
             visibility: visible !important;
@@ -7652,17 +8220,9 @@
             const root = document.documentElement;
             const shell = document.querySelector('.responsive-scroll-shell');
             const compactFooter = document.querySelector('.compact-footer');
-            const supportCard = document.querySelector('.sdi-support-card');
-            const mobileBottomTabs = document.querySelector('.mobile-bottom-tabs');
             const footerAnchor = compactFooter ? document.createComment('compact-footer-anchor') : null;
             let responsiveFrame = 0;
             if (compactFooter && footerAnchor) compactFooter.parentNode.insertBefore(footerAnchor, compactFooter);
-            if (supportCard && shell && shell.contains(supportCard)) {
-                document.body.appendChild(supportCard);
-            }
-            if (mobileBottomTabs && shell && shell.contains(mobileBottomTabs)) {
-                document.body.appendChild(mobileBottomTabs);
-            }
 
             function syncCompactFooterHost() {
                 if (!compactFooter || !footerAnchor) return;
@@ -7698,18 +8258,10 @@
                     if (!element || getComputedStyle(element).display === 'none') return 0;
                     return element.getBoundingClientRect().height;
                 };
-                const mobileTabsHeight = window.innerWidth < 768 ? visibleHeight(mobileBottomTabs) : 0;
-                const supportHeight = window.innerWidth < 768 ? visibleHeight(supportCard) : 0;
-                if (mobileBottomTabs && window.innerWidth < 768) {
-                    mobileBottomTabs.style.setProperty('--support-card-height', `${supportHeight}px`);
-                }
 
                 root.style.setProperty('--responsive-banner-height', `${visibleHeight(banner)}px`);
                 root.style.setProperty('--responsive-header-height', `${visibleHeight(header)}px`);
-                root.style.setProperty(
-                    '--responsive-bottom-height',
-                    `${mobileTabsHeight + supportHeight || visibleHeight(bottom)}px`
-                );
+                root.style.setProperty('--responsive-bottom-height', `${visibleHeight(bottom)}px`);
             }
 
             function scheduleResponsiveShellUpdate() {
@@ -7724,8 +8276,8 @@
                 : null;
             if (responsiveResizeObserver) {
                 if (compactFooter) responsiveResizeObserver.observe(compactFooter);
-                if (mobileBottomTabs) responsiveResizeObserver.observe(mobileBottomTabs);
-                if (supportCard) responsiveResizeObserver.observe(supportCard);
+                const mobileTabs = document.querySelector('.mobile-bottom-tabs');
+                if (mobileTabs) responsiveResizeObserver.observe(mobileTabs);
             }
 
             window.addEventListener('resize', scheduleResponsiveShellUpdate, { passive: true });
@@ -7817,21 +8369,51 @@
     (function () {
         const timeout = Number('{{ marketplace_inactivity_timeout_seconds|default:600 }}') * 1000;
         const excludedPath = /^(\/admin\/|\/checkout\/|\/payment\/|\/order\/|\/cart\/add\/|\/cart\/update\/|\/cart\/remove\/)/.test(window.location.pathname);
+        const desktopQuery = window.matchMedia('(min-width: 1200px)');
         let timer;
-        function resetInactivityTimer() {
-            clearTimeout(timer);
-            timer = window.setTimeout(function () {
-                if (/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName || '')) {
-                    resetInactivityTimer();
+        let lastActivityAt = Date.now();
+
+        function checkInactivity() {
+            if (desktopQuery.matches) {
+                const remaining = timeout - (Date.now() - lastActivityAt);
+                if (remaining > 0) {
+                    timer = window.setTimeout(checkInactivity, remaining);
                     return;
                 }
-                if (!excludedPath) window.location.href = '{% url "search" %}';
-            }, timeout);
+            } else if (/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName || '')) {
+                resetInactivityTimer();
+                return;
+            }
+            const searchPath = '{% url "search" %}';
+            if (!excludedPath && window.location.pathname !== searchPath) {
+                window.location.href = searchPath;
+            }
         }
+
+        function resetInactivityTimer() {
+            lastActivityAt = Date.now();
+            if (!desktopQuery.matches) {
+                clearTimeout(timer);
+                timer = window.setTimeout(checkInactivity, timeout);
+            }
+        }
+
         ['click', 'keydown', 'mousemove', 'touchstart', 'scroll'].forEach(function (eventName) {
             document.addEventListener(eventName, resetInactivityTimer, { passive: true });
         });
-        resetInactivityTimer();
+        function updateWheelListener(event) {
+            if (event.matches) {
+                document.addEventListener('wheel', resetInactivityTimer, { passive: true });
+            } else {
+                document.removeEventListener('wheel', resetInactivityTimer);
+            }
+            resetInactivityTimer();
+        }
+        if (desktopQuery.matches) {
+            document.addEventListener('wheel', resetInactivityTimer, { passive: true });
+        }
+        desktopQuery.addEventListener('change', updateWheelListener);
+        timer = window.setTimeout(checkInactivity, timeout);
     }());
     </script>
 </body>

@@ -19,16 +19,40 @@ if ENV_PATH.exists():
 SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', 'django-insecure-your-secret-key-change-in-production')
 
 DEBUG = os.getenv('DEBUG', 'False').lower() in ['true', '1', 'yes']
+DISPLAY_MODE_OWNER_USERNAME = os.getenv('DISPLAY_MODE_OWNER_USERNAME', 'SDI').strip() or 'SDI'
 
-ALLOWED_HOSTS = [host.strip() for host in os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1,chouchoum.pythonanywhere.com,www.chouchoum.pythonanywhere.com').split(',') if host.strip()]
-DEFAULT_CSRF_ORIGINS = 'http://localhost:8000,http://127.0.0.1:8000,https://localhost:8000,https://127.0.0.1:8000,https://chouchoum.pythonanywhere.com,https://www.chouchoum.pythonanywhere.com'
+host_env = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1,chouchoum.pythonanywhere.com,www.chouchoum.pythonanywhere.com')
+if host_env.strip() == '*':
+    ALLOWED_HOSTS = ['*']
+else:
+    ALLOWED_HOSTS = [host.strip() for host in host_env.split(',') if host.strip()]
+
+DEFAULT_CSRF_ORIGINS = 'http://localhost:8000,http://127.0.0.1:8000,https://localhost:8000,https://127.0.0.1:8000,https://chouchoum.pythonanywhere.com,https://www.chouchoum.pythonanywhere.com,https://*.pythonanywhere.com'
 CSRF_TRUSTED_ORIGINS = [origin.strip() for origin in os.getenv('CSRF_TRUSTED_ORIGINS', DEFAULT_CSRF_ORIGINS).split(',') if origin.strip()]
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
-SECURE_SSL_REDIRECT = not DEBUG
-SESSION_COOKIE_SECURE = not DEBUG
-CSRF_COOKIE_SECURE = not DEBUG
+SECURE_SSL_REDIRECT = os.getenv('SECURE_SSL_REDIRECT', 'True' if not DEBUG else 'False').lower() in ['true', '1', 'yes']
+SESSION_COOKIE_SECURE = os.getenv('SESSION_COOKIE_SECURE', 'True' if not DEBUG else 'False').lower() in ['true', '1', 'yes']
+CSRF_COOKIE_SECURE = os.getenv('CSRF_COOKIE_SECURE', 'True' if not DEBUG else 'False').lower() in ['true', '1', 'yes']
 # Google Maps API Key - À configurer pour le système de livraison
 GOOGLE_MAPS_API_KEY = os.getenv('GOOGLE_MAPS_API_KEY', 'VOTRE_CLE_GOOGLE_MAPS_API_ICI')
+
+PAYPAL_MODE = os.getenv('PAYPAL_MODE', 'sandbox').strip().lower()
+PAYPAL_CLIENT_ID = os.getenv('PAYPAL_CLIENT_ID', '').strip()
+PAYPAL_CLIENT_SECRET = os.getenv('PAYPAL_CLIENT_SECRET', '').strip()
+PAYPAL_WEBHOOK_ID = os.getenv('PAYPAL_WEBHOOK_ID', '').strip()
+PAYPAL_LIVE_ENABLED = os.getenv('PAYPAL_LIVE_ENABLED', 'False').lower() in ['true', '1', 'yes']
+PAYPAL_CHECKOUT_ENABLED = bool(
+    PAYPAL_CLIENT_ID
+    and PAYPAL_CLIENT_SECRET
+    and PAYPAL_WEBHOOK_ID
+    and (
+        PAYPAL_MODE == 'sandbox'
+        or (PAYPAL_MODE == 'live' and PAYPAL_LIVE_ENABLED)
+    )
+)
+PAYPAL_STOCK_RESERVATION_TTL_HOURS = int(
+    os.getenv('PAYPAL_STOCK_RESERVATION_TTL_HOURS', '24')
+)
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -182,6 +206,10 @@ MEDIA_ROOT = BASE_DIR / 'media'
 
 STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / "staticfiles"
+STATICFILES_DIRS = [
+    BASE_DIR / 'static',
+    BASE_DIR / 'marketplace' / 'static',
+]
 
 STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 
@@ -289,5 +317,3 @@ if DEBUG and not is_running_tests:
     DEBUG_TOOLBAR_CONFIG = {
         'SHOW_TOOLBAR_CALLBACK': lambda request: True,
     }
-
-

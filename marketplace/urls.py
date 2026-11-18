@@ -29,8 +29,9 @@ from .views import (
     confirm_delivery_buyer, confirm_delivery_driver,
     withdraw_funds, upload_receipt, upload_identity, save_recharge_message, upload_selfie, view_receipts, process_receipt, view_withdrawal_receipt,
     transfer_receipts, view_transfer_receipt,
-    sdi_sol_page, sdi_sol_join, sdi_sol_payments, sdi_sol_make_payment, sdi_sol_payment_receipt, sdi_sol_admin, sdi_sol_admin_remove_member, sdi_sol_admin_approve_member,
-    tikane_access, formations_en_ligne, live_room_webrtc, live_room_jitsi, admin_tikane_requests, admin_tikane_plans,
+    sdi_sol_page, sdi_sol_join, sdi_sol_payments, sdi_sol_make_payment, sdi_sol_payment_receipt, sdi_sol_admin, sdi_sol_admin_remove_member, sdi_sol_admin_approve_member, sdi_sol_admin_reject_member,
+    sdi_sol_admin_save_plan, sdi_sol_admin_approve_payment, sdi_sol_admin_reject_payment,
+    tikane_access, formations_en_ligne, live_room_webrtc, live_room_jitsi, admin_tikane_requests, admin_tikane_document, admin_tikane_plans,
     demo_page, microordinateur, manage_projet,
 )
 from .views_deposit import (
@@ -78,6 +79,14 @@ from .modules_manager import (
 from .views_web_push import (
     web_push_vapid_key, web_push_subscriptions, web_push_csrf_token, service_worker,
 )
+from .views_display_mode import (
+    display_mode_control, grant_display_mode_access, revoke_display_mode_access,
+    set_display_mode,
+)
+from .paypal_views import (
+    paypal_cancel_order, paypal_capture_order, paypal_create_order, paypal_webhook,
+)
+from .paypal_admin import paypal_payment_admin
 
 router = DefaultRouter()
 router.register('products', ProductViewSet)
@@ -96,6 +105,7 @@ router.register('return-api', ReturnRequestAPIViewSet, basename='return-api')
 router.register('stats-api', StatisticsAPIViewSet, basename='stats-api')
 
 urlpatterns = [
+    path('admin/payments/paypal/', paypal_payment_admin, name='paypal_payment_admin'),
     # APIs génération d'images
     path('api/generate-image/', generate_product_image_api, name='generate_product_image'),
     path('api/image-suggestions/', get_image_suggestions_api, name='image_suggestions'),
@@ -125,6 +135,10 @@ urlpatterns = [
     path('cart/update/<int:item_id>/', update_cart_item, name='update_cart_item'),
     path('cart/clear/', clear_cart, name='clear_cart'),
     path('checkout/', checkout, name='checkout'),
+    path('api/paypal/orders/<int:order_id>/create/', paypal_create_order, name='paypal_create_order'),
+    path('api/paypal/orders/<int:order_id>/capture/', paypal_capture_order, name='paypal_capture_order'),
+    path('api/paypal/orders/<int:order_id>/cancel/', paypal_cancel_order, name='paypal_cancel_order'),
+    path('api/paypal/webhook/', paypal_webhook, name='paypal_webhook'),
     path('profile/', profile, name='profile'),
     path('techniciens/', technician_profiles, name='technician_profiles'),
     path('technicien/creer/', technician_profile_create, name='technician_profile_create'),
@@ -155,6 +169,7 @@ urlpatterns = [
     path('request-delivery-access/', request_delivery_access, name='request_delivery_access'),
     path('tikane/', tikane_access, name='tikane_access'),
     path('admin/tikane/requests/', admin_tikane_requests, name='admin_tikane_requests'),
+    path('admin/tikane/requests/<int:request_id>/documents/<str:field_name>/', admin_tikane_document, name='admin_tikane_document'),
     path('admin/tikane/plans/', admin_tikane_plans, name='admin_tikane_plans'),
     path('admin/optimize-performance/', optimize_performance, name='optimize_performance'),
     path('admin/optimize-performance', optimize_performance),
@@ -184,7 +199,12 @@ urlpatterns = [
     path('sdi-sol/payment/make/', sdi_sol_make_payment, name='sdi_sol_make_payment'),
     path('sdi-sol/payment/receipt/<str:receipt_id>/', sdi_sol_payment_receipt, name='sdi_sol_payment_receipt'),
     path('sdi-sol/admin/', sdi_sol_admin, name='sdi_sol_admin'),
+    path('sdi-sol/admin/plans/save/', sdi_sol_admin_save_plan, name='sdi_sol_admin_save_plan'),
+    path('sdi-sol/admin/plans/<int:plan_id>/save/', sdi_sol_admin_save_plan, name='sdi_sol_admin_update_plan'),
+    path('sdi-sol/admin/payments/<int:payment_id>/approve/', sdi_sol_admin_approve_payment, name='sdi_sol_admin_approve_payment'),
+    path('sdi-sol/admin/payments/<int:payment_id>/reject/', sdi_sol_admin_reject_payment, name='sdi_sol_admin_reject_payment'),
     path('sdi-sol/admin/approve-member/<int:member_id>/', sdi_sol_admin_approve_member, name='sdi_sol_admin_approve_member'),
+    path('sdi-sol/admin/reject-member/<int:member_id>/', sdi_sol_admin_reject_member, name='sdi_sol_admin_reject_member'),
     path('sdi-sol/admin/remove-member/<int:member_id>/', sdi_sol_admin_remove_member, name='sdi_sol_admin_remove_member'),
     path('agent/deposit/', agent_deposit_view, name='agent_deposit'),
     path('agent/deposit/confirmation/<int:deposit_id>/', deposit_confirmation, name='deposit_confirmation'),
@@ -226,6 +246,10 @@ urlpatterns = [
     # Contrôle Système - Gestion des Mots de Passe
     path('system-control/', system_control_panel, name='system_control_panel'),
     path('system-control/refresh-exchange-rates/', refresh_exchange_rates, name='refresh_exchange_rates'),
+    path('admin/display-mode/', display_mode_control, name='display_mode_control'),
+    path('admin/display-mode/set/', set_display_mode, name='set_display_mode'),
+    path('admin/display-mode/grant/<int:user_id>/', grant_display_mode_access, name='grant_display_mode_access'),
+    path('admin/display-mode/revoke/<int:user_id>/', revoke_display_mode_access, name='revoke_display_mode_access'),
     path('api/security-dashboard/', security_dashboard_api, name='security_dashboard_api'),
     path('api/user/<int:user_id>/password/', view_user_password, name='view_user_password'),
     

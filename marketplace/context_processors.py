@@ -2,6 +2,8 @@
 Marketplace context processors with graceful fallbacks for deployment
 """
 
+from django.conf import settings as django_settings
+
 
 def navigation_context(request):
     """Add navigation configuration to context"""
@@ -49,6 +51,7 @@ def private_chat_context(request):
             'unread_message_count': 0,
             'private_unread_message_count': 0,
             'notification_count': 0,
+            'admin_money_received_count': 0,
         }
 
     from .models import PersistentNotification, PrivateMessage
@@ -57,12 +60,16 @@ def private_chat_context(request):
         receiver=user,
         is_read=False,
     ).count()
+    unread_notifications = PersistentNotification.objects.filter(
+        recipient=user,
+        is_read=False,
+    )
     return {
         'unread_message_count': unread_message_count,
         'private_unread_message_count': unread_message_count,
-        'notification_count': PersistentNotification.objects.filter(
-            recipient=user,
-            is_read=False,
+        'notification_count': unread_notifications.count(),
+        'admin_money_received_count': unread_notifications.filter(
+            notification_type='admin_money_received',
         ).count(),
     }
 
@@ -84,7 +91,14 @@ def site_banner_context(request):
         is_principal = is_authenticated and (getattr(user, 'is_superuser', False) or user_role == 'super_admin')
         is_admin = is_authenticated and getattr(user, 'is_staff', False)
 
-        settings_obj = SystemSettings.objects.filter(pk=1).first()
+        settings_obj = SystemSettings.objects.only(
+            'banner_enabled',
+            'banner_visible_to_admins',
+            'principal_banner_visible',
+            'banner_expand_enabled',
+            'banner_normal_height',
+            'banner_expanded_height',
+        ).filter(pk=1).first()
         if settings_obj and not settings_obj.banner_enabled:
             return {
                 'site_banner': None,
@@ -233,13 +247,49 @@ def system_settings_context(request):
     try:
         from .models import SystemSettings
 
-        settings_obj = SystemSettings.objects.filter(pk=1).first()
+        settings_obj = SystemSettings.objects.only(
+            'mobile_footer_support_enabled',
+            'microsdicash_account_name',
+            'microsdicash_account_number',
+            'microsdicash_payment_instructions',
+            'enable_cybersecurity',
+            'emergency_lockdown',
+            'desktop_display_mode_enabled',
+        ).filter(pk=1).first()
+        user = getattr(request, 'user', None)
+        is_owner = bool(
+            user
+            and user.is_authenticated
+            and user.is_active
+            and user.username == django_settings.DISPLAY_MODE_OWNER_USERNAME
+            and user.is_superuser
+        )
+        can_change_display_mode = is_owner
+        if (
+            not can_change_display_mode
+            and user
+            and user.is_authenticated
+            and user.is_active
+            and user.is_staff
+            and user.role == 'admin_secondary'
+        ):
+            from .models import DisplayModePermission
+
+            can_change_display_mode = DisplayModePermission.objects.filter(user=user).exists()
         return {
             'system_settings': settings_obj,
             'mobile_footer_support_enabled': settings_obj.mobile_footer_support_enabled if settings_obj else True,
+            'desktop_display_mode_enabled': bool(
+                settings_obj and settings_obj.desktop_display_mode_enabled
+            ),
+            'can_manage_display_mode': can_change_display_mode,
+            'is_display_mode_owner': is_owner,
         }
     except Exception:
         return {
             'system_settings': None,
             'mobile_footer_support_enabled': True,
+            'desktop_display_mode_enabled': False,
+            'can_manage_display_mode': False,
+            'is_display_mode_owner': False,
         }

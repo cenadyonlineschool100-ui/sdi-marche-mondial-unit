@@ -61,8 +61,26 @@ python manage.py collectstatic --noinput
 2. Cliquez sur "Add a new web app"
 3. Sélectionnez "Manual configuration"
 4. Sélectionnez Python 3.11
-5. Configurez le WSGI:
-   - Path: `/home/chouchoum/sdi-market/sdi_market/wsgi.py`
+5. Ouvrez le fichier de configuration WSGI affiché dans la section « Code » et remplacez son contenu par:
+
+```python
+import os
+import sys
+
+project_path = '/home/chouchoum/sdi-market/sdi_market'
+parent_path = os.path.dirname(project_path)
+sys.path[:] = [
+    entry for entry in sys.path
+    if os.path.realpath(entry or os.getcwd()) != os.path.realpath(parent_path)
+]
+sys.path.insert(0, project_path)
+
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'sdi_market.settings')
+from django.core.wsgi import get_wsgi_application
+application = get_wsgi_application()
+```
+
+Vérifiez que `project_path` désigne le dossier contenant `manage.py`, `marketplace/` et le dossier de configuration `sdi_market/`.
 
 ### 7. Configurer les Répertoires Statiques
 

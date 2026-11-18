@@ -1,4 +1,6 @@
 # Views pour les dépôts MicrosDiCash
+import logging
+
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse, HttpResponse
@@ -16,13 +18,16 @@ from .models import (
     User, Wallet, Deposit, DepositCommissionConfig,
     Transaction, Agent, Profile, DepositLimit,
     DepositReceipt, TransactionLog, SecurityLog,
-    AgentCommission, CommissionRule, TiKaneDailyPayment
+    AgentCommission, CommissionRule, TiKaneDailyPayment,
+    DEPOSIT_WALLET_BALANCE_FIELDS,
 )
 from .business_logic import (
     create_persistent_notification, begin_financial_operation,
     complete_financial_operation, get_financial_operation_result,
     get_session_idempotency_key, rotate_session_idempotency_key,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def is_principal_admin(user):
@@ -57,9 +62,41 @@ def agent_deposit_view(request):
             request.user.set_otp_code(otp)
 
         # Afficher le formulaire
-        currencies = [('USD', 'USD'), ('HTG', 'HTG'), ('DOP', 'DOP'), ('EUR', 'EUR')]
+        deposit_configs = list(
+            DepositCommissionConfig.objects.filter(is_active=True).order_by('currency')
+        )
+        deposit_limit = DepositLimit.objects.order_by('-updated_at').first()
+        currencies = []
+        for config in deposit_configs:
+            min_amount = config.min_deposit
+            max_amount = config.max_deposit
+            if deposit_limit:
+                min_amount = max(min_amount, deposit_limit.min_amount)
+                max_amount = min(max_amount, deposit_limit.max_amount)
+            if min_amount <= max_amount:
+                currencies.append({
+                    'code': config.currency,
+                    'label': config.currency,
+                    'min_amount': min_amount,
+                    'max_amount': max_amount,
+                })
+
+        if not currencies:
+            if deposit_configs:
+                deposit_configuration_message = (
+                    "Aucune devise de dépôt n'a de plage de montant valide. "
+                    "Vérifiez les limites dans la configuration des dépôts."
+                )
+            else:
+                deposit_configuration_message = (
+                    "Aucune devise de dépôt n'est activée. "
+                    "Un administrateur doit activer une configuration de dépôt avant toute opération."
+                )
+        else:
+            deposit_configuration_message = ''
+
         agent_wallet = request.user.wallet
-        commissions = DepositCommissionConfig.objects.filter(is_active=True)
+        commissions = deposit_configs
         commission_rules = CommissionRule.objects.filter(
             Q(agent=request.user) | Q(agent__isnull=True)
         ).annotate(
@@ -72,6 +109,7 @@ def agent_deposit_view(request):
         
         context = {
             'currencies': currencies,
+            'deposit_configuration_message': deposit_configuration_message,
             'deposit_idempotency_key': get_session_idempotency_key(request, 'agent_deposit'),
             'agent_wallet': agent_wallet,
             'commissions': {c.currency: {'type': c.commission_type, 'value': c.commission_value} for c in commissions},
@@ -139,8 +177,15 @@ def agent_deposit_view(request):
             messages.error(request, "Le client n'a pas de portefeuille configuré.")
             return redirect('agent_deposit')
 
-        if tikane_deposit and (not hasattr(client, 'tikane_account') or not client.tikane_account or client.tikane_account.status != 'active'):
+        tikane_account = getattr(client, 'tikane_account', None)
+        if tikane_deposit and (not tikane_account or tikane_account.status != 'active'):
             messages.error(request, "Client sans compte Ti Kanè Digital actif. Impossible de faire un dépôt Ti Kanè.")
+            return redirect('agent_deposit')
+        if tikane_deposit and not tikane_account.currency:
+            messages.error(request, "La devise de ce compte Ti Kanè historique est inconnue. Faites régulariser le compte avant le dépôt.")
+            return redirect('agent_deposit')
+        if tikane_deposit and currency != tikane_account.currency:
+            messages.error(request, f"La devise du compte Ti Kanè est {tikane_account.currency}.")
             return redirect('agent_deposit')
 
         # Vérifier l'agent et l'autorisation
@@ -212,12 +257,7 @@ def agent_deposit_view(request):
         required_amount = amount
 
         agent_wallet, _ = Wallet.objects.get_or_create(user=request.user)
-        wallet_field = {
-            'USD': 'balance_usd',
-            'HTG': 'balance_htg',
-            'DOP': 'balance_peso',
-            'EUR': 'balance_eur',
-        }[currency]
+        wallet_field = DEPOSIT_WALLET_BALANCE_FIELDS[currency]
         agent_balance = getattr(agent_wallet, wallet_field, Decimal('0'))
 
         if agent_balance < required_amount:
@@ -284,6 +324,10 @@ def agent_deposit_view(request):
                     tikane_account = client.tikane_account.__class__.objects.select_for_update().get(
                         pk=client.tikane_account.pk
                     )
+                    if not tikane_account.currency or tikane_account.currency != currency:
+                        db_transaction.set_rollback(True)
+                        messages.error(request, "La devise du compte Ti Kanè a changé ou reste inconnue. Aucun dépôt n'a été effectué.")
+                        return redirect('agent_deposit')
                     tikane_account.balance = F('balance') + amount
                     tikane_account.total_deposits = F('total_deposits') + amount
                     tikane_account.save(update_fields=['balance', 'total_deposits'])
@@ -422,13 +466,21 @@ def agent_deposit_view(request):
                     lambda: rotate_session_idempotency_key(request, 'agent_deposit', request.POST.get('idempotency_key'))
                 )
 
-                messages.success(request, f"Dépôt de {amount} {currency} confirmé pour {client.username}. Référence: {deposit.reference}")
-
-                if tikane_deposit:
-                    messages.info(request, "Montant réservé pour Ti Kanè Digital. Retrait indisponible avant la date prévue.")
-        except Exception as e:
-            messages.error(request, f"Erreur lors du dépôt: {str(e)}")
+        except Exception:
+            logger.exception(
+                'Agent deposit transaction failed (actor_id=%s, client_id=%s)',
+                request.user.pk,
+                client.pk,
+            )
+            messages.error(
+                request,
+                "Le dépôt n'a pas pu être effectué. Aucun solde n'a été modifié. Contactez un administrateur.",
+            )
             return redirect('agent_deposit')
+
+        messages.success(request, f"Dépôt de {amount} {currency} confirmé pour {client.username}. Référence: {deposit.reference}")
+        if tikane_deposit:
+            messages.info(request, "Montant réservé pour Ti Kanè Digital. Retrait indisponible avant la date prévue.")
 
         return redirect('deposit_confirmation', deposit_id=deposit.id)
 
@@ -446,12 +498,13 @@ def deposit_confirmation(request, deposit_id):
         messages.error(request, "Dépôt non trouvé")
         return redirect('dashboard')
     
-    wallet_field = 'balance'
-    if deposit.currency != 'USD':
-        wallet_field = f"balance_{deposit.currency.lower()}"
+    if deposit.tikane_deposit:
+        wallet_field = 'balance' if deposit.currency == 'USD' else f"balance_{deposit.currency.lower()}"
+    else:
+        wallet_field = DEPOSIT_WALLET_BALANCE_FIELDS.get(deposit.currency)
 
     client_wallet = getattr(deposit.client, 'wallet', None)
-    current_balance = getattr(client_wallet, wallet_field, None) if client_wallet else None
+    current_balance = getattr(client_wallet, wallet_field, None) if client_wallet and wallet_field else None
     previous_balance = None
     if current_balance is not None:
         previous_balance = (current_balance - deposit.amount).quantize(Decimal('0.01')) if hasattr(current_balance, 'quantize') else current_balance - deposit.amount
@@ -489,9 +542,12 @@ def view_deposit_receipt(request, receipt_id):
     current_balance = None
     previous_balance = None
     if deposit and deposit.client and hasattr(deposit.client, 'wallet'):
-        wallet_field = 'balance' if deposit.currency == 'USD' else f'balance_{deposit.currency.lower()}'
+        if deposit.tikane_deposit:
+            wallet_field = 'balance' if deposit.currency == 'USD' else f"balance_{deposit.currency.lower()}"
+        else:
+            wallet_field = DEPOSIT_WALLET_BALANCE_FIELDS.get(deposit.currency)
         client_wallet = getattr(deposit.client, 'wallet', None)
-        current_balance = getattr(client_wallet, wallet_field, None) if client_wallet else None
+        current_balance = getattr(client_wallet, wallet_field, None) if client_wallet and wallet_field else None
         if current_balance is not None:
             previous_balance = (current_balance - deposit.amount).quantize(Decimal('0.01')) if hasattr(current_balance, 'quantize') else current_balance - deposit.amount
 

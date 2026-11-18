@@ -90,20 +90,23 @@ import os
 import sys
 
 # Ajouter votre projet au chemin Python
-path = '/home/votrenom/sdi-market'
-if path not in sys.path:
-    sys.path.append(path)
+project_path = '/home/votrenom/sdi-market/sdi_market'
+parent_path = os.path.dirname(project_path)
+sys.path[:] = [
+    entry for entry in sys.path
+    if os.path.realpath(entry or os.getcwd()) != os.path.realpath(parent_path)
+]
+sys.path.insert(0, project_path)
 
-# Définir les paramètres Django
-os.environ['DJANGO_SETTINGS_MODULE'] = 'sdi_market.settings'
-os.environ['DJANGO_SECRET_KEY'] = 'change-this-to-a-secure-key'
-
-# Obtenir l'application WSGI
+# Initialiser directement l'application Django
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'sdi_market.settings')
 from django.core.wsgi import get_wsgi_application
 application = get_wsgi_application()
+
 ```
 
 ⚠️ **Important**: Remplacez `votrenom` par votre nom d'utilisateur PythonAnywhere
+`project_path` doit être le dossier qui contient `manage.py`, `marketplace/` et le dossier de configuration `sdi_market/`.
 
 6. Sauvegardez le fichier
 

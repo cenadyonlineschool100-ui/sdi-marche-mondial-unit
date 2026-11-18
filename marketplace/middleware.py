@@ -1,9 +1,13 @@
 from django.shortcuts import render
 import time
+import logging
 from django.utils import timezone
-from django.db import OperationalError
+from django.db import DatabaseError, OperationalError
 
 from .models import SystemSettings, SecurityEvent, IPBlocklist
+from .security_enhanced import RateLimiter
+
+logger = logging.getLogger(__name__)
 
 
 class SystemLockdownMiddleware:
@@ -23,11 +27,8 @@ class SystemLockdownMiddleware:
         # Vérifier si l'IP est bloquée
         client_ip = self._get_client_ip(request)
         try:
-            blocked = IPBlocklist.objects.filter(
-                ip_address=client_ip,
-                is_active=True
-            ).exclude(blocked_until__isnull=False, blocked_until__lt=timezone.now()).exists()
-            if blocked:
+            blocklist_entry = IPBlocklist.objects.filter(ip_address=client_ip).first()
+            if blocklist_entry and RateLimiter.is_ip_blocked(blocklist_entry):
                 if request.path.startswith(('/login/', '/logout/', '/admin/', '/static/', '/media/', '/system-control/')):
                     # Autoriser les accès d'admin ou le login même si l'IP est dans la liste de blocage
                     pass
@@ -38,8 +39,8 @@ class SystemLockdownMiddleware:
                         'client_ip': client_ip,
                         'system_settings': system_settings,
                     })
-        except:
-            pass
+        except DatabaseError:
+            logger.exception('Impossible de vérifier la blocklist pour %s', client_ip)
 
         if system_settings and system_settings.emergency_lockdown:
             allowed_paths = (
@@ -106,14 +107,11 @@ class SecurityEventMiddleware:
         
         # Vérifier si l'IP est bloquée
         try:
-            blocked = IPBlocklist.objects.filter(
-                ip_address=source_ip,
-                is_active=True
-            ).exclude(blocked_until__isnull=False, blocked_until__lt=timezone.now()).exists()
-            if blocked:
+            blocklist_entry = IPBlocklist.objects.filter(ip_address=source_ip).first()
+            if blocklist_entry and RateLimiter.is_ip_blocked(blocklist_entry):
                 return  # Ne pas enregistrer les IPs bloquées en excès
-        except:
-            pass
+        except DatabaseError:
+            logger.exception('Impossible de vérifier la blocklist pour journaliser %s', source_ip)
         
         # Ne pas logger les assets statiques et media
         if request.path.startswith(('/static/', '/media/', '/__debug__', '/api/security-dashboard')):

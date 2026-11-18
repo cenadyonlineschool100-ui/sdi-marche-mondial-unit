@@ -1,22 +1,24 @@
 ﻿import logging
+import mimetypes
 import base64
 import re
 import os
 import io
 
-from django.http import HttpResponse, JsonResponse, HttpResponseForbidden
+from django.http import FileResponse, Http404, HttpResponse, JsonResponse, HttpResponseForbidden
 from django.contrib import messages
 from django.contrib.auth import authenticate, get_user_model, login, logout
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib.auth.models import Group
 from django.views.decorators.http import require_POST
 from django.db.models import Sum, Avg, Count, Q, Prefetch, Max, F
-from django.db import transaction, connection, OperationalError
+from django.db import transaction, connection, OperationalError, IntegrityError
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.text import slugify
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.templatetags.static import static
 from django.core.cache import cache
 from django.core.files.base import ContentFile
@@ -30,6 +32,7 @@ from functools import wraps
 from random import sample
 import gc
 import traceback
+from django import forms
 from rest_framework import filters, permissions, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied
@@ -44,9 +47,9 @@ from .models import (
     BeautyAppointment, BeautyStudioRequest, BeautyStudioService, ShopCoverPhoto, Category, CategoryManager, DeliveryTracking, DeliveryNotification, ReturnRequest,
     Profile, TechnicianProfile, ChatGroup, ChatMessage, ChatMessageRead, PrivateConversation, PrivateMessage,
     PersistentNotification, AuditLog, ExchangeRate, Receipt, WithdrawalRequest, AdminWithdrawalPermission,
-    Transfer, TransferReceipt, TransferLog, TransferNotification, TransferCommissionTier,
+    Transfer, TransferReceipt, TransferLog, TransferNotification, TransferCommissionTier, WithdrawalCommissionTier,
     SiteConfigurationPermission, Course, CourseAssignment, AssignmentSubmission, CourseCertificate,
-    ProductAccessRequest, ResellerProduct, MarketplaceSettings, SDISolSettings, SDISolMember, SDISolPayment, SiteBanner, SiteBannerImage, SiteBannerPermission, SiteBannerAccess, SiteBannerPayment, SiteBannerEvent, PriorityGroup,
+    ProductAccessRequest, ResellerProduct, MarketplaceSettings, SDISolSettings, SDISolPlan, SDISolGroup, SDISolMember, SDISolPayment, SiteBanner, SiteBannerImage, SiteBannerPermission, SiteBannerAccess, SiteBannerPayment, SiteBannerEvent, PriorityGroup,
     # Security-related models used by the security dashboard API
     PortMonitoring, AIThreatAnalysis, HoneypotEvent, SecurityAlert, SecurityLog, SecurityMetrics
 )
@@ -60,6 +63,11 @@ from .recommendations import (
     refresh_recommendation_engine
 )
 from .utils import calcul_cashback
+from .paypal_stock import (
+    InsufficientStock,
+    create_paypal_stock_reservation,
+    decrement_available_stock,
+)
 from .image_utils import generate_banner_variants
 from .business_logic import (
     DeliveryAssignmentManager, DeliveryStatusManager,
@@ -68,7 +76,7 @@ from .business_logic import (
     create_persistent_notification, notify_order_sellers,
     get_system_admin_wallet, normalize_currency, fetch_exchange_rates_from_api,
     convert_currency, begin_financial_operation, complete_financial_operation,
-    get_financial_operation_result, IdempotencyConflict,
+    get_financial_operation_result, get_usd_display_conversion, IdempotencyConflict,
     get_session_idempotency_key, rotate_session_idempotency_key,
 )
 
@@ -297,6 +305,35 @@ def get_commission_balance_field(currency):
     if currency == 'DOP':
         return 'commission_balance_peso'
     return 'commission_balance_usd'
+
+
+def _create_admin_wallet_credit_notification(transaction_record):
+    if (
+        transaction_record.status != 'approved'
+        or transaction_record.receiver_id is None
+        or transaction_record.type not in {
+            'admin_add',
+            'admin_add_agent',
+            'admin_add_all',
+            'admin_add_all_agent',
+        }
+    ):
+        return None
+
+    amount = format(transaction_record.amount, 'f')
+    currency = transaction_record.currency.upper()
+    return create_persistent_notification(
+        recipient=transaction_record.receiver,
+        title='Argent reçu',
+        message=f"Vous avez reçu {amount} {currency} de l’administration.",
+        notification_type='admin_money_received',
+        deduplication_key=(
+            f'admin-wallet-credit:{transaction_record.pk}:'
+            f'{transaction_record.receiver_id}'
+        ),
+        target_url=reverse('profile'),
+        sound_interval_minutes=1,
+    )
 
 
 def demo_page(request):
@@ -604,30 +641,101 @@ def transfer_funds(request):
     })
 
 
+def is_sdi_sol_principal_admin(user):
+    return user.is_authenticated and user.is_active and (
+        user.is_superuser
+        or user.role == 'super_admin'
+        or user.has_perm('marketplace.principal_admin_power')
+    )
+
+
+def get_sdi_sol_principal_admins():
+    administrators = list(
+        User.objects.filter(is_active=True).filter(Q(is_superuser=True) | Q(role='super_admin'))
+    )
+    known_ids = {administrator.pk for administrator in administrators}
+    administrators.extend(
+        user for user in User.objects.filter(is_active=True).exclude(pk__in=known_ids)
+        if user.has_perm('marketplace.principal_admin_power')
+    )
+    return administrators
+
+
 def sdi_sol_page(request):
     settings_obj = SDISolSettings.get_solo()
-    members = list(SDISolMember.objects.filter(active=True, admin_approved=True).order_by('position', 'joined_at'))
+    plans = SDISolPlan.objects.filter(is_active=True).exclude(amount_usd__isnull=True, amount_htg__isnull=True)
+    members = list(
+        SDISolMember.objects.filter(active=True, admin_approved=True)
+        .select_related('user', 'plan', 'group__plan')
+        .order_by('plan__duration_days', 'plan__name', 'position', 'joined_at')
+    )
     for member in members:
         member.update_status()
     SDISolMember.recalculate_rankings()
-    members = list(SDISolMember.objects.filter(active=True, admin_approved=True).order_by('position', 'joined_at'))
+    members = list(
+        SDISolMember.objects.filter(active=True, admin_approved=True)
+        .select_related('user', 'plan', 'group__plan')
+        .order_by('plan__duration_days', 'plan__name', 'position', 'joined_at')
+    )
 
-    current_member = None
-    pending_request = None
+    current_members = SDISolMember.objects.none()
+    pending_requests = SDISolMember.objects.none()
     if request.user.is_authenticated:
-        current_member = SDISolMember.objects.filter(user=request.user, active=True, admin_approved=True).first()
-        if not current_member:
-            pending_request = SDISolMember.objects.filter(user=request.user, active=True, admin_approved=False).first()
+        current_members = SDISolMember.objects.filter(
+            user=request.user,
+            active=True,
+            admin_approved=True,
+        ).select_related('plan', 'group')
+        pending_requests = SDISolMember.objects.filter(
+            user=request.user,
+            active=True,
+            admin_approved=False,
+        ).select_related('plan')
+
+    current_member = current_members.first()
+    pending_request = pending_requests.first()
+    is_principal_admin = is_sdi_sol_principal_admin(request.user)
+    visible_group_ids = set(current_members.exclude(group__isnull=True).values_list('group_id', flat=True))
+    can_view_legacy_group = current_members.filter(
+        group__isnull=True,
+        plan__isnull=True,
+    ).exists()
+    for member in members:
+        member.can_view_details = (
+            is_principal_admin
+            or member.group_id in visible_group_ids
+            or (member.group_id is None and member.plan_id is None and can_view_legacy_group)
+        )
+        if member.can_view_details:
+            member.display_name = member.user.get_full_name() or member.user.username
+        else:
+            member.display_name = f'Place {member.group_position} — Membre masqué {member.group_position}'
+        member.group_label = member.plan.name if member.plan else 'Sol SDI historique'
+
+    joinable_plans = []
+    if request.user.is_authenticated:
+        groups_by_plan = {
+            group.plan_id: group
+            for group in SDISolGroup.objects.filter(plan__in=plans)
+        }
+        for plan in plans:
+            if SDISolMember.objects.filter(
+                user=request.user,
+                plan=plan,
+                active=True,
+            ).exists():
+                continue
+            group = groups_by_plan.get(plan.pk)
+            if group and plan.members.filter(active=True).count() < group.capacity:
+                joinable_plans.append(plan)
 
     can_join = False
     join_message = ''
     if request.user.is_authenticated:
-        if current_member:
-            join_message = 'Vous faites déjà partie du Sol SDI.'
-        elif pending_request:
-            join_message = 'Votre demande de rejoindre le Sol SDI est en attente d’approbation admin. Merci de patienter.'
-        elif len(members) >= settings_obj.max_members:
-            join_message = 'Le Sol SDI est actuellement complet.'
+        if not plans.exists():
+            join_message = 'Aucun plan Sol SDI n’est disponible actuellement.'
+        elif not joinable_plans:
+            join_message = 'Aucun autre plan ne possède actuellement de place disponible.'
         else:
             can_join = True
     else:
@@ -635,11 +743,16 @@ def sdi_sol_page(request):
 
     return render(request, 'marketplace/sdi_sol.html', {
         'settings': settings_obj,
+        'plans': plans,
+        'joinable_plans': joinable_plans,
         'members': members,
+        'current_members': current_members,
+        'pending_requests': pending_requests,
         'current_member': current_member,
         'pending_request': pending_request,
         'can_join': can_join,
         'join_message': join_message,
+        'is_principal_admin': is_principal_admin,
     })
 
 
@@ -647,27 +760,37 @@ def sdi_sol_page(request):
 @require_POST
 def sdi_sol_join(request):
     settings_obj = SDISolSettings.get_solo()
-    if SDISolMember.objects.filter(user=request.user, active=True).exists():
-        pending_request = SDISolMember.objects.filter(user=request.user, active=True, admin_approved=False).exists()
-        if pending_request:
-            messages.info(request, 'Votre demande de rejoindre le Sol SDI est déjà en attente d’approbation admin.')
-        else:
-            messages.info(request, 'Vous êtes déjà membre du Sol SDI.')
-        return redirect('sdi_sol')
-
-    active_count = SDISolMember.objects.filter(active=True, admin_approved=True).count()
-    if active_count >= settings_obj.max_members:
-        messages.error(request, 'Le Sol SDI a atteint le nombre maximal de membres.')
-        return redirect('sdi_sol')
-
-    member = SDISolMember.objects.create(
-        user=request.user,
-        position=active_count + 1,
-        status='pending',
-        admin_approved=False,
+    plan = get_object_or_404(
+        SDISolPlan.objects.filter(is_active=True).exclude(amount_usd__isnull=True, amount_htg__isnull=True),
+        pk=request.POST.get('plan_id'),
     )
-    member.schedule_next_due_date()
-    member.save(update_fields=['position', 'next_due_date'])
+    try:
+        with transaction.atomic():
+            group, _ = SDISolGroup.objects.get_or_create(plan=plan)
+            group = SDISolGroup.objects.select_for_update().get(pk=group.pk)
+            if SDISolMember.objects.filter(user=request.user, plan=plan, active=True).exists():
+                messages.info(request, 'Vous avez déjà une demande active ou une participation à ce plan.')
+                return redirect('sdi_sol')
+            if plan.members.filter(active=True).count() >= group.capacity:
+                messages.error(request, 'Le groupe de ce plan est complet.')
+                return redirect('sdi_sol')
+
+            member = SDISolMember.objects.create(
+                user=request.user,
+                plan=plan,
+                plan_name=plan.name,
+                plan_duration_days=plan.duration_days,
+                plan_amount_usd=plan.amount_usd,
+                plan_amount_htg=plan.amount_htg,
+                plan_start_date=settings_obj.start_date or timezone.localdate(),
+                status='pending',
+                admin_approved=False,
+            )
+            member.schedule_next_due_date()
+            member.save(update_fields=['next_due_date'])
+    except IntegrityError:
+        messages.info(request, 'Une demande active pour ce plan existe déjà.')
+        return redirect('sdi_sol')
 
     messages.success(request, 'Votre demande de rejoindre le Sol SDI a bien été enregistrée. Attendez l’approbation de l’admin.')
     return redirect('sdi_sol')
@@ -676,14 +799,22 @@ def sdi_sol_join(request):
 @login_required
 def sdi_sol_payments(request):
     """Affiche l'historique des paiements de l'utilisateur pour le Sol SDI"""
-    try:
-        member = SDISolMember.objects.get(user=request.user, active=True)
-    except SDISolMember.DoesNotExist:
-        messages.error(request, 'Vous n\'êtes pas membre du Sol SDI.')
+    memberships = SDISolMember.objects.filter(user=request.user, active=True)
+    member_id = request.GET.get('member_id')
+    approved_memberships = memberships.filter(admin_approved=True)
+    if member_id:
+        member = get_object_or_404(approved_memberships, pk=member_id)
+    else:
+        member = approved_memberships.order_by('pk').first()
+    if member is None:
+        if memberships.filter(admin_approved=False).exists():
+            messages.error(request, 'Votre adhésion doit être approuvée par un admin avant d’accéder à vos paiements.')
+        else:
+            messages.error(request, 'Vous n\'êtes pas membre du Sol SDI.')
         return redirect('sdi_sol')
 
     if not member.admin_approved:
-        messages.error(request, 'Votre adhésion doit être approuvée par un admin avant d\'accéder à vos paiements.')
+        messages.error(request, 'Vous n\'êtes pas membre du Sol SDI.')
         return redirect('sdi_sol')
     
     payments = member.payments.all().order_by('-created_at')
@@ -692,6 +823,7 @@ def sdi_sol_payments(request):
         'member': member,
         'payments': payments,
         'settings': SDISolSettings.get_solo(),
+        'plan': member.plan,
     })
 
 
@@ -699,17 +831,26 @@ def sdi_sol_payments(request):
 @require_POST
 def sdi_sol_make_payment(request):
     """Enregistre un paiement pour le membre du Sol SDI"""
-    try:
-        member = SDISolMember.objects.get(user=request.user, active=True)
-    except SDISolMember.DoesNotExist:
+    memberships = SDISolMember.objects.filter(user=request.user, active=True)
+    member_id = request.POST.get('member_id')
+    member = memberships.filter(pk=member_id).first() if member_id else memberships.filter(
+        admin_approved=True
+    ).order_by('pk').first()
+    if member is None:
+        if memberships.filter(admin_approved=False).exists():
+            return JsonResponse({
+                'error': 'Votre adhésion doit être approuvée par un admin avant de payer.'
+            }, status=403)
         return JsonResponse({'error': 'Vous n\'êtes pas membre du Sol SDI.'}, status=400)
-
     if not member.admin_approved:
-        return JsonResponse({'error': 'Votre adhésion doit être approuvée par un admin avant de payer.'}, status=403)
+        return JsonResponse({
+            'error': 'Votre adhésion doit être approuvée par un admin avant de payer.'
+        }, status=403)
     
     settings_obj = SDISolSettings.get_solo()
     amount = request.POST.get('amount')
     currency = request.POST.get('currency', 'USD')
+    payment_notes = request.POST.get('notes', '').strip()[:2000]
     
     if not amount or not currency:
         return JsonResponse({'error': 'Données manquantes.'}, status=400)
@@ -719,17 +860,29 @@ def sdi_sol_make_payment(request):
     except (InvalidOperation, TypeError):
         return JsonResponse({'error': 'Montant invalide.'}, status=400)
     
-    # Vérifier que le montant correspond à la cotisation
-    if currency == 'USD':
-        if amount < settings_obj.contribution_amount_usd:
-            return JsonResponse({
-                'error': f'Le montant minimum est ${settings_obj.contribution_amount_usd}'
-            }, status=400)
-    elif currency == 'HTG':
-        if amount < settings_obj.contribution_amount_htg:
-            return JsonResponse({
-                'error': f'Le montant minimum est {settings_obj.contribution_amount_htg} HTG'
-            }, status=400)
+    if currency not in ('USD', 'HTG'):
+        return JsonResponse({'error': 'Devise invalide.'}, status=400)
+
+    if (
+        not amount.is_finite()
+        or amount <= 0
+        or amount.as_tuple().exponent < -2
+        or amount >= Decimal('10000000000000')
+    ):
+        return JsonResponse({'error': 'Saisissez un montant positif valide avec au maximum deux décimales.'}, status=400)
+
+    if member.plan_duration_days:
+        expected_amount = member.plan_amount_usd if currency == 'USD' else member.plan_amount_htg
+        if expected_amount is None:
+            return JsonResponse({'error': 'Cette devise n’est pas disponible pour votre plan.'}, status=400)
+    elif currency == 'USD' and amount < settings_obj.contribution_amount_usd:
+        return JsonResponse({'error': f'Le montant minimum est ${settings_obj.contribution_amount_usd}'}, status=400)
+    elif currency == 'HTG' and amount < settings_obj.contribution_amount_htg:
+        return JsonResponse({'error': f'Le montant minimum est {settings_obj.contribution_amount_htg} HTG'}, status=400)
+
+    principal_admins = get_sdi_sol_principal_admins()
+    if not principal_admins:
+        return JsonResponse({'error': 'Aucun administrateur principal ne peut recevoir la demande actuellement.'}, status=503)
     
     # Créer le paiement
     with transaction.atomic():
@@ -737,21 +890,28 @@ def sdi_sol_make_payment(request):
             member=member,
             amount=amount,
             currency=currency,
+            plan_name=member.plan_name,
+            plan_duration_days=member.plan_duration_days,
             fee=Decimal('0.00'),
             due_date=member.next_due_date or timezone.now(),
+            status='pending',
+            notes=payment_notes,
         )
-        
-        # Marquer le paiement comme effectué
-        payment.mark_paid()
-        
-        # Recalculer les classements
-        SDISolMember.recalculate_rankings()
-        
-        # Créer une notification
-        notification = PersistentNotification.objects.create(
+
+        for administrator in principal_admins:
+            PersistentNotification.objects.create(
+                recipient=administrator,
+                title='Paiement Sol SDI à valider',
+                message=f'{request.user.username} a soumis {amount} {currency}. Reçu: {payment.receipt_number}',
+                notification_type='sdi_sol_payment_review',
+                deduplication_key=f'sdi-sol-payment-review:{payment.pk}:admin:{administrator.pk}',
+                target_url=reverse('sdi_sol_admin'),
+            )
+
+        PersistentNotification.objects.create(
             recipient=request.user,
-            title='Paiement Sol SDI reçu ✅',
-            message=f'Votre paiement de {amount} {currency} pour le Sol SDI a été enregistré. Reçu: {payment.receipt_number}',
+            title='Paiement Sol SDI en attente',
+            message=f'Votre paiement de {amount} {currency} a été soumis à validation. Reçu: {payment.receipt_number}',
             notification_type='sdi_sol_payment',
             deduplication_key=f'sdi-sol-payment:{payment.pk}:user:{request.user.pk}',
         )
@@ -759,7 +919,7 @@ def sdi_sol_make_payment(request):
     return JsonResponse({
         'success': True,
         'receipt_number': payment.receipt_number,
-        'message': f'Paiement enregistré avec succès. Reçu: {payment.receipt_number}'
+        'message': f'Paiement soumis à validation. Reçu: {payment.receipt_number}'
     })
 
 
@@ -776,13 +936,25 @@ def sdi_sol_payment_receipt(request, receipt_id):
     })
 
 
-@user_passes_test(lambda u: u.is_staff)
+@user_passes_test(lambda u: u.is_staff or is_sdi_sol_principal_admin(u))
 def sdi_sol_admin(request):
     """Panel d'administration du Sol SDI"""
     settings_obj = SDISolSettings.get_solo()
-    members = SDISolMember.objects.filter(active=True, admin_approved=True).order_by('position')
-    pending_requests = SDISolMember.objects.filter(active=True, admin_approved=False).order_by('joined_at')
-    payments = SDISolPayment.objects.all().order_by('-created_at')[:20]
+    members = SDISolMember.objects.filter(active=True, admin_approved=True).select_related(
+        'user', 'plan', 'group__plan'
+    ).order_by('plan__duration_days', 'plan__name', 'position')
+    pending_requests = list(
+        SDISolMember.objects.filter(active=True, admin_approved=False)
+        .select_related('user', 'plan')
+        .order_by('joined_at')
+    )
+    for pending in pending_requests:
+        pending.available_groups = list(
+            SDISolGroup.objects.filter(plan_id=pending.plan_id).select_related('plan')
+        ) if pending.plan_id else []
+    payments = SDISolPayment.objects.select_related('member__user').all().order_by('-created_at')[:20]
+    pending_payments = SDISolPayment.objects.select_related('member__user').filter(status='pending').order_by('-created_at')
+    plans = SDISolPlan.objects.all()
     late_members = members.filter(status='late')
     
     if request.method == 'POST':
@@ -796,7 +968,15 @@ def sdi_sol_admin(request):
         
         try:
             if max_members:
-                settings_obj.max_members = int(max_members)
+                new_capacity = int(max_members)
+                if new_capacity < 1:
+                    raise ValueError('La capacité par groupe doit être au moins égale à 1.')
+                full_groups = SDISolGroup.objects.annotate(
+                    active_count=Count('members', filter=Q(members__active=True))
+                ).filter(active_count__gt=new_capacity)
+                if full_groups.exists():
+                    raise ValueError('La capacité ne peut pas être inférieure au nombre de demandes actives d’un groupe.')
+                settings_obj.max_members = new_capacity
             if contribution_usd:
                 settings_obj.contribution_amount_usd = Decimal(contribution_usd)
             if contribution_htg:
@@ -807,6 +987,11 @@ def sdi_sol_admin(request):
                 settings_obj.withdrawal_fee_usd = Decimal(withdrawal_fee_usd)
             if withdrawal_fee_htg:
                 settings_obj.withdrawal_fee_htg = Decimal(withdrawal_fee_htg)
+            if 'start_date' in request.POST:
+                if not is_sdi_sol_principal_admin(request.user):
+                    return HttpResponseForbidden('Seul l’administrateur principal peut modifier la date de départ.')
+                start_date = request.POST.get('start_date', '').strip()
+                settings_obj.start_date = datetime.strptime(start_date, '%Y-%m-%d').date() if start_date else None
             
             settings_obj.save()
             messages.success(request, 'Paramètres du Sol SDI mis à jour.')
@@ -816,30 +1001,178 @@ def sdi_sol_admin(request):
     
     return render(request, 'marketplace/sdi_sol_admin.html', {
         'settings': settings_obj,
+        'plans': plans,
+        'is_principal_admin': is_sdi_sol_principal_admin(request.user),
         'members': members,
         'pending_requests': pending_requests,
         'payments': payments,
+        'pending_payments': pending_payments,
         'late_members': late_members,
         'total_members': members.count(),
-        'pending_requests_count': pending_requests.count(),
+        'total_group_capacity': SDISolGroup.objects.count() * settings_obj.max_members,
+        'pending_requests_count': len(pending_requests),
         'total_payments': SDISolPayment.objects.count(),
     })
 
 
-@user_passes_test(lambda u: u.is_staff)
+@user_passes_test(is_sdi_sol_principal_admin)
+@require_POST
+def sdi_sol_admin_save_plan(request, plan_id=None):
+    plan = get_object_or_404(SDISolPlan, pk=plan_id) if plan_id else SDISolPlan()
+    name = request.POST.get('name', '').strip()
+    try:
+        duration_days = int(request.POST.get('duration_days', ''))
+        amount_usd_raw = request.POST.get('amount_usd', '').strip()
+        amount_htg_raw = request.POST.get('amount_htg', '').strip()
+        amount_usd = Decimal(amount_usd_raw) if amount_usd_raw else None
+        amount_htg = Decimal(amount_htg_raw) if amount_htg_raw else None
+    except (ValueError, InvalidOperation):
+        messages.error(request, 'Durée ou montant invalide.')
+        return redirect('sdi_sol_admin')
+
+    is_active = request.POST.get('is_active') == 'on'
+    if not name or duration_days < 1 or any(value is not None and value <= 0 for value in (amount_usd, amount_htg)):
+        messages.error(request, 'Vérifiez le nom, la durée et les montants du plan.')
+        return redirect('sdi_sol_admin')
+    if is_active and amount_usd is None and amount_htg is None:
+        messages.error(request, 'Un plan actif doit avoir un prix USD ou HTG.')
+        return redirect('sdi_sol_admin')
+
+    plan.name = name
+    plan.duration_days = duration_days
+    plan.amount_usd = amount_usd
+    plan.amount_htg = amount_htg
+    plan.is_active = is_active
+    try:
+        plan.save()
+    except IntegrityError:
+        messages.error(request, 'Un plan porte déjà ce nom.')
+    else:
+        messages.success(request, 'Plan SDI Sol enregistré.')
+        SDISolGroup.objects.get_or_create(plan=plan)
+    return redirect('sdi_sol_admin')
+
+
+@user_passes_test(is_sdi_sol_principal_admin)
+@require_POST
+def sdi_sol_admin_approve_payment(request, payment_id):
+    with transaction.atomic():
+        payment = get_object_or_404(SDISolPayment.objects.select_for_update(), pk=payment_id)
+        if payment.status != 'pending' or payment.paid_at:
+            messages.error(request, 'Ce paiement a déjà été traité.')
+            return redirect('sdi_sol_admin')
+        if payment.member.user_id == request.user.pk:
+            messages.error(request, 'Vous ne pouvez pas approuver votre propre paiement.')
+            return redirect('sdi_sol_admin')
+        if not payment.mark_paid():
+            messages.error(request, 'Ce paiement a déjà été traité.')
+            return redirect('sdi_sol_admin')
+        payment.reviewed_by = request.user
+        payment.reviewed_at = timezone.now()
+        payment.save(update_fields=['reviewed_by', 'reviewed_at', 'updated_at'])
+        SDISolMember.recalculate_rankings()
+        PersistentNotification.objects.create(
+            recipient=payment.member.user,
+            title='Paiement Sol SDI approuvé',
+            message=f'Votre paiement de {payment.amount} {payment.currency} a été approuvé.',
+            notification_type='sdi_sol_payment_result',
+            deduplication_key=f'sdi-sol-payment-result:{payment.pk}:approved',
+        )
+    messages.success(request, f'Paiement {payment.receipt_number} approuvé.')
+    return redirect('sdi_sol_admin')
+
+
+@user_passes_test(is_sdi_sol_principal_admin)
+@require_POST
+def sdi_sol_admin_reject_payment(request, payment_id):
+    with transaction.atomic():
+        payment = get_object_or_404(SDISolPayment.objects.select_for_update(), pk=payment_id)
+        if payment.status != 'pending' or payment.paid_at:
+            messages.error(request, 'Ce paiement a déjà été traité.')
+            return redirect('sdi_sol_admin')
+        payment.status = 'rejected'
+        payment.admin_note = request.POST.get('reason', '').strip()[:2000]
+        payment.reviewed_by = request.user
+        payment.reviewed_at = timezone.now()
+        payment.save(update_fields=['status', 'admin_note', 'reviewed_by', 'reviewed_at', 'updated_at'])
+        PersistentNotification.objects.create(
+            recipient=payment.member.user,
+            title='Paiement Sol SDI refusé',
+            message=f'Votre paiement {payment.receipt_number} a été refusé. {payment.admin_note}'.strip(),
+            notification_type='sdi_sol_payment_result',
+            deduplication_key=f'sdi-sol-payment-result:{payment.pk}:rejected',
+        )
+    messages.success(request, f'Paiement {payment.receipt_number} refusé.')
+    return redirect('sdi_sol_admin')
+
+
+@user_passes_test(is_sdi_sol_principal_admin)
 @require_POST
 def sdi_sol_admin_approve_member(request, member_id):
     """Approuver une demande de membre du Sol SDI"""
-    member = get_object_or_404(SDISolMember, id=member_id, active=True, admin_approved=False)
-    settings_obj = SDISolSettings.get_solo()
-    approved_count = SDISolMember.objects.filter(active=True, admin_approved=True).count()
-    if approved_count >= settings_obj.max_members:
-        messages.error(request, 'Impossible d\'approuver ce membre : le Sol SDI est déjà plein.')
+    try:
+        with transaction.atomic():
+            member = get_object_or_404(
+                SDISolMember.objects.select_for_update(),
+                id=member_id,
+                active=True,
+                admin_approved=False,
+                admin_rejected=False,
+            )
+            if member.user_id == request.user.pk:
+                return HttpResponseForbidden('Un administrateur ne peut pas approuver sa propre demande.')
+            if not member.plan_id:
+                messages.error(request, 'Cette demande historique ne possède pas de plan sélectionné.')
+                return redirect('sdi_sol_admin')
+
+            group_id = request.POST.get('group_id')
+            group = get_object_or_404(
+                SDISolGroup.objects.select_for_update(),
+                pk=group_id,
+                plan_id=member.plan_id,
+            )
+            other_active_requests = member.plan.members.filter(active=True).exclude(pk=member.pk)
+            if other_active_requests.count() >= group.capacity:
+                messages.error(request, 'Impossible d’approuver : le groupe de ce plan est complet.')
+                return redirect('sdi_sol_admin')
+
+            occupied_places = set(group.members.filter(
+                active=True,
+                admin_approved=True,
+            ).values_list('group_position', flat=True))
+            group_position = 1
+            while group_position in occupied_places:
+                group_position += 1
+            rank_position = SDISolMember.objects.filter(
+                active=True,
+                admin_approved=True,
+            ).count() + 1
+            member.approve(group, rank_position, group_position)
+            SDISolMember.recalculate_rankings()
+    except IntegrityError:
+        messages.error(request, 'La dernière place vient d’être attribuée. Rechargez les demandes avant de réessayer.')
         return redirect('sdi_sol_admin')
 
-    member.approve()
-    SDISolMember.recalculate_rankings()
     messages.success(request, f'Membre {member.user.username} approuvé avec succès.')
+    return redirect('sdi_sol_admin')
+
+
+@user_passes_test(is_sdi_sol_principal_admin)
+@require_POST
+def sdi_sol_admin_reject_member(request, member_id):
+    """Refuser une demande SDI Sol sans supprimer son historique."""
+    with transaction.atomic():
+        member = get_object_or_404(
+            SDISolMember.objects.select_for_update(),
+            pk=member_id,
+            active=True,
+            admin_approved=False,
+            admin_rejected=False,
+        )
+        member.active = False
+        member.admin_rejected = True
+        member.save(update_fields=['active', 'admin_rejected'])
+    messages.success(request, f'La demande de {member.user.username} a été refusée.')
     return redirect('sdi_sol_admin')
 
 
@@ -848,6 +1181,8 @@ def sdi_sol_admin_approve_member(request, member_id):
 def sdi_sol_admin_remove_member(request, member_id):
     """Retirer un membre du Sol SDI"""
     member = get_object_or_404(SDISolMember, id=member_id)
+    if not member.admin_approved and not is_sdi_sol_principal_admin(request.user):
+        return HttpResponseForbidden('Seul l’administrateur principal peut refuser une demande.')
     member.active = False
     member.save()
     
@@ -874,7 +1209,11 @@ def get_private_contacts(user):
             'conversation': conv,
             'contact_id': other.id,
             'partner_name': other.get_full_name() or other.username,
-            'partner_photo_url': profile.photo.url if profile and profile.photo else None,
+            'partner_photo_url': (
+                profile.photo.url
+                if profile and profile.photo and profile.photo.storage.exists(profile.photo.name)
+                else None
+            ),
             'unread_count': conv.unread_count_for(user),
             'last_message_text': last_message.content if last_message and last_message.content else 'Message partagé',
             'last_message_time': last_message.created_at if last_message else None,
@@ -2032,14 +2371,22 @@ def checkout(request):
             'label': 'Europe / EUR',
             'methods': [
                 ('eur_card', 'EUR - Carte Visa/Mastercard'),
-                ('eur_paypal', 'EUR - PayPal'),
+                *(
+                    [('eur_paypal', 'PayPal Checkout sécurisé (montant en USD)')]
+                    if settings.PAYPAL_CHECKOUT_ENABLED
+                    else []
+                ),
             ]
         },
         {
             'label': 'International',
             'methods': [
                 ('int_card', 'International - Carte Visa/Mastercard'),
-                ('int_paypal', 'International - PayPal'),
+                *(
+                    [('int_paypal', 'PayPal Checkout sécurisé (montant en USD)')]
+                    if settings.PAYPAL_CHECKOUT_ENABLED
+                    else []
+                ),
             ]
         }
     ]
@@ -2064,50 +2411,77 @@ def checkout(request):
         payment_status = 'approved' if use_wallet else 'pending'
         order_status = 'awaiting_delivery' if payment_method in ['htg_wallet', 'htg_cod'] else 'pending'
 
-        # Créer la commande
-        order = Order.objects.create(
-            buyer=request.user,
-            total_amount=total_with_delivery,
-            delivery_address=delivery_address,
-            status=order_status,
-            payment_method=payment_method,
-            payment_status=payment_status,
-            distance_km=estimated_distance,
-            date_achat=timezone.now(),
-            product_name=f'Panier ({cart.get_total_items()} article(s))'
-        )
+        try:
+            with transaction.atomic():
+                locked_cart = Cart.objects.select_for_update().get(pk=cart.pk)
+                cart_items = list(
+                    CartItem.objects.select_for_update()
+                    .filter(cart=locked_cart)
+                    .order_by('product_id')
+                )
+                product_ids = [item.product_id for item in cart_items]
+                locked_products = {
+                    product.pk: product
+                    for product in Product.objects.select_for_update()
+                    .filter(pk__in=product_ids)
+                    .order_by('pk')
+                }
+                if any(
+                    item.product_id not in locked_products
+                    or locked_products[item.product_id].quantity < item.quantity
+                    for item in cart_items
+                ):
+                    messages.error(request, 'Le stock a changé. Vérifiez votre panier avant de recommencer.')
+                    return redirect('cart')
 
-        # Créer les items de commande et mettre à jour le stock
-        for cart_item in cart.items.all():
-            OrderItem.objects.create(
-                order=order,
-                product=cart_item.product,
-                quantity=cart_item.quantity,
-                price_ht=cart_item.product.price_ht
-            )
+                for cart_item in cart_items:
+                    decrement_available_stock(cart_item.product_id, cart_item.quantity)
 
-            # Réduire le stock
-            cart_item.product.quantity -= cart_item.quantity
-            cart_item.product.save()
+                order = Order.objects.create(
+                    buyer=request.user,
+                    total_amount=total_with_delivery,
+                    delivery_address=delivery_address,
+                    status=order_status,
+                    payment_method=payment_method,
+                    payment_status=payment_status,
+                    distance_km=estimated_distance,
+                    date_achat=timezone.now(),
+                    product_name=f'Panier ({sum(item.quantity for item in cart_items)} article(s))'
+                )
 
-        if use_wallet:
-            wallet.balance -= total_with_delivery
-            wallet.save()
-            tx_status = 'approved'
-        else:
-            tx_status = 'pending'
+                reservation_items = []
+                for cart_item in cart_items:
+                    product = locked_products[cart_item.product_id]
+                    OrderItem.objects.create(
+                        order=order,
+                        product=product,
+                        quantity=cart_item.quantity,
+                        price_ht=product.price_ht
+                    )
+                    product.quantity -= cart_item.quantity
+                    reservation_items.append((product, cart_item.quantity))
 
-        # Créer la transaction
-        Transaction.objects.create(
-            sender=request.user,
-            receiver=None,  # Paiement au système
-            amount=total_with_delivery,
-            type=f'payment_{payment_method}',
-            status=tx_status
-        )
+                if payment_method in {'eur_paypal', 'int_paypal'}:
+                    create_paypal_stock_reservation(order, reservation_items)
 
-        # Vider le panier
-        cart.items.all().delete()
+                if use_wallet:
+                    wallet.balance -= total_with_delivery
+                    wallet.save(update_fields=['balance'])
+                    tx_status = 'approved'
+                else:
+                    tx_status = 'pending'
+
+                Transaction.objects.create(
+                    sender=request.user,
+                    receiver=None,
+                    amount=total_with_delivery,
+                    type=f'payment_{payment_method}',
+                    status=tx_status
+                )
+                locked_cart.items.all().delete()
+        except InsufficientStock:
+            messages.error(request, 'Le stock a changé. Vérifiez votre panier avant de recommencer.')
+            return redirect('cart')
 
         # Assigner automatiquement un livreur (business logic)
         try:
@@ -2161,6 +2535,7 @@ def checkout(request):
         'total_with_delivery': total_with_delivery,
         'estimated_distance': estimated_distance,
         'payment_method_groups': payment_method_groups,
+        'paypal_enabled': settings.PAYPAL_CHECKOUT_ENABLED,
     })
 
 
@@ -2567,6 +2942,7 @@ def profile(request):
             'is_blocked': False
         }
     )
+    wallet_currency_conversion = get_usd_display_conversion(wallet.balance)
 
     if request.method == 'POST' and 'transfer_submit' in request.POST:
         transfer_response = transfer_funds(request)
@@ -2660,9 +3036,19 @@ def profile(request):
         category_commission_configs = CommissionConfig.objects.filter(nom__startswith='taux_commission_categorie_').order_by('nom')
         categories = Category.objects.filter(is_active=True).order_by('name')
 
-    system_settings = SystemSettings.objects.get_or_create(pk=1)[0]
+    system_settings = SystemSettings.objects.only(
+        'microsdicash_account_name',
+        'microsdicash_account_number',
+        'microsdicash_payment_instructions',
+        'enable_cybersecurity',
+        'emergency_lockdown',
+        'mobile_footer_support_enabled',
+        'personal_withdrawals_enabled',
+    ).get_or_create(pk=1)[0]
     CommissionManager.ensure_default_transfer_tiers()
     transfer_commission_tiers = TransferCommissionTier.objects.filter(active=True).order_by('currency', 'min_amount')
+    CommissionManager.ensure_default_withdrawal_tiers()
+    withdrawal_commission_tiers = WithdrawalCommissionTier.objects.filter(active=True).order_by('currency', 'min_amount')
 
     profile = Profile.objects.get_or_create(user=request.user)[0]
     # Force refresh from database to ensure latest data
@@ -2911,6 +3297,26 @@ def profile(request):
             withdrawal = WithdrawalRequest.objects.filter(id=withdrawal_id, status='pending').first()
             if withdrawal:
                 if action == 'approve':
+                    if withdrawal.account_type == 'tikane':
+                        withdrawals_enabled = SystemSettings.objects.filter(pk=1).values_list(
+                            'tikane_withdrawals_enabled',
+                            flat=True,
+                        ).first()
+                        if withdrawals_enabled is False:
+                            messages.error(request, 'Les retraits Ti Kanè sont désactivés.')
+                            return redirect('profile')
+                    elif (
+                        withdrawal.account_type == 'multidevice'
+                        and (withdrawal.user.is_agent or withdrawal.user.role == 'agent')
+                    ):
+                        withdrawals_enabled = SystemSettings.objects.filter(pk=1).values_list(
+                            'agent_wallet_withdrawals_enabled',
+                            flat=True,
+                        ).first()
+                        if withdrawals_enabled is False:
+                            messages.error(request, 'Les retraits du portefeuille agent sont désactivés.')
+                            return redirect('profile')
+
                     # Approuver le retrait
                     withdrawal.status = 'approved'
                     withdrawal.confirmed_at = timezone.now()
@@ -3478,7 +3884,11 @@ def profile(request):
             'owner_full_name': f"{shop.owner.first_name} {shop.owner.last_name}".strip(),
             'created_at': shop.created_at,
             'product_count': shop.product_count,
-            'photo_url': profile_owner.photo.url if profile_owner and profile_owner.photo else None,
+            'photo_url': (
+                profile_owner.photo.url
+                if profile_owner and profile_owner.photo and profile_owner.photo.storage.exists(profile_owner.photo.name)
+                else None
+            ),
             'is_delivery_agent': shop.owner.is_delivery_agent,
             'is_seller': shop.owner.is_seller,
             'is_buyer': shop.owner.is_buyer,
@@ -3581,6 +3991,7 @@ def profile(request):
 
     return render(request, 'marketplace/profile.html', {
         'wallet': wallet,
+        'wallet_currency_conversion': wallet_currency_conversion,
         'shop': shop,
         'transactions': transactions,
         'orders': orders,
@@ -3616,6 +4027,17 @@ def profile(request):
             }
             for tier in transfer_commission_tiers
         ]),
+        'withdrawal_commission_tiers_json': json.dumps([
+            {
+                'currency': tier.currency,
+                'min_amount': str(tier.min_amount),
+                'max_amount': str(tier.max_amount),
+                'total_fee': str(tier.total_fee),
+                'system_fee': str(tier.system_fee),
+                'agent_fee': str(tier.agent_fee),
+            }
+            for tier in withdrawal_commission_tiers
+        ]),
         'can_manage_beauty_studio_requests': can_manage_beauty_studio_requests,
         'pending_orders': pending_orders,
         'withdrawal_history': withdrawal_history,
@@ -3628,6 +4050,7 @@ def profile(request):
         'is_principal_admin': is_principal_admin,
         'can_use_agent_financial_tools': can_use_agent_financial_tools,
         'can_use_full_admin_actions': can_use_full_admin_actions,
+        'personal_withdrawals_enabled': system_settings.personal_withdrawals_enabled,
         'agent_fund_managers': agent_fund_managers,
         'transfer_idempotency_key': get_session_idempotency_key(request, 'transfer'),
         'withdrawal_idempotency_key': get_session_idempotency_key(request, 'user_withdrawal'),
@@ -3665,13 +4088,34 @@ def tikane_access(request):
             form = TiKaneAccessRequestForm(request.POST, request.FILES)
 
         if form.is_valid():
-            tikane_request = form.save(commit=False)
-            tikane_request.user = request.user
-            tikane_request.status = 'pending'
-            tikane_request.requested_at = tikane_request.requested_at or timezone.now()
-            tikane_request.save()
-            messages.success(request, 'Votre demande Ti Kanè Digital a bien été enregistrée. Un administrateur la traitera sous peu.')
-            return redirect('tikane_access')
+            principal_admins = list(
+                User.objects.filter(is_active=True, is_staff=True)
+                .filter(Q(is_superuser=True) | Q(role='super_admin'))
+            )
+            if not principal_admins:
+                form.add_error(None, 'Aucun administrateur principal actif ne peut recevoir cette demande.')
+            else:
+                submitted_at = timezone.now()
+                with transaction.atomic():
+                    tikane_request = form.save(commit=False)
+                    tikane_request.user = request.user
+                    tikane_request.status = 'pending'
+                    tikane_request.requested_at = submitted_at
+                    tikane_request.save()
+                    for administrator in principal_admins:
+                        create_persistent_notification(
+                            recipient=administrator,
+                            title='Nouvelle demande Ti Kanè à examiner',
+                            message=f'{tikane_request.full_name} a soumis une demande Ti Kanè.',
+                            notification_type='tikane_access_review',
+                            deduplication_key=(
+                                f'tikane-access-request:{tikane_request.pk}:'
+                                f'admin:{administrator.pk}:{submitted_at.isoformat()}'
+                            ),
+                            target_url=reverse('admin_tikane_requests'),
+                        )
+                messages.success(request, 'Votre demande Ti Kanè Digital a bien été enregistrée. Un administrateur la traitera sous peu.')
+                return redirect('tikane_access')
     else:
         if tikane_request and tikane_request.status in ['pending', 'refused', 'suspended']:
             form = TiKaneAccessRequestForm(instance=tikane_request)
@@ -3711,35 +4155,39 @@ def admin_tikane_requests(request):
         tikane_request = get_object_or_404(TiKaneAccessRequest, id=request_id)
 
         if action == 'approve_immediate':
-            tikane_request.status = 'approved'
-            tikane_request.reviewed_by = request.user
-            tikane_request.reviewed_at = timezone.now()
-            tikane_request.admin_notes = ''
-            tikane_request.save()
-            plan = tikane_request.plan or TiKanePlan.objects.filter(active=True).order_by('duration_days').first()
-            account, created = TiKaneAccount.objects.get_or_create(
-                user=tikane_request.user,
-                defaults={
-                    'request': tikane_request,
-                    'plan': plan,
-                    'status': 'active',
-                    'is_sdi_managed': True,
-                }
-            )
-            if not created:
-                account.request = tikane_request
-                account.status = 'active'
-                account.plan = plan
-                account.save(update_fields=['request', 'status', 'plan'])
+            if tikane_request.currency not in dict(TiKaneAccount.CURRENCY_CHOICES):
+                messages.error(request, 'Choisissez une devise valide avant de créer le compte Ti Kanè.')
+                return redirect('admin_tikane_requests')
+            existing_account = TiKaneAccount.objects.filter(user=tikane_request.user).first()
+            if existing_account and not existing_account.currency:
+                messages.error(request, 'Ce compte Ti Kanè historique doit être régularisé explicitement avant réactivation.')
+                return redirect('admin_tikane_requests')
+            if existing_account and existing_account.currency != tikane_request.currency:
+                messages.error(request, 'La devise de la demande ne correspond pas à celle du compte Ti Kanè existant.')
+                return redirect('admin_tikane_requests')
+            with transaction.atomic():
+                tikane_request.status = 'approved'
+                tikane_request.reviewed_by = request.user
+                tikane_request.reviewed_at = timezone.now()
+                tikane_request.admin_notes = ''
+                tikane_request.save()
+                plan = tikane_request.plan or TiKanePlan.objects.filter(active=True).order_by('duration_days').first()
+                account, created = TiKaneAccount.objects.get_or_create(
+                    user=tikane_request.user,
+                    defaults={
+                        'request': tikane_request,
+                        'plan': plan,
+                        'currency': tikane_request.currency,
+                        'status': 'active',
+                        'is_sdi_managed': True,
+                    }
+                )
+                if not created:
+                    account.request = tikane_request
+                    account.status = 'active'
+                    account.plan = plan
+                    account.save(update_fields=['request', 'status', 'plan'])
             messages.success(request, f'La demande de {tikane_request.user.username} a été approuvée immédiatement.')
-        elif action == 'approve_delayed':
-            schedule_at = timezone.now() + timedelta(minutes=30)
-            tikane_request.status = 'pending'
-            tikane_request.reviewed_by = request.user
-            tikane_request.reviewed_at = timezone.now()
-            tikane_request.admin_notes = f'Approbation différée programmée pour {schedule_at.strftime("%d/%m/%Y %H:%M")}. '
-            tikane_request.save(update_fields=['status', 'reviewed_by', 'reviewed_at', 'admin_notes'])
-            messages.success(request, f'Approbation différée prévue pour {schedule_at.strftime("%d/%m/%Y %H:%M")}.')
         elif action == 'refuse':
             tikane_request.status = 'refused'
             tikane_request.reviewed_by = request.user
@@ -3757,6 +4205,16 @@ def admin_tikane_requests(request):
                 account.save(update_fields=['status'])
             messages.success(request, f'La demande de {tikane_request.user.username} a été suspendue.')
         elif action == 'reactivate':
+            if tikane_request.currency not in dict(TiKaneAccount.CURRENCY_CHOICES):
+                messages.error(request, 'Choisissez une devise valide avant de réactiver le compte Ti Kanè.')
+                return redirect('admin_tikane_requests')
+            existing_account = TiKaneAccount.objects.filter(user=tikane_request.user).first()
+            if existing_account and not existing_account.currency:
+                messages.error(request, 'Ce compte Ti Kanè historique doit être régularisé explicitement avant réactivation.')
+                return redirect('admin_tikane_requests')
+            if existing_account and existing_account.currency != tikane_request.currency:
+                messages.error(request, 'La devise de la demande ne correspond pas à celle du compte Ti Kanè existant.')
+                return redirect('admin_tikane_requests')
             tikane_request.status = 'approved'
             tikane_request.reviewed_by = request.user
             tikane_request.reviewed_at = timezone.now()
@@ -3767,6 +4225,7 @@ def admin_tikane_requests(request):
                 defaults={
                     'request': tikane_request,
                     'plan': tikane_request.plan,
+                    'currency': tikane_request.currency,
                     'status': 'active',
                     'is_sdi_managed': True,
                 }
@@ -3777,6 +4236,8 @@ def admin_tikane_requests(request):
                 account.plan = tikane_request.plan
                 account.save(update_fields=['request', 'status', 'plan'])
             messages.success(request, f'La demande de {tikane_request.user.username} a été réactivée.')
+        else:
+            messages.error(request, 'Action Ti Kanè inconnue.')
 
         return redirect('admin_tikane_requests')
 
@@ -3784,6 +4245,33 @@ def admin_tikane_requests(request):
     return render(request, 'marketplace/admin_tikane_requests.html', {
         'requests_list': requests_list,
     })
+
+
+@login_required
+def admin_tikane_document(request, request_id, field_name):
+    if not is_tikane_admin(request.user):
+        messages.error(request, 'Accès refusé.')
+        return redirect('profile')
+
+    if field_name not in {
+        'identity_document',
+        'passport_document',
+        'driver_license_document',
+        'selfie',
+    }:
+        raise Http404
+
+    tikane_request = get_object_or_404(TiKaneAccessRequest, pk=request_id)
+    document = getattr(tikane_request, field_name)
+    if not document:
+        raise Http404
+
+    response = FileResponse(
+        document.open('rb'),
+        content_type=mimetypes.guess_type(document.name)[0] or 'application/octet-stream',
+    )
+    response['X-Content-Type-Options'] = 'nosniff'
+    return response
 
 
 @login_required
@@ -3866,15 +4354,21 @@ def upload_receipt(request):
 
     receipt_image = request.FILES['receipt_proof']
 
-    allowed_content_types = ['image/jpeg', 'image/png', 'image/gif']
+    allowed_content_types = {'image/jpeg', 'image/png', 'image/gif'}
     max_upload_size = 5 * 1024 * 1024  # 5 MB
 
-    if not receipt_image.content_type.startswith('image/'):
+    if receipt_image.content_type not in allowed_content_types:
         messages.error(request, 'Le fichier doit être une image (JPG, PNG, GIF).')
         return redirect('profile')
 
     if receipt_image.size > max_upload_size:
         messages.error(request, 'Le fichier est trop volumineux. Taille maximale : 5 MB.')
+        return redirect('profile')
+
+    try:
+        forms.ImageField().clean(receipt_image)
+    except ValidationError:
+        messages.error(request, 'Le fichier envoyé n’est pas une image valide (JPG, PNG, GIF).')
         return redirect('profile')
 
     Receipt.objects.create(
@@ -4051,21 +4545,71 @@ def withdraw_funds(request):
     # Validation des données
     if not all([account_type, amount_str, currency, pin, secure_code]):
         return JsonResponse({'success': False, 'message': 'Tous les champs sont requis.'})
+
+    personal_withdrawals_enabled = SystemSettings.objects.filter(pk=1).values_list(
+        'personal_withdrawals_enabled',
+        flat=True,
+    ).first()
+    if personal_withdrawals_enabled is False:
+        return JsonResponse({
+            'success': False,
+            'message': 'Les nouveaux retraits personnels sont temporairement désactivés par l’administration.',
+        }, status=403)
     
     if account_type not in ['principal', 'multidevice', 'tikane']:
         return JsonResponse({'success': False, 'message': 'Type de compte invalide.'})
-    
+
+    if account_type == 'tikane':
+        tikane_withdrawals_enabled = SystemSettings.objects.filter(pk=1).values_list(
+            'tikane_withdrawals_enabled',
+            flat=True,
+        ).first()
+        if tikane_withdrawals_enabled is False:
+            return JsonResponse({
+                'success': False,
+                'message': 'Les nouveaux retraits Ti Kanè sont temporairement désactivés.',
+            }, status=403)
+
+    if account_type == 'multidevice' and (request.user.is_agent or request.user.role == 'agent'):
+        agent_wallet_withdrawals_enabled = SystemSettings.objects.filter(pk=1).values_list(
+            'agent_wallet_withdrawals_enabled',
+            flat=True,
+        ).first()
+        if agent_wallet_withdrawals_enabled is False:
+            return JsonResponse({
+                'success': False,
+                'message': 'Les nouveaux retraits du portefeuille de commissions agent sont temporairement désactivés.',
+            }, status=403)
+
     if currency not in ['USD', 'HTG', 'DOP', 'EUR']:
         return JsonResponse({'success': False, 'message': 'Devise invalide.'})
     
     try:
         amount = Decimal(amount_str)
-        if not amount.is_finite() or amount < Decimal('5.00') or amount != amount.quantize(Decimal('0.01')):
-            return JsonResponse({'success': False, 'message': 'Le montant minimum de retrait est de 5 USD.'})
+        minimum_amount = Decimal('1.00') if currency == 'USD' else Decimal('5.00')
+        if not amount.is_finite() or amount < minimum_amount or amount != amount.quantize(Decimal('0.01')):
+            return JsonResponse({
+                'success': False,
+                'message': f'Le montant minimum de retrait est de {minimum_amount} {currency}.',
+            })
     except (InvalidOperation, ValueError):
         return JsonResponse({'success': False, 'message': 'Montant invalide.'})
     
     user = request.user
+
+    requested_tikane_account = None
+    if account_type == 'tikane':
+        requested_tikane_account = TiKaneAccount.objects.filter(user=user).first()
+        if not requested_tikane_account or not requested_tikane_account.currency:
+            return JsonResponse({
+                'success': False,
+                'message': 'La devise du compte Ti Kanè est inconnue. Faites régulariser le compte avant le retrait.',
+            }, status=400)
+        if currency != requested_tikane_account.currency:
+            return JsonResponse({
+                'success': False,
+                'message': f"La devise du compte Ti Kanè est {requested_tikane_account.currency}.",
+            }, status=400)
     
     # Récupérer le profil pour vérifier les codes
     profile, created = Profile.objects.get_or_create(user=user)
@@ -4098,18 +4642,46 @@ def withdraw_funds(request):
         previous_withdrawal = get_financial_operation_result(operation, WithdrawalRequest)
         return JsonResponse({
             'success': True,
-            'message': f"Retrait déjà enregistré (demande {previous_withdrawal.pk}).",
+            'message': (
+                f"Retrait déjà enregistré (demande {previous_withdrawal.pk}). "
+                f"Montant demandé : {previous_withdrawal.amount} {previous_withdrawal.currency}; "
+                f"frais : {previous_withdrawal.fee_total} {previous_withdrawal.currency}; "
+                f"net prévu après confirmation : {previous_withdrawal.amount} {previous_withdrawal.currency}."
+            ),
             'withdrawal_id': previous_withdrawal.pk,
             'duplicate': True,
+            'amount': str(previous_withdrawal.amount),
+            'fee_total': str(previous_withdrawal.fee_total),
+            'net_received': str(previous_withdrawal.amount),
+            'currency': previous_withdrawal.currency,
         })
     
     # Récupérer le portefeuille
     wallet, _ = Wallet.objects.get_or_create(user=user)
     wallet = Wallet.objects.select_for_update().get(pk=wallet.pk)
-    breakdown = CommissionManager.get_withdrawal_commission_breakdown(amount, currency)
+    fee_exempt_usd_withdrawal = currency == 'USD' and amount < Decimal('5.00')
+    breakdown = (
+        {
+            'total_fee': Decimal('0.00'),
+            'system_fee': Decimal('0.00'),
+            'agent_fee': Decimal('0.00'),
+        }
+        if fee_exempt_usd_withdrawal
+        else CommissionManager.get_withdrawal_commission_breakdown(amount, currency)
+    )
     fee_total = breakdown['total_fee']
     fee_system = breakdown['system_fee']
     fee_agent = breakdown['agent_fee']
+    if (
+        account_type == 'principal'
+        and not fee_exempt_usd_withdrawal
+        and not CommissionManager.get_withdrawal_commission_tier(amount, currency)
+    ):
+        transaction.set_rollback(True)
+        return JsonResponse({
+            'success': False,
+            'message': f'Aucun barème de frais de retrait {currency} ne couvre ce montant. Contactez l’administration.',
+        }, status=400)
     wallet_field = None
     withdrawal_account = None
     
@@ -4141,18 +4713,26 @@ def withdraw_funds(request):
             return JsonResponse({'success': False, 'message': 'Solde insuffisant pour couvrir le montant du retrait et les frais.'})
         wallet_field = field_name
     elif account_type == 'tikane':
-        tikane_account = getattr(user, 'tikane_account', None)
+        tikane_account = TiKaneAccount.objects.select_for_update().filter(
+            pk=requested_tikane_account.pk,
+        ).first()
         if not tikane_account or tikane_account.status != 'active':
             transaction.set_rollback(True)
             return JsonResponse({'success': False, 'message': 'Vous devez avoir un compte Ti Kanè actif pour ce type de retrait.'})
-        tikane_account = tikane_account.__class__.objects.select_for_update().get(pk=tikane_account.pk)
         withdrawal_account = tikane_account
+        if not tikane_account.currency or currency != tikane_account.currency:
+            transaction.set_rollback(True)
+            return JsonResponse({'success': False, 'message': 'La devise demandée ne correspond pas au compte Ti Kanè.'}, status=400)
         if not tikane_account.can_withdraw:
             transaction.set_rollback(True)
             return JsonResponse({'success': False, 'message': 'Retrait Ti Kanè indisponible avant la date d\'échéance du plan.'})
 
         plan_fee = tikane_account.get_plan_withdrawal_commission(amount)
-        if plan_fee is not None:
+        if fee_exempt_usd_withdrawal:
+            fee_total = Decimal('0.00')
+            fee_system = Decimal('0.00')
+            fee_agent = Decimal('0.00')
+        elif plan_fee is not None:
             fee_total = plan_fee
             fee_system = plan_fee
             fee_agent = Decimal('0')
@@ -4163,9 +4743,9 @@ def withdraw_funds(request):
             fee_agent = breakdown['agent_fee']
 
         if currency == 'USD':
-            if wallet.balance < amount + fee_total:
+            if wallet.balance < fee_total:
                 transaction.set_rollback(True)
-                return JsonResponse({'success': False, 'message': 'Solde insuffisant.'})
+                return JsonResponse({'success': False, 'message': 'Solde insuffisant pour couvrir les frais du retrait.'})
             wallet_field = 'balance'
         else:
             field_map = {
@@ -4179,21 +4759,22 @@ def withdraw_funds(request):
                 return JsonResponse({'success': False, 'message': 'Devise non supportée pour Ti Kanè.'})
             wallet_field = field_name
             current_balance = getattr(wallet, field_name)
-            if current_balance < amount + fee_total:
+            if current_balance < fee_total:
                 transaction.set_rollback(True)
-                return JsonResponse({'success': False, 'message': 'Solde insuffisant pour couvrir le montant du retrait et les frais.'})
+                return JsonResponse({'success': False, 'message': 'Solde insuffisant pour couvrir les frais du retrait.'})
         if tikane_account.balance < amount:
             transaction.set_rollback(True)
             return JsonResponse({'success': False, 'message': 'Solde Ti Kanè insuffisant pour ce retrait.'})
     
-    debit_amount = amount + fee_total
-    debited = Wallet.objects.filter(
-        pk=wallet.pk,
-        **{f'{wallet_field}__gte': debit_amount},
-    ).update(**{wallet_field: F(wallet_field) - debit_amount})
-    if not debited:
-        transaction.set_rollback(True)
-        return JsonResponse({'success': False, 'message': 'Solde insuffisant.'})
+    debit_amount = fee_total if account_type == 'tikane' else amount + fee_total
+    if debit_amount > 0:
+        debited = Wallet.objects.filter(
+            pk=wallet.pk,
+            **{f'{wallet_field}__gte': debit_amount},
+        ).update(**{wallet_field: F(wallet_field) - debit_amount})
+        if not debited:
+            transaction.set_rollback(True)
+            return JsonResponse({'success': False, 'message': 'Solde insuffisant pour couvrir le montant et les frais.'})
     if withdrawal_account:
         account_debit = withdrawal_account.__class__.objects.filter(
             pk=withdrawal_account.pk,
@@ -4264,14 +4845,21 @@ def withdraw_funds(request):
     # Loguer la transaction
     logger.info(f"Retrait créé: {user.username} - {amount} {currency} depuis {account_type} - Withdrawal ID: {withdrawal.id}")
     
-    response_message = f"Retrait de {amount} {currency} effectué et débité de votre compte. Veuillez attendre la confirmation de l'administration."
-    if account_type == 'multidevice' and currency == 'HTG' and fee_total > Decimal('0'):
-        response_message = f"Retrait de {amount} {currency} effectué. Frais de retrait appliqués: {fee_total} HTG. Veuillez attendre la confirmation de l'administration."
+    response_message = (
+        f"Demande de retrait enregistrée. Montant demandé : {amount} {currency}; "
+        f"frais prélevés séparément : {fee_total} {currency}; "
+        f"net prévu après confirmation : {amount} {currency}. "
+        "Le retrait attend la confirmation de l’administration ou de l’agent."
+    )
 
     return JsonResponse({
         'success': True,
         'message': response_message,
-        'withdrawal_id': withdrawal.id
+        'withdrawal_id': withdrawal.id,
+        'amount': str(amount),
+        'fee_total': str(fee_total),
+        'net_received': str(amount),
+        'currency': currency,
     })
 
 
@@ -4562,7 +5150,7 @@ def site_banner_activation_toggle(request):
     if not (request.user.is_superuser or request.user.role == 'super_admin'):
         return HttpResponseForbidden('Accès réservé à l’administrateur principal')
 
-    settings_obj, _ = SystemSettings.objects.get_or_create(pk=1)
+    settings_obj = get_object_or_404(SystemSettings.objects.only('banner_enabled'), pk=1)
     settings_obj.banner_enabled = not settings_obj.banner_enabled
     settings_obj.save(update_fields=['banner_enabled'])
     messages.success(
@@ -4577,7 +5165,7 @@ def site_banner_activation(request):
     if not (request.user.is_superuser or request.user.role == 'super_admin'):
         return HttpResponseForbidden('Accès réservé à l’administrateur principal')
 
-    settings_obj, _ = SystemSettings.objects.get_or_create(pk=1)
+    settings_obj = get_object_or_404(SystemSettings.objects.only('banner_enabled'), pk=1)
     return render(request, 'marketplace/site_banner_activation.html', {
         'banner_enabled': settings_obj.banner_enabled,
     })
@@ -4952,6 +5540,7 @@ def site_banner_delete(request, banner_id):
 @login_required
 def dashboard(request):
     wallet = Wallet.objects.filter(user=request.user).first()
+    wallet_currency_conversion = get_usd_display_conversion(wallet.balance if wallet else Decimal('0.00'))
     recent_orders = Order.objects.filter(buyer=request.user).order_by('-created_at')[:5]
     recent_sales = OrderItem.objects.filter(product__shop__owner=request.user).order_by('-order__created_at')[:5]
     commission_total = Transaction.objects.filter(receiver=request.user, type='commission').aggregate(total=Sum('amount'))['total'] or 0
@@ -5005,6 +5594,7 @@ def dashboard(request):
 
     return render(request, 'marketplace/dashboard.html', {
         'wallet': wallet,
+        'wallet_currency_conversion': wallet_currency_conversion,
         'recent_orders': recent_orders,
         'recent_sales': recent_sales,
         'commission_total': commission_total,
@@ -5255,14 +5845,17 @@ def order_product(request, product_id):
         form = OrderForm(request.POST)
         quantity = int(request.POST.get('quantity', 1))
 
-        if form.is_valid() and quantity > 0 and quantity <= product.quantity:
-            # Vérifier le solde
-            price_per_item = product.price_ht
-            total_amount = price_per_item * quantity
+        if form.is_valid() and quantity > 0:
+            payment_method = form.cleaned_data.get('payment_method', 'htg_wallet')
+            is_paypal_payment = payment_method in {'eur_paypal', 'int_paypal'}
 
             buyer_wallet, _ = Wallet.objects.get_or_create(user=request.user)
 
-            if buyer_wallet.balance < total_amount:
+            if is_paypal_payment and not settings.PAYPAL_CHECKOUT_ENABLED:
+                messages.error(request, 'PayPal Sandbox n’est pas encore configuré.')
+                return redirect('order_product', product_id=product.id)
+
+            if not is_paypal_payment and buyer_wallet.balance < total_amount:
                 messages.error(request, f'Solde insuffisant. Vous avez {buyer_wallet.balance}$, montant requis: {total_amount}$.')
                 return redirect('shop_detail', shop_id=product.shop.id)
 
@@ -5271,74 +5864,91 @@ def order_product(request, product_id):
                 messages.error(request, 'Auto-achat interdit.')
                 return redirect('shop_detail', shop_id=product.shop.id)
 
-            from django.db import transaction
-            with transaction.atomic():
-                # Calcul des montants
-                system_commission = Decimal('0.5') * quantity
-                cashback_acheteur = CommissionManager.get_config('cashback_par_produit_acheteur') * Decimal(str(quantity))
-                cashback_vendeur = CommissionManager.get_config('cashback_par_produit_vendeur') * Decimal(str(quantity))
+            try:
+                with transaction.atomic():
+                    product = Product.objects.select_for_update().get(pk=product_id)
+                    if product.quantity < quantity:
+                        raise InsufficientStock
+                    price_per_item = product.price_ht
+                    total_amount = price_per_item * quantity
 
-                # Débit acheteur
-                buyer_wallet.balance -= total_amount
-                buyer_wallet.commission_balance_usd += cashback_acheteur
-                buyer_wallet.save()
+                    # Calcul des montants
+                    system_commission = Decimal('0.5') * quantity
+                    cashback_acheteur = CommissionManager.get_config('cashback_par_produit_acheteur') * Decimal(str(quantity))
+                    cashback_vendeur = CommissionManager.get_config('cashback_par_produit_vendeur') * Decimal(str(quantity))
 
-                # Créditer le vendeur sur son compte commission cashback
-                seller_wallet, _ = Wallet.objects.get_or_create(user=product.shop.owner)
-                if cashback_vendeur > 0:
-                    seller_wallet.commission_balance_usd += cashback_vendeur
-                    seller_wallet.save()
+                    if not is_paypal_payment:
+                        buyer_wallet.balance -= total_amount
+                        buyer_wallet.commission_balance_usd += cashback_acheteur
+                        buyer_wallet.save()
 
-                # Mettre à jour stock
-                product.quantity -= quantity
-                if product.quantity <= 0:
-                    product.quantity = 0
-                product.save()
+                        seller_wallet, _ = Wallet.objects.get_or_create(user=product.shop.owner)
+                        if cashback_vendeur > 0:
+                            seller_wallet.commission_balance_usd += cashback_vendeur
+                            seller_wallet.save()
 
-                # Créer commande avec les informations GPS
-                estimated_at = timezone.now() + timedelta(days=3)
-                order = Order.objects.create(
-                    buyer=request.user,
-                    total_amount=total_amount,
-                    delivery_address=form.cleaned_data['delivery_address'],
-                    buyer_lat=form.cleaned_data.get('buyer_lat'),
-                    buyer_lng=form.cleaned_data.get('buyer_lng'),
-                    buyer_address_details=form.cleaned_data.get('buyer_address_details'),
-                    status='awaiting_delivery',
-                    delivery_estimated_at=estimated_at,
-                    product_name=product.name,
-                )
-                OrderItem.objects.create(order=order, product=product, quantity=quantity, price_ht=price_per_item)
-                create_persistent_notification(
-                    recipient=request.user,
-                    title=f'✅ Commande #{order.id} enregistrée',
-                    message=f'Votre commande de {product.name} a été enregistrée. Montant : {total_amount} USD.',
-                    notification_type='order_created',
-                    deduplication_key=f'order-created:{order.pk}:buyer:{request.user.pk}',
-                    target_url=reverse('order_confirm', args=[order.pk]),
-                )
-                notify_order_sellers(order)
+                    decrement_available_stock(product.pk, quantity)
+                    product.quantity -= quantity
 
-                # Transactions de séquestre et frais
-                Transaction.objects.create(sender=request.user, receiver=None, amount=total_amount, type='escrow_hold', status='pending')
-                admin_wallet = get_system_admin_wallet()
-                if admin_wallet:
-                    admin_amount, distribution_amount = MarketplaceSettings.get_solo().get_commission_split(system_commission)
-                    admin_wallet.credit_commission(admin_amount, currency='USD')
-                    if distribution_amount > 0:
-                        admin_wallet.credit_distribution(distribution_amount, currency='USD')
-                    Transaction.objects.create(sender=None, receiver=admin_wallet.user, amount=admin_amount, type='commission', status='approved')
-                else:
-                    Transaction.objects.create(sender=None, receiver=product.shop.owner, amount=system_commission, type='commission', status='approved')
-                if cashback_acheteur > 0:
-                    Transaction.objects.create(sender=None, receiver=request.user, amount=cashback_acheteur, type='cashback', status='approved')
-                if cashback_vendeur > 0:
-                    Transaction.objects.create(sender=None, receiver=product.shop.owner, amount=cashback_vendeur, type='cashback', status='approved')
+                    # Créer commande avec les informations GPS
+                    estimated_at = timezone.now() + timedelta(days=3)
+                    order = Order.objects.create(
+                        buyer=request.user,
+                        total_amount=total_amount,
+                        delivery_address=form.cleaned_data['delivery_address'],
+                        buyer_lat=form.cleaned_data.get('buyer_lat'),
+                        buyer_lng=form.cleaned_data.get('buyer_lng'),
+                        buyer_address_details=form.cleaned_data.get('buyer_address_details'),
+                        status='pending' if is_paypal_payment else 'awaiting_delivery',
+                        payment_method=payment_method,
+                        payment_status='pending' if is_paypal_payment else 'approved',
+                        delivery_estimated_at=estimated_at,
+                        product_name=product.name,
+                    )
+                    OrderItem.objects.create(order=order, product=product, quantity=quantity, price_ht=price_per_item)
+                    if is_paypal_payment:
+                        create_paypal_stock_reservation(order, [(product, quantity)])
+                    create_persistent_notification(
+                        recipient=request.user,
+                        title=f'✅ Commande #{order.id} enregistrée',
+                        message=f'Votre commande de {product.name} a été enregistrée. Montant : {total_amount} USD.',
+                        notification_type='order_created',
+                        deduplication_key=f'order-created:{order.pk}:buyer:{request.user.pk}',
+                        target_url=reverse('order_confirm', args=[order.pk]),
+                    )
+                    notify_order_sellers(order)
 
-                # Assigner automatiquement la livraison
-                from .business_logic import DeliveryAssignmentManager
-                assignment_manager = DeliveryAssignmentManager()
-                assignment_manager.assign_delivery_roundrobin(order)
+                    if is_paypal_payment:
+                        Transaction.objects.create(
+                            sender=request.user,
+                            receiver=None,
+                            amount=total_amount,
+                            type=f'payment_{payment_method}',
+                            status='pending',
+                        )
+                    else:
+                        Transaction.objects.create(sender=request.user, receiver=None, amount=total_amount, type='escrow_hold', status='pending')
+                        admin_wallet = get_system_admin_wallet()
+                        if admin_wallet:
+                            admin_amount, distribution_amount = MarketplaceSettings.get_solo().get_commission_split(system_commission)
+                            admin_wallet.credit_commission(admin_amount, currency='USD')
+                            if distribution_amount > 0:
+                                admin_wallet.credit_distribution(distribution_amount, currency='USD')
+                            Transaction.objects.create(sender=None, receiver=admin_wallet.user, amount=admin_amount, type='commission', status='approved')
+                        else:
+                            Transaction.objects.create(sender=None, receiver=product.shop.owner, amount=system_commission, type='commission', status='approved')
+                        if cashback_acheteur > 0:
+                            Transaction.objects.create(sender=None, receiver=request.user, amount=cashback_acheteur, type='cashback', status='approved')
+                        if cashback_vendeur > 0:
+                            Transaction.objects.create(sender=None, receiver=product.shop.owner, amount=cashback_vendeur, type='cashback', status='approved')
+
+                    # Assigner automatiquement la livraison
+                    from .business_logic import DeliveryAssignmentManager
+                    assignment_manager = DeliveryAssignmentManager()
+                    assignment_manager.assign_delivery_roundrobin(order)
+            except InsufficientStock:
+                messages.error(request, f'Stock insuffisant pour "{product.name}". Actualisez la page et réessayez.')
+                return redirect('product_detail', product_id=product_id)
 
             messages.success(request, 'Commande passée avec succès ! Le livreur pourra voir votre position GPS.')
             return redirect('order_confirm', order_id=order.id)
@@ -5358,11 +5968,16 @@ def order_product(request, product_id):
 def order_confirm(request, order_id):
     order = get_object_or_404(Order, id=order_id, buyer=request.user)
     commission_breakdown = CommissionManager.calcul_commande_from_order(order)
+    paypal_payment = getattr(order, 'paypal_payment', None)
     return render(request, 'marketplace/order_confirm.html', {
         'order': order,
         'commission_breakdown': commission_breakdown,
         'server_time': timezone.now(),
-        'google_maps_api_key': getattr(settings, 'GOOGLE_MAPS_API_KEY', 'VOTRE_CLE_GOOGLE_MAPS_API_ICI')
+        'google_maps_api_key': getattr(settings, 'GOOGLE_MAPS_API_KEY', 'VOTRE_CLE_GOOGLE_MAPS_API_ICI'),
+        'paypal_enabled': settings.PAYPAL_CHECKOUT_ENABLED,
+        'paypal_client_id': settings.PAYPAL_CLIENT_ID,
+        'paypal_order': order.payment_method in {'eur_paypal', 'int_paypal'},
+        'paypal_payment_status': paypal_payment.status if paypal_payment else '',
     })
 
 
@@ -5543,13 +6158,10 @@ def admin_add_money(request):
                 messages.error(request, 'Agent, devise ou montant invalide.')
                 return redirect('admin_add_money')
 
-            if agent_user == request.user:
-                messages.error(request, 'L’Admin principal ne peut pas se créditer via cette fonction.')
-                return redirect('admin_add_money')
-            if not agent_user.is_agent or not Agent.objects.filter(
-                user=agent_user,
-                is_active=True,
-            ).exists():
+            if agent_user != request.user and (
+                not agent_user.is_agent
+                or not Agent.objects.filter(user=agent_user, is_active=True).exists()
+            ):
                 messages.error(request, 'Sélectionnez un agent actif.')
                 return redirect('admin_add_money')
 
@@ -5581,6 +6193,7 @@ def admin_add_money(request):
                             status='approved',
                         )
                         complete_financial_operation(operation, funding_transaction)
+                        _create_admin_wallet_credit_notification(funding_transaction)
                         transaction.on_commit(
                             lambda: rotate_session_idempotency_key(
                                 request,
@@ -5599,7 +6212,7 @@ def admin_add_money(request):
 
             messages.success(
                 request,
-                f'Ajout de {amount_decimal} {currency.upper()} au portefeuille de l’agent {agent_user.username}.',
+                f'Ajout de {amount_decimal} {currency.upper()} au portefeuille opérationnel de {agent_user.username}.',
             )
             return redirect('admin_add_money')
 
@@ -5615,29 +6228,31 @@ def admin_add_money(request):
             for user in users:
                 wallet, _ = Wallet.objects.get_or_create(user=user)
                 if action == 'add':
-                    if account_type == 'agent':
-                        current_value = getattr(wallet, commission_field, Decimal('0')) or Decimal('0')
-                        setattr(wallet, commission_field, current_value + amount_decimal)
-                        wallet.save(update_fields=[commission_field])
-                        Transaction.objects.create(
-                            sender=None,
-                            receiver=user,
-                            amount=amount_decimal,
-                            currency=currency,
-                            type='admin_add_all_agent',
-                            status='approved'
-                        )
-                    else:
-                        wallet.balance += amount_decimal
-                        wallet.save(update_fields=['balance'])
-                        Transaction.objects.create(
-                            sender=None,
-                            receiver=user,
-                            amount=amount_decimal,
-                            currency='USD',
-                            type='admin_add_all',
-                            status='approved'
-                        )
+                    with transaction.atomic():
+                        if account_type == 'agent':
+                            current_value = getattr(wallet, commission_field, Decimal('0')) or Decimal('0')
+                            setattr(wallet, commission_field, current_value + amount_decimal)
+                            wallet.save(update_fields=[commission_field])
+                            funding_transaction = Transaction.objects.create(
+                                sender=None,
+                                receiver=user,
+                                amount=amount_decimal,
+                                currency=currency,
+                                type='admin_add_all_agent',
+                                status='approved'
+                            )
+                        else:
+                            wallet.balance += amount_decimal
+                            wallet.save(update_fields=['balance'])
+                            funding_transaction = Transaction.objects.create(
+                                sender=None,
+                                receiver=user,
+                                amount=amount_decimal,
+                                currency='USD',
+                                type='admin_add_all',
+                                status='approved'
+                            )
+                        _create_admin_wallet_credit_notification(funding_transaction)
                     users_changed += 1
                 else:
                     if account_type == 'agent':
@@ -5685,31 +6300,33 @@ def admin_add_money(request):
             user = User.objects.get(id=user_id)
             wallet, _ = Wallet.objects.get_or_create(user=user)
             if action == 'add':
-                if account_type == 'agent':
-                    current_value = getattr(wallet, commission_field, Decimal('0')) or Decimal('0')
-                    setattr(wallet, commission_field, current_value + amount_decimal)
-                    wallet.save(update_fields=[commission_field])
-                    Transaction.objects.create(
-                        sender=None,
-                        receiver=user,
-                        amount=amount_decimal,
-                        currency=currency,
-                        type='admin_add_agent',
-                        status='approved'
-                    )
-                    messages.success(request, f'Ajout de {amount} {currency} au compte agent de {user.username}.')
-                else:
-                    wallet.balance += amount_decimal
-                    wallet.save(update_fields=['balance'])
-                    Transaction.objects.create(
-                        sender=None,
-                        receiver=user,
-                        amount=amount_decimal,
-                        currency='USD',
-                        type='admin_add',
-                        status='approved'
-                    )
-                    messages.success(request, f'Ajout de {amount} {currency} au portefeuille principal de {user.username}.')
+                with transaction.atomic():
+                    if account_type == 'agent':
+                        current_value = getattr(wallet, commission_field, Decimal('0')) or Decimal('0')
+                        setattr(wallet, commission_field, current_value + amount_decimal)
+                        wallet.save(update_fields=[commission_field])
+                        funding_transaction = Transaction.objects.create(
+                            sender=None,
+                            receiver=user,
+                            amount=amount_decimal,
+                            currency=currency,
+                            type='admin_add_agent',
+                            status='approved'
+                        )
+                        messages.success(request, f'Ajout de {amount} {currency} au compte agent de {user.username}.')
+                    else:
+                        wallet.balance += amount_decimal
+                        wallet.save(update_fields=['balance'])
+                        funding_transaction = Transaction.objects.create(
+                            sender=None,
+                            receiver=user,
+                            amount=amount_decimal,
+                            currency='USD',
+                            type='admin_add',
+                            status='approved'
+                        )
+                        messages.success(request, f'Ajout de {amount} {currency} au portefeuille principal de {user.username}.')
+                    _create_admin_wallet_credit_notification(funding_transaction)
             else:
                 if account_type == 'agent':
                     current_value = getattr(wallet, commission_field, Decimal('0')) or Decimal('0')
@@ -6485,19 +7102,26 @@ class AgentViewSet(viewsets.ModelViewSet):
         return Response({'message': 'Recharge successful'}, status=status.HTTP_200_OK)
 
 
-class OrderViewSet(viewsets.ModelViewSet):
+class OrderViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Order.objects.all()
     serializer_class = OrderSerializer
     permission_classes = [permissions.IsAuthenticated]
 
+    def get_queryset(self):
+        queryset = Order.objects.select_related('buyer')
+        if is_financial_admin_user(self.request.user):
+            return queryset
+        return queryset.filter(buyer=self.request.user)
+
     @action(detail=True, methods=['post'])
     def pay(self, request, pk=None):
         order = self.get_object()
-        if order.status != 'pending':
-            return Response({'error': 'Order already paid'}, status=status.HTTP_400_BAD_REQUEST)
-        order.status = 'paid'
-        order.save()
-        return Response({'status': 'paid'})
+        if order.payment_status == 'approved':
+            return Response({'status': 'paid'})
+        return Response(
+            {'error': 'Le paiement doit être confirmé par le prestataire. Utilisez le checkout.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
 
 
 class WalletViewSet(viewsets.ReadOnlyModelViewSet):
@@ -7475,6 +8099,9 @@ def get_persistent_notifications_api(request):
         return JsonResponse({
             'notifications': notifications_data,
             'count': unread_count,
+            'admin_money_received_count': notifications.filter(
+                notification_type='admin_money_received',
+            ).count(),
         })
 
     return JsonResponse({'error': 'Méthode GET requise'}, status=405)
@@ -7515,34 +8142,21 @@ def check_notifications_sound_api(request):
         notifications = PersistentNotification.objects.filter(
             recipient=request.user,
             is_read=False,
-            last_sound_at__isnull=True,
-            notification_type__in=[
-                'new_order',
-                'money_received',
-                'private_message',
-                'refund',
-                'delivery_assigned',
-                'admin_delivery_assigned',
-                'delivery_confirmed',
-                'delivery_completed',
-                'delivery_ready',
-                'delivery_in_progress',
-                'delivery_picked_up',
-                'delivery_in_transit',
-                'delivery_arrived',
-                'delivery_failed',
-            ],
         )
 
         sound_data = []
         for notification in notifications:
             if notification.should_sound():
-                claimed = PersistentNotification.objects.filter(
+                claim = PersistentNotification.objects.filter(
                     pk=notification.pk,
                     recipient=request.user,
                     is_read=False,
-                    last_sound_at__isnull=True,
-                ).update(last_sound_at=timezone.now())
+                )
+                if notification.last_sound_at is None:
+                    claim = claim.filter(last_sound_at__isnull=True)
+                else:
+                    claim = claim.filter(last_sound_at=notification.last_sound_at)
+                claimed = claim.update(last_sound_at=timezone.now())
                 if not claimed:
                     continue
                 sound_data.append({

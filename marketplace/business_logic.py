@@ -215,6 +215,31 @@ def convert_currency(amount, from_currency, to_currency):
         raise ValueError(f'Devise cible non prise en charge: {to_currency}')
 
 
+def get_usd_display_conversion(amount):
+    """Return configured USD counter-values without using fallback or API rates."""
+    amount = Decimal(str(amount))
+    rate = ExchangeRate.objects.filter(is_active=True).order_by('-created_at').first()
+    amounts = {'USD': amount.quantize(Decimal('0.01'))}
+    rates = {'HTG': None, 'DOP': None, 'EUR': None}
+
+    if rate:
+        configured_rates = {
+            'HTG': rate.usd_to_htg,
+            'DOP': rate.usd_to_peso,
+            'EUR': Decimal('1') / rate.eur_to_usd if rate.eur_to_usd else None,
+        }
+        for currency, configured_rate in configured_rates.items():
+            if configured_rate is None or not configured_rate.is_finite() or configured_rate <= 0:
+                amounts[currency] = None
+                continue
+            rates[currency] = configured_rate
+            amounts[currency] = (amount * configured_rate).quantize(Decimal('0.01'))
+    else:
+        amounts.update({'HTG': None, 'DOP': None, 'EUR': None})
+
+    return {'amounts': amounts, 'rates': rates}
+
+
 # ═══════════════════════════════════════════════════════════════
 # � SYSTÈME DE COMMISSIONS
 # ═══════════════════════════════════════════════════════════════
@@ -397,10 +422,46 @@ class CommissionManager:
 
     @staticmethod
     def ensure_default_withdrawal_tiers():
-        """Créer les tranches de commission de retrait par défaut si elles n'existent pas."""
-        if not WithdrawalCommissionTier.objects.filter(currency='HTG').exists():
+        """Créer les tranches par défaut pour chaque devise prise en charge."""
+        currencies = ('HTG', 'USD', 'DOP', 'EUR')
+        missing_currencies = [
+            currency for currency in currencies
+            if not WithdrawalCommissionTier.objects.filter(currency=currency).exists()
+        ]
+        if not missing_currencies:
+            return
+
+        exchange_rate = ExchangeRate.objects.filter(is_active=True).order_by('-created_at').first()
+        usd_to_htg = exchange_rate.usd_to_htg if exchange_rate else DEFAULT_CURRENCY_RATES['HTG']
+        usd_to_dop = exchange_rate.usd_to_peso if exchange_rate else DEFAULT_CURRENCY_RATES['DOP']
+        eur_to_usd = exchange_rate.eur_to_usd if exchange_rate else Decimal('1') / DEFAULT_CURRENCY_RATES['EUR']
+
+        conversion_factors = {
+            'HTG': Decimal('1'),
+            'USD': Decimal('1') / usd_to_htg if usd_to_htg else Decimal('1') / DEFAULT_CURRENCY_RATES['HTG'],
+            'DOP': (
+                usd_to_dop / usd_to_htg if usd_to_htg and usd_to_dop
+                else DEFAULT_CURRENCY_RATES['DOP'] / DEFAULT_CURRENCY_RATES['HTG']
+            ),
+            'EUR': (
+                Decimal('1') / (usd_to_htg * eur_to_usd) if usd_to_htg and eur_to_usd
+                else DEFAULT_CURRENCY_RATES['EUR'] / DEFAULT_CURRENCY_RATES['HTG']
+            ),
+        }
+
+        for currency in missing_currencies:
+            factor = conversion_factors[currency]
             for tier in CommissionManager.DEFAULT_WITHDRAWAL_TIERS:
-                WithdrawalCommissionTier.objects.create(**tier)
+                converted_tier = {
+                    key: (value * factor).quantize(Decimal('0.01'))
+                    for key, value in tier.items()
+                    if key in {'min_amount', 'max_amount', 'total_fee', 'system_fee', 'agent_fee'}
+                }
+                WithdrawalCommissionTier.objects.create(
+                    **converted_tier,
+                    currency=currency,
+                    description=f"{tier['description']} ({currency})" if currency != 'HTG' else tier['description'],
+                )
 
     @staticmethod
     def get_config(key):
@@ -468,8 +529,6 @@ class CommissionManager:
     def get_withdrawal_commission_breakdown(amount, currency):
         """Retourne le détail des commissions de retrait (montant total, système, agent)."""
         currency = normalize_currency(currency)
-        if currency != 'HTG':
-            return {'total_fee': Decimal('0'), 'system_fee': Decimal('0'), 'agent_fee': Decimal('0')}
         tier = CommissionManager.get_withdrawal_commission_tier(amount, currency)
         if tier:
             return {
@@ -477,6 +536,8 @@ class CommissionManager:
                 'system_fee': tier.system_fee,
                 'agent_fee': tier.agent_fee,
             }
+        if currency != 'HTG':
+            return {'total_fee': Decimal('0'), 'system_fee': Decimal('0'), 'agent_fee': Decimal('0')}
         total = CommissionManager.get_withdrawal_fee_htg(amount)
         return {'total_fee': total, 'system_fee': total, 'agent_fee': Decimal('0')}
 

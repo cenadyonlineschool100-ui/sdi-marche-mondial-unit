@@ -1,4 +1,5 @@
 {% extends 'marketplace/base.html' %}
+{% load image_tags %}
 
 {% block extra_css %}
 <style>
@@ -168,11 +169,13 @@
                     <div class="chat-message {% if msg.sender == request.user %}outgoing{% else %}incoming{% endif %}">
                         {% if msg.sender != request.user %}
                             <div class="message-avatar">
-                                {% if msg.sender.profile.photo %}
-                                    <img src="{{ msg.sender.profile.photo.url }}" alt="{{ msg.sender.get_full_name|default:msg.sender.username }}" />
-                                {% else %}
-                                    <span>{{ msg.sender.get_full_name|default:msg.sender.username|slice:":1" }}</span>
-                                {% endif %}
+                                {% with avatar_url=msg.sender.profile.photo|safe_image_url %}
+                                    {% if avatar_url %}
+                                        <img src="{{ avatar_url }}" alt="{{ msg.sender.get_full_name|default:msg.sender.username }}" />
+                                    {% else %}
+                                        <span>{{ msg.sender.get_full_name|default:msg.sender.username|slice:":1" }}</span>
+                                    {% endif %}
+                                {% endwith %}
                             </div>
                         {% endif %}
                         <div class="message-content">
@@ -206,11 +209,13 @@
                         </div>
                         {% if msg.sender == request.user %}
                             <div class="message-avatar">
-                                {% if request.user.profile.photo %}
-                                    <img src="{{ request.user.profile.photo.url }}" alt="Vous" />
-                                {% else %}
-                                    <span>{{ request.user.get_full_name|default:request.user.username|slice:":1" }}</span>
-                                {% endif %}
+                                {% with avatar_url=request.user.profile.photo|safe_image_url %}
+                                    {% if avatar_url %}
+                                        <img src="{{ avatar_url }}" alt="Vous" />
+                                    {% else %}
+                                        <span>{{ request.user.get_full_name|default:request.user.username|slice:":1" }}</span>
+                                    {% endif %}
+                                {% endwith %}
                             </div>
                         {% endif %}
                     </div>

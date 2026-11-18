@@ -99,11 +99,15 @@ class PythonAnywhereDeployer:
 import os
 import sys
 
-path = '/home/{self.username}/sdi-market'
-if path not in sys.path:
-    sys.path.append(path)
+project_path = '/home/{self.username}/sdi-market/sdi_market'
+parent_path = os.path.dirname(project_path)
+sys.path[:] = [
+    entry for entry in sys.path
+    if os.path.realpath(entry or os.getcwd()) != os.path.realpath(parent_path)
+]
+sys.path.insert(0, project_path)
 
-os.environ['DJANGO_SETTINGS_MODULE'] = 'sdi_market.settings'
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'sdi_market.settings')
 
 from django.core.wsgi import get_wsgi_application
 application = get_wsgi_application()
@@ -114,7 +118,7 @@ application = get_wsgi_application()
             response = requests.patch(
                 f"{self.api_url}/webapps/{self.domain}/",
                 headers=self.headers,
-                json={"source_directory": f"/home/{self.username}/sdi-market"}
+                json={"source_directory": f"/home/{self.username}/sdi-market/sdi_market"}
             )
             
             if response.status_code == 200:

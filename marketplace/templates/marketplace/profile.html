@@ -1,4 +1,5 @@
 {% extends 'marketplace/base.html' %}
+{% load image_tags %}
 {% block content %}
 <style>
     .hidden-profile-form { display: none; }
@@ -746,6 +747,7 @@
     }
     .profile-system-card {
         display: flex;
+        width: 100%;
         min-width: 0;
         min-height: 76px;
         align-items: center;
@@ -760,10 +762,10 @@
         font: inherit;
         font-weight: 750;
         line-height: 1.35;
+        overflow-wrap: anywhere;
         cursor: pointer;
         box-shadow: 0 5px 16px rgba(15, 23, 42, .05);
         transition: border-color .2s ease, box-shadow .2s ease, transform .2s ease;
-        scroll-margin-bottom: 96px;
     }
     .profile-system-card:hover,
     .profile-system-card:focus-visible {
@@ -910,6 +912,109 @@
             text-align: center;
         }
     }
+    body:has(.profile-page) {
+        --profile-support-height: 0px;
+        --profile-footer-height: 68px;
+        --profile-mobile-footer-stack-height: calc(var(--profile-support-height) + var(--profile-footer-height) + env(safe-area-inset-bottom, 0px));
+    }
+    body:has(.profile-page):has(.sdi-support-card) {
+        --profile-support-height: 84px;
+    }
+    body:has(.profile-page):has(.sdi-support-card) .sdi-support-card {
+        position: fixed !important;
+        right: 0;
+        bottom: 0;
+        left: 0;
+        z-index: 44;
+        display: flex;
+        align-items: center;
+        width: 100%;
+        max-width: 100%;
+        height: calc(var(--profile-support-height) + env(safe-area-inset-bottom, 0px));
+        min-height: 0;
+        margin: 0;
+        padding: 6px 12px calc(6px + env(safe-area-inset-bottom, 0px));
+        box-sizing: border-box;
+    }
+    body:has(.profile-page) .sdi-support-card__content {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, auto);
+        grid-template-rows: repeat(2, minmax(0, 1fr));
+        align-items: center;
+        gap: 0 10px;
+        width: 100%;
+        max-width: 100%;
+    }
+    body:has(.profile-page) .sdi-support-card__title {
+        grid-column: 1;
+        grid-row: 1;
+        font-size: clamp(0.62rem, 2.6vw, 0.9rem);
+        line-height: 1.15;
+    }
+    body:has(.profile-page) .sdi-support-card__subtitle {
+        grid-column: 1;
+        grid-row: 2;
+        font-size: clamp(0.58rem, 2.3vw, 0.8rem);
+        line-height: 1.15;
+    }
+    body:has(.profile-page) .sdi-support-card__button {
+        grid-column: 2;
+        grid-row: 1 / span 2;
+        max-width: 45vw;
+        margin: 0;
+        padding: 5px 8px;
+        font-size: clamp(0.58rem, 2.2vw, 0.78rem);
+        line-height: 1.15;
+        text-align: center;
+        white-space: normal;
+        overflow-wrap: anywhere;
+    }
+    @media (max-width: 1199px) {
+        body:has(.profile-page) .responsive-scroll-shell {
+            perspective: none;
+        }
+    }
+    @media (max-width: 767px) {
+        body:has(.profile-page):has(.sdi-support-card) .responsive-scroll-shell {
+            padding-bottom: calc(var(--responsive-bottom-height, 68px) + var(--profile-support-height) + 12px + env(safe-area-inset-bottom, 0px));
+        }
+    }
+    @media (min-width: 768px) and (max-width: 1199px) {
+        body:has(.profile-page):has(.sdi-support-card) .compact-footer {
+            bottom: calc(var(--mobile-system-bottom-inset, 0px) + var(--profile-support-height) + env(safe-area-inset-bottom, 0px));
+        }
+        body:has(.profile-page):has(.sdi-support-card) .responsive-scroll-shell {
+            padding-bottom: calc(var(--responsive-bottom-height, 0px) + var(--profile-support-height) + var(--mobile-system-bottom-inset, 0px));
+        }
+    }
+    @media (min-width: 1200px) {
+        body:has(.profile-page):has(.sdi-support-card) .sdi-support-card {
+            position: static !important;
+            height: auto;
+            margin: 0;
+        }
+    }
+    @media (max-width: 1199px) {
+        body:has(.profile-page) .sdi-screen-size-control,
+        body:has(.profile-page) #scroll-to-top,
+        body:has(.profile-page) #scroll-to-bottom,
+        body:has(.profile-page) .loading-badge {
+            right: 12px;
+            z-index: 43;
+        }
+        body:has(.profile-page) .sdi-screen-size-control {
+            bottom: calc(var(--profile-mobile-footer-stack-height) + 44px);
+        }
+        body:has(.profile-page) #scroll-to-bottom {
+            bottom: calc(var(--profile-mobile-footer-stack-height) + 8px);
+        }
+        body:has(.profile-page) .loading-badge {
+            bottom: calc(var(--profile-mobile-footer-stack-height) + 90px);
+        }
+        body:has(.profile-page) #scroll-to-top {
+            bottom: calc(var(--profile-mobile-footer-stack-height) + 128px);
+        }
+    }
 </style>
 <div class="card profile-page">
     <div style="display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap;">
@@ -945,13 +1050,15 @@
 
     <div id="profile-overview" class="profile-overview profile-system-panel" data-profile-system-panel="account">
         <div class="profile-avatar-wrap">
-            {% if profile.photo %}
-                <img src="{{ profile.photo.url }}" alt="Photo de profil" class="profile-avatar" />
-            {% else %}
-                <div class="profile-avatar-placeholder" aria-label="Avatar par défaut">
-                    👤
-                </div>
-            {% endif %}
+            {% with photo_url=profile.photo|safe_image_url %}
+                {% if photo_url %}
+                    <img src="{{ photo_url }}" alt="Photo de profil" class="profile-avatar" />
+                {% else %}
+                    <div class="profile-avatar-placeholder" aria-label="Avatar par défaut">
+                        👤
+                    </div>
+                {% endif %}
+            {% endwith %}
         </div>
         <div class="profile-identity-content">
             <h3 class="profile-identity-name">{{ request.user.username }}{% if request.user.first_name or request.user.last_name %} <span style="font-weight:500;">({{ request.user.first_name }} {{ request.user.last_name }})</span>{% endif %}</h3>
@@ -1023,7 +1130,11 @@
             </div>
         </div>
         <div class="profile-system-dashboard" style="margin-bottom:0;">
-            <button class="profile-system-card" type="button" data-profile-open-personal-withdraw>💸 Retrait personnel</button>
+            {% if personal_withdrawals_enabled %}
+                <button class="profile-system-card" type="button" data-profile-open-personal-withdraw>💸 Retrait personnel</button>
+            {% else %}
+                <p style="margin:0; color:#64748b;">Les retraits personnels sont temporairement désactivés par l’administration.</p>
+            {% endif %}
             {% if can_use_agent_financial_tools %}
                 <a class="profile-system-card" href="{% url 'agent_withdrawal_dashboard' %}">🏧 Retrait Agent — demandes et historique</a>
                 <a class="profile-system-card" href="{% url 'agent_deposit' %}">💵 Dépôt Agent</a>
@@ -1257,6 +1368,12 @@
                 </div>
                 <span style="font-size:1.8rem; font-weight:800; color:#22c55e;">{{ wallet.balance|default:0 }} USD</span>
             </div>
+            <p style="margin:8px 0 16px; color:#475569;">Contre-valeurs indicatives du même capital principal — ne pas additionner :</p>
+            <div style="display:flex; flex-wrap:wrap; gap:12px; margin-bottom:16px;">
+                <span>HTG : {% if wallet_currency_conversion.amounts.HTG is not None %}{{ wallet_currency_conversion.amounts.HTG|floatformat:2 }}{% else %}Taux indisponible{% endif %}</span>
+                <span>DOP : {% if wallet_currency_conversion.amounts.DOP is not None %}{{ wallet_currency_conversion.amounts.DOP|floatformat:2 }}{% else %}Taux indisponible{% endif %}</span>
+                <span>EUR : {% if wallet_currency_conversion.amounts.EUR is not None %}{{ wallet_currency_conversion.amounts.EUR|floatformat:2 }}{% else %}Taux indisponible{% endif %}</span>
+            </div>
             <div class="wallet-card-status" style="margin-bottom:20px; gap:16px;">
                 {% if not wallet.is_blocked %}
                     <span class="fintech-badge status-active">Actif</span>
@@ -1270,7 +1387,9 @@
                 {% endif %}
             </div>
             <div style="display:flex; flex-wrap:wrap; gap:12px;">
-                <button id="withdraw-main-btn" class="fintech-btn btn-primary">Retirer</button>
+                {% if personal_withdrawals_enabled %}
+                    <button id="withdraw-main-btn" class="fintech-btn btn-primary">Retirer</button>
+                {% endif %}
                 <button id="scroll-transfer-form-btn" class="fintech-btn btn-secondary">Transférer</button>
             </div>
             {% if can_use_agent_financial_tools or can_use_full_admin_actions %}
@@ -1596,7 +1715,9 @@
                         <p style="margin:6px 0 0; color:#1e293b; font-weight: 500;">Soldes par devise pour commissions et paiements.</p>
                     </div>
                 </div>
-                <button id="withdraw-multi-btn" class="fintech-btn btn-success">Retirer</button>
+                {% if personal_withdrawals_enabled %}
+                    <button id="withdraw-multi-btn" class="fintech-btn btn-success">Retirer</button>
+                {% endif %}
             </div>
             <div class="wallet-stats">
                 <div class="wallet-stat">
@@ -1638,6 +1759,9 @@
                         <select id="account-type" name="account_type" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:8px;">
                             <option value="principal">Principal</option>
                             <option value="multidevice">Multi-appareils</option>
+                            {% if request.user.tikane_account.can_withdraw and request.user.tikane_account.currency %}
+                            <option value="tikane">Ti Kanè ({{ request.user.tikane_account.currency }})</option>
+                            {% endif %}
                         </select>
                     </div>
                     <div style="margin-bottom:15px;">
@@ -2139,6 +2263,9 @@
             var withdrawMainBtn = document.getElementById('withdraw-main-btn');
             var withdrawMultiBtn = document.getElementById('withdraw-multi-btn');
             var withdrawModal = document.getElementById('withdraw-modal');
+            if (withdrawModal && withdrawModal.parentElement !== document.body) {
+                document.body.appendChild(withdrawModal);
+            }
             var cancelWithdrawBtn = document.getElementById('cancel-withdraw');
             var withdrawForm = document.getElementById('withdraw-form');
             var accountTypeSelect = document.getElementById('account-type');
@@ -2146,6 +2273,21 @@
             var withdrawProgressItems = withdrawForm ? Array.prototype.slice.call(withdrawForm.querySelectorAll('.withdraw-progress span')) : [];
             var withdrawStatus = document.getElementById('withdraw-status');
             var withdrawSummary = document.getElementById('withdraw-confirmation-summary');
+            var withdrawalCommissionTiers = JSON.parse('{{ withdrawal_commission_tiers_json|escapejs }}');
+
+            function getWithdrawalFee(amount, currency) {
+                var parsedAmount = parseFloat(amount);
+                if (isNaN(parsedAmount) || parsedAmount <= 0) return null;
+                for (var i = 0; i < withdrawalCommissionTiers.length; i++) {
+                    var tier = withdrawalCommissionTiers[i];
+                    if (currency === tier.currency &&
+                        parsedAmount >= parseFloat(tier.min_amount) &&
+                        parsedAmount <= parseFloat(tier.max_amount)) {
+                        return tier;
+                    }
+                }
+                return null;
+            }
 
             function setWithdrawStep(stepIndex) {
                 withdrawSteps.forEach(function(step, index) {
@@ -2163,7 +2305,14 @@
                     var accountLabel = accountTypeSelect.options[accountTypeSelect.selectedIndex].text;
                     var currencyLabel = document.getElementById('currency').value;
                     var amountLabel = document.getElementById('amount').value || '—';
-                    withdrawSummary.textContent = 'Vous confirmez un retrait de ' + amountLabel + ' ' + currencyLabel + ' depuis le compte ' + accountLabel + '.';
+                    var fee = getWithdrawalFee(amountLabel, currencyLabel);
+                    var feeSummary = fee
+                        ? ' Frais : ' + parseFloat(fee.total_fee).toFixed(2) + ' ' + currencyLabel +
+                          ' (système : ' + parseFloat(fee.system_fee).toFixed(2) +
+                          ', agent : ' + parseFloat(fee.agent_fee).toFixed(2) +
+                          '). Total débité : ' + (parseFloat(amountLabel) + parseFloat(fee.total_fee)).toFixed(2) + ' ' + currencyLabel + '.'
+                        : ' Aucun barème de frais ne couvre ce montant et cette devise.';
+                    withdrawSummary.textContent = 'Vous confirmez un retrait de ' + amountLabel + ' ' + currencyLabel + ' depuis le compte ' + accountLabel + '.' + feeSummary;
                 }
                 var activeStep = withdrawSteps[stepIndex];
                 var focusTarget = activeStep ? activeStep.querySelector('input:not([type="hidden"]), select, button') : null;
@@ -2228,14 +2377,6 @@
                 activeProfileSystem = system;
                 activeProfileOperation = operation || '';
                 renderProfilePanels();
-                var target = profileSystemPanels.find(function(panel) {
-                    return panel.getAttribute('data-profile-system-panel') === system &&
-                        (!panel.hasAttribute('data-profile-operation-panel') ||
-                            panel.getAttribute('data-profile-operation-panel') === activeProfileOperation);
-                });
-                if (target) {
-                    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                }
             }
 
             profileSystemButtons.forEach(function(button) {
@@ -2266,49 +2407,21 @@
                 });
             }
 
-            function calculateHtgWithdrawalFee(amount) {
-                var value = parseFloat(amount);
-                if (isNaN(value)) {
-                    return 0;
-                }
-                var ranges = [
-                    {min:20, max:99.99, fee:6},
-                    {min:100, max:249.99, fee:12},
-                    {min:250, max:499.99, fee:15},
-                    {min:500, max:999.99, fee:40},
-                    {min:1000, max:1999.99, fee:65},
-                    {min:2000, max:3999.99, fee:115},
-                    {min:4000, max:7999.99, fee:185},
-                    {min:8000, max:11999.99, fee:275},
-                    {min:12000, max:19999.99, fee:380},
-                    {min:20000, max:39999.99, fee:640},
-                    {min:40000, max:59999.99, fee:1050},
-                    {min:60000, max:74999.99, fee:1400},
-                    {min:75000, max:100000.00, fee:1600}
-                ];
-                for (var i = 0; i < ranges.length; i++) {
-                    if (value >= ranges[i].min && value <= ranges[i].max) {
-                        return ranges[i].fee;
-                    }
-                }
-                return 0;
-            }
-
             function updateWithdrawalFeeText() {
                 var feeText = document.getElementById('withdraw-fee-text');
                 if (!withdrawForm || !feeText) return;
-                var accountType = accountTypeSelect.value;
                 var currency = document.getElementById('currency').value;
                 var amount = document.getElementById('amount').value;
-                if (accountType === 'multidevice' && currency === 'HTG') {
-                    var fee = calculateHtgWithdrawalFee(amount);
-                    if (fee > 0) {
-                        feeText.textContent = 'Frais estimés pour ce retrait HTG : ' + fee.toFixed(2) + ' HTG.';
-                    } else if (amount && parseFloat(amount) >= 5) {
-                        feeText.textContent = 'Aucun frais HTG défini pour cette tranche. Le coût exact sera confirmé à la validation.';
-                    } else {
-                        feeText.textContent = 'Entrez un montant pour afficher les frais HTG.';
-                    }
+                var fee = getWithdrawalFee(amount, currency);
+                if (fee) {
+                    feeText.textContent = 'Frais configurés : ' + parseFloat(fee.total_fee).toFixed(2) + ' ' + currency +
+                        ' (système : ' + parseFloat(fee.system_fee).toFixed(2) + ', agent : ' + parseFloat(fee.agent_fee).toFixed(2) +
+                        '). Total débité : ' + (parseFloat(amount) + parseFloat(fee.total_fee)).toFixed(2) + ' ' + currency + '.';
+                    feeText.style.color = '#166534';
+                    feeText.style.display = 'block';
+                } else if (amount) {
+                    feeText.textContent = 'Aucun barème de frais ne couvre ce montant et cette devise. Le retrait ne pourra pas être traité.';
+                    feeText.style.color = '#b91c1c';
                     feeText.style.display = 'block';
                 } else {
                     feeText.style.display = 'none';
@@ -2856,7 +2969,7 @@
                             location.reload(); // Refresh to update balances
                         } else {
                             if (withdrawStatus) {
-                                withdrawStatus.textContent = result.message || 'Le retrait n’a pas pu être traité. Vérifiez les informations et réessayez.';
+                                withdrawStatus.textContent = result.message || result.error || 'Le retrait n’a pas pu être traité. Vérifiez les informations et réessayez.';
                                 withdrawStatus.style.display = 'block';
                             }
                         }
@@ -3653,6 +3766,8 @@
         scrollbar-color: #cbd5e1 transparent;
     }
 </style>
+    </div>
+    </div>
 {% endblock %}
 
 {% block extra_scripts %}

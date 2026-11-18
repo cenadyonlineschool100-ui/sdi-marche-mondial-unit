@@ -126,24 +126,25 @@ import os
 import sys
 
 # Ajouter le dossier du projet
-path = '/home/chouchoum/sdi-market'
-if path not in sys.path:
-    sys.path.append(path)
+project_path = '/home/chouchoum/sdi-market/sdi_market'
+parent_path = os.path.dirname(project_path)
+sys.path[:] = [
+    entry for entry in sys.path
+    if os.path.realpath(entry or os.getcwd()) != os.path.realpath(parent_path)
+]
+sys.path.insert(0, project_path)
 
 # Configurer Django
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'sdi_market.settings')
-os.environ['DEBUG'] = 'False'
-os.environ['ALLOWED_HOSTS'] = 'chouchoum.pythonanywhere.com'
-os.environ['SECURE_SSL_REDIRECT'] = 'True'
-os.environ['SESSION_COOKIE_SECURE'] = 'True'
-os.environ['CSRF_COOKIE_SECURE'] = 'True'
 
 # Initialiser Django
 from django.core.wsgi import get_wsgi_application
 application = get_wsgi_application()
 ```
 
-Cliquez sur **"Save"**
+`project_path` doit être le dossier qui contient `manage.py`, `marketplace/` et le dossier de configuration `sdi_market/`. Configurez les variables d'environnement dans les réglages de l'application Web, sans remplacer la clé secrète par une valeur d'exemple.
+
+Cliquez sur **"Save"**, puis sur **"Reload"**.
 
 ---
 

@@ -5,6 +5,7 @@
 import time
 import hashlib
 import secrets
+from datetime import datetime
 from datetime import timedelta
 from django.utils import timezone
 from django.core.cache import cache
@@ -17,6 +18,12 @@ from .models import (
 
 class RateLimiter:
     """Limiteur de débit pour prévenir les attaques brute force"""
+    AUTO_BLOCK_PREFIX = '__auto_block__'
+    LEGACY_AUTO_BLOCK_REASONS = {
+        'Rate limit exceeded',
+        'Brute force attempt',
+        'Honeypot field filled',
+    }
     
     @staticmethod
     def check_rate_limit(ip: str, endpoint: str, max_requests: int = 100, window_seconds: int = 60) -> bool:
@@ -33,33 +40,61 @@ class RateLimiter:
             True si autorisé, False si dépassement de limite
         """
         cache_key = f"rate_limit:{ip}:{endpoint}"
-        current_count = cache.get(cache_key, 0)
-        
-        if current_count >= max_requests:
-            # Bloquer l'IP temporairement
-            RateLimiter.block_suspicious_ip(ip, "Rate limit exceeded", duration_hours=1)
+        if cache.add(cache_key, 1, timeout=window_seconds):
+            current_count = 1
+        else:
+            try:
+                current_count = cache.incr(cache_key)
+            except ValueError:
+                cache.add(cache_key, 1, timeout=window_seconds)
+                current_count = cache.get(cache_key, 1)
+
+        if current_count > max_requests:
+            block_key = f"rate_limit_block:{ip}:{endpoint}"
+            if cache.add(block_key, 1, timeout=3600):
+                RateLimiter.block_suspicious_ip(ip, "Rate limit exceeded", duration_hours=1)
             return False
-        
-        # Incrémenter le compteur
-        cache.set(cache_key, current_count + 1, window_seconds)
         return True
+
+    @classmethod
+    def is_ip_blocked(cls, blocklist_entry) -> bool:
+        """Manual entries stay permanent; automatic entries expire at their stored deadline."""
+        reason = blocklist_entry.reason or ''
+        if reason in cls.LEGACY_AUTO_BLOCK_REASONS:
+            return False
+        if not reason.startswith(f'{cls.AUTO_BLOCK_PREFIX}:'):
+            return True
+        try:
+            expires_at = datetime.fromtimestamp(
+                int(reason.split(':', 2)[1]),
+                tz=timezone.get_current_timezone(),
+            )
+        except (IndexError, ValueError, OverflowError):
+            return False
+        return expires_at > timezone.now()
     
     @staticmethod
     def block_suspicious_ip(ip: str, reason: str, duration_hours: int = 1):
-        """Bloquer une IP suspecte"""
+        """Create or refresh an automatic block without overriding a manual entry."""
         try:
+            expires_at = timezone.now() + timedelta(hours=duration_hours)
+            automatic_reason = (
+                f'{RateLimiter.AUTO_BLOCK_PREFIX}:{int(expires_at.timestamp())}:{reason}'
+            )[:255]
             blocklist, created = IPBlocklist.objects.get_or_create(
                 ip_address=ip,
                 defaults={
-                    'reason': reason,
-                    'is_active': True,
+                    'reason': automatic_reason,
                 }
             )
-            if not created:
-                blocklist.reason = reason
-                blocklist.is_active = True
-                blocklist.blocked_until = timezone.now() + timedelta(hours=duration_hours)
-                blocklist.save()
+            if not created and (
+                blocklist.reason in RateLimiter.LEGACY_AUTO_BLOCK_REASONS
+                or (blocklist.reason or '').startswith(f'{RateLimiter.AUTO_BLOCK_PREFIX}:')
+            ):
+                blocklist.reason = automatic_reason
+                blocklist.save(update_fields=['reason'])
+            elif not created:
+                return
             
             # Créer une alerte
             SecurityAlert.objects.create(

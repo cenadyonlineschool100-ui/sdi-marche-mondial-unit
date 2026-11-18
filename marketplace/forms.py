@@ -5,6 +5,7 @@ import re
 from PIL import Image
 
 from django import forms
+from django.conf import settings
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
@@ -527,31 +528,37 @@ class ProfileForm(forms.ModelForm):
         return profile
 
 class TiKaneAccessRequestForm(forms.ModelForm):
+    currency = forms.ChoiceField(
+        choices=TiKaneAccessRequest.CURRENCY_CHOICES,
+        required=True,
+        label='Devise du compte Ti Kanè',
+        widget=forms.Select(attrs={'class': 'form-control'}),
+    )
     identity_document = forms.ImageField(
         required=True,
-        widget=forms.FileInput(attrs={'class': 'form-control', 'accept': 'image/*', 'capture': 'environment'}),
+        widget=forms.FileInput(attrs={'class': 'form-control', 'accept': 'image/*'}),
         label='Carte d’identité'
     )
     passport_document = forms.ImageField(
         required=True,
-        widget=forms.FileInput(attrs={'class': 'form-control', 'accept': 'image/*', 'capture': 'environment'}),
+        widget=forms.FileInput(attrs={'class': 'form-control', 'accept': 'image/*'}),
         label='Passeport'
     )
     driver_license_document = forms.ImageField(
         required=True,
-        widget=forms.FileInput(attrs={'class': 'form-control', 'accept': 'image/*', 'capture': 'environment'}),
+        widget=forms.FileInput(attrs={'class': 'form-control', 'accept': 'image/*'}),
         label='Permis de conduire'
     )
     selfie = forms.ImageField(
         required=True,
-        widget=forms.FileInput(attrs={'class': 'form-control', 'accept': 'image/*', 'capture': 'user'}),
+        widget=forms.FileInput(attrs={'class': 'form-control', 'accept': 'image/*'}),
         label='Selfie en direct via caméra'
     )
 
     class Meta:
         model = TiKaneAccessRequest
         fields = [
-            'full_name', 'email', 'phone', 'plan', 'identity_document',
+            'full_name', 'email', 'phone', 'currency', 'plan', 'identity_document',
             'passport_document', 'driver_license_document', 'selfie', 'acceptance_clause',
         ]
         widgets = {
@@ -1073,6 +1080,15 @@ class OrderForm(forms.ModelForm):
         model = Order
         fields = ['delivery_address', 'buyer_address_details', 'buyer_lat', 'buyer_lng', 'payment_method']
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if not settings.PAYPAL_CHECKOUT_ENABLED:
+            self.fields['payment_method'].choices = [
+                (value, label)
+                for value, label in self.fields['payment_method'].choices
+                if value not in {'eur_paypal', 'int_paypal'}
+            ]
+
     def clean(self):
         cleaned_data = super().clean()
         delivery_address = cleaned_data.get('delivery_address')
@@ -1173,4 +1189,3 @@ class AdminAnnouncementForm(forms.ModelForm):
             'enable_loop': 'Défilement en boucle',
             'animation_effect': 'Effet d\'animation',
         }
-

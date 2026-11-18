@@ -59,6 +59,75 @@
         height: 100%;
         object-fit: contain;
     }
+    body.desktop-display-mode .products-results-section .product-image img {
+        object-fit: cover;
+    }
+    body.desktop-display-mode .product-priority > .product-catalog-grid {
+        display: none !important;
+    }
+    html.desktop-phone-display body.desktop-display-mode .product-priority > .product-shelf:nth-of-type(n + 2) {
+        display: none !important;
+    }
+    html.desktop-phone-display body.desktop-display-mode .product-priority > .product-shelf:first-of-type .product-card-compact:nth-child(n + 5) {
+        display: none !important;
+    }
+    html.desktop-phone-display body.desktop-display-mode .product-priority > .product-shelf:first-of-type .product-shelf-track {
+        display: grid !important;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 6px;
+        overflow: hidden;
+        padding: 2px 0;
+    }
+    html.desktop-phone-display body.desktop-display-mode .product-priority > .product-shelf:first-of-type .product-card-compact {
+        width: 100%;
+        min-width: 0;
+        flex: initial;
+        padding: 4px;
+    }
+    html.desktop-phone-display body.desktop-display-mode .product-priority > .product-shelf:first-of-type .product-card-compact > .product-image,
+    html.desktop-phone-display body.desktop-display-mode .product-priority > .product-shelf:first-of-type .product-card-compact > .product-image-fallback {
+        height: 48px;
+        min-height: 48px;
+        margin-bottom: 4px;
+    }
+    html.desktop-phone-display body.desktop-display-mode .product-priority > .product-shelf:first-of-type .product-card-compact .product-info {
+        gap: 3px;
+        padding: 3px;
+    }
+    html.desktop-phone-display body.desktop-display-mode .product-priority > .product-shelf:first-of-type .product-card-compact .product-title {
+        font-size: .68rem;
+        line-height: 1.15;
+    }
+    html.desktop-phone-display body.desktop-display-mode .product-priority > .product-shelf:first-of-type .product-card-compact .product-price {
+        font-size: .68rem;
+    }
+    html.desktop-phone-display body.desktop-display-mode .products-results-section .product-card > .product-image,
+    html.desktop-phone-display body.desktop-display-mode .products-results-section .product-card > .product-image-fallback {
+        height: 88px !important;
+        min-height: 88px !important;
+    }
+    html.desktop-phone-display body.desktop-display-mode .product-search-bar {
+        margin: 14px 10px;
+    }
+    html.desktop-phone-display body.desktop-display-mode .product-search-bar form {
+        flex-direction: row;
+        align-items: center;
+        gap: 6px;
+    }
+    html.desktop-phone-display body.desktop-display-mode .product-search-bar input {
+        min-width: 0;
+        flex: 1 1 0 !important;
+        height: 40px;
+        min-height: 40px;
+    }
+    html.desktop-phone-display body.desktop-display-mode .product-search-bar button {
+        width: auto;
+        min-height: 40px;
+        padding: 8px 12px;
+    }
+    html.desktop-phone-display body.desktop-display-mode .products-results-section {
+        margin-top: 20px;
+    }
     .products-results-section .product-info {
         display: flex;
         flex: 1;

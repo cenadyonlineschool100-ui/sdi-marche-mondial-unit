@@ -250,7 +250,13 @@
 <div class="receipt-container">
     <div class="receipt-header">
         <h1>📄 Reçu de paiement Sol SDI</h1>
-        <p>Paiement effectué le {{ payment.paid_at|date:"d/m/Y" }} à {{ payment.paid_at|date:"H:i" }}</p>
+        <p>
+            {% if payment.paid_at %}
+                Paiement confirmé le {{ payment.paid_at|date:"d/m/Y" }} à {{ payment.paid_at|date:"H:i" }}
+            {% else %}
+                Reçu créé le {{ payment.created_at|date:"d/m/Y" }} à {{ payment.created_at|date:"H:i" }}
+            {% endif %}
+        </p>
     </div>
 
     <div class="receipt">
@@ -270,7 +276,7 @@
                 </div>
                 <div class="receipt-detail">
                     <span class="receipt-detail-label">Position:</span>
-                    <span class="receipt-detail-value">#{{ payment.member.position }}</span>
+                    <span class="receipt-detail-value">#{{ payment.member.group_position|default:payment.member.position }}</span>
                 </div>
                 <div class="receipt-detail">
                     <span class="receipt-detail-label">Inscrit le:</span>
@@ -290,7 +296,7 @@
                 </div>
                 <div class="receipt-detail">
                     <span class="receipt-detail-label">Date de paiement:</span>
-                    <span class="receipt-detail-value">{{ payment.paid_at|date:"d/m/Y H:i" }}</span>
+                    <span class="receipt-detail-value">{% if payment.paid_at %}{{ payment.paid_at|date:"d/m/Y H:i" }}{% else %}Soumis le {{ payment.created_at|date:"d/m/Y H:i" }}{% endif %}</span>
                 </div>
             </div>
         </div>
@@ -298,7 +304,7 @@
         <!-- Total -->
         <div class="receipt-total">
             <div class="total-item">
-                <div class="total-label">Montant payé</div>
+                <div class="total-label">{% if payment.paid_at %}Montant payé{% else %}Montant soumis{% endif %}</div>
                 <div class="total-amount">{{ payment.amount }} {{ payment.currency }}</div>
             </div>
             <div class="total-item">
@@ -311,24 +317,27 @@
         <div class="status-box {% if payment.status == 'completed' %}completed{% elif payment.status == 'late' %}late{% else %}pending{% endif %}">
             {% if payment.status == 'completed' %}
                 <div class="status-title completed">
-                    ✅ Paiement effectué à temps
+                    ✅ Paiement confirmé et reçu
                 </div>
                 <div class="status-description">
-                    Votre paiement a été reçu et enregistré. Votre statut dans le Sol SDI est à jour.
+                    L’administrateur a confirmé la réception de votre paiement. Le montant est enregistré et votre statut dans le Sol SDI est à jour.
                 </div>
             {% elif payment.status == 'late' %}
                 <div class="status-title late">
-                    ⚠️ Paiement en retard
+                    ✅ Paiement reçu après l’échéance
                 </div>
                 <div class="status-description">
-                    Ce paiement a été effectué après la date d'échéance. Veuillez effectuer les paiements futurs à temps pour maintenir votre position.
+                    L’administrateur a confirmé la réception de ce paiement après la date d’échéance. Veuillez effectuer les paiements futurs à temps pour maintenir votre position.
                 </div>
+            {% elif payment.status == 'rejected' %}
+                <div class="status-title pending">❌ Paiement refusé</div>
+                <div class="status-description">Ce paiement n’a pas été approuvé. Contactez l’administration du Sol SDI pour plus d’informations.</div>
             {% else %}
                 <div class="status-title pending">
-                    ⏳ Paiement en attente
+                    ⏳ Paiement : reçu en attente de confirmation
                 </div>
                 <div class="status-description">
-                    Ce paiement est en cours de traitement et sera confirmé bientôt.
+                    Votre demande de paiement est enregistrée. Le paiement ne sera confirmé qu’après vérification et approbation par l’administrateur principal.
                 </div>
             {% endif %}
         </div>
@@ -338,7 +347,13 @@
             <h3>ℹ️ Informations supplémentaires</h3>
             <div class="receipt-detail">
                 <span class="receipt-detail-label">Contexte du paiement:</span>
-                <span class="receipt-detail-value">Paiement SDI Sol reçu et déposé sur le compte principal.</span>
+                <span class="receipt-detail-value">
+                    {% if payment.paid_at %}
+                        Ce reçu confirme que l’administrateur a validé la réception du paiement.
+                    {% else %}
+                        Ce reçu atteste uniquement l’enregistrement de votre demande; il ne confirme pas encore la réception du paiement.
+                    {% endif %}
+                </span>
             </div>
             <div class="receipt-detail">
                 <span class="receipt-detail-label">Référence:</span>
@@ -349,7 +364,13 @@
         <!-- Pied de page -->
         <div class="receipt-footer">
             <p style="font-weight: 700; font-size: 1.1rem;">Merci pour votre participation au Sol SDI</p>
-            <p>Paiement enregistré dans le système de gestion du Sol SDI</p>
+            <p>
+                {% if payment.paid_at %}
+                    Paiement confirmé et enregistré dans le système de gestion du Sol SDI
+                {% else %}
+                    Demande de paiement enregistrée, en attente de confirmation
+                {% endif %}
+            </p>
             <p style="font-size: 0.9rem; color: #a8b8d8;">{{ payment.created_at|date:"d/m/Y H:i" }}</p>
         </div>
     </div>

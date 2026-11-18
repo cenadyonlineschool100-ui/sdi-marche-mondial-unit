@@ -1,4 +1,5 @@
 {% extends 'marketplace/base.html' %}
+{% load image_tags %}
 
 {% block content %}
 <div class="section">
@@ -14,11 +15,13 @@
                     <li>
                         <a href="{% url 'private_chat' contact.user.id %}" class="contact-card">
                             <div class="contact-avatar">
-                                {% if contact.user.profile.photo %}
-                                    <img src="{{ contact.user.profile.photo.url }}" alt="{{ contact.user.get_full_name|default:contact.user.username }}" />
-                                {% else %}
-                                    <span>{{ contact.user.get_full_name|default:contact.user.username|slice:":1" }}</span>
-                                {% endif %}
+                                {% with avatar_url=contact.user.profile.photo|safe_image_url %}
+                                    {% if avatar_url %}
+                                        <img src="{{ avatar_url }}" alt="{{ contact.user.get_full_name|default:contact.user.username }}" />
+                                    {% else %}
+                                        <span>{{ contact.user.get_full_name|default:contact.user.username|slice:":1" }}</span>
+                                    {% endif %}
+                                {% endwith %}
                             </div>
                             <div class="contact-body">
                                 <div class="contact-top">

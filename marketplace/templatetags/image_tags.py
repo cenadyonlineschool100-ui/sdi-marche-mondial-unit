@@ -5,8 +5,22 @@ from django.conf import settings
 from django.core.files.storage import default_storage
 import os
 from urllib.parse import urlparse
+from urllib.parse import quote
 
 register = template.Library()
+
+
+@register.filter
+def safe_image_url(image_file):
+    """Return a local image URL only when the referenced file exists."""
+    if not image_file:
+        return ''
+    name = getattr(image_file, 'name', None)
+    storage = getattr(image_file, 'storage', None)
+    if name and storage and not storage.exists(name):
+        return ''
+    return getattr(image_file, 'url', None) or str(image_file)
+
 
 @register.simple_tag
 def responsive_image(image_path, alt='', css_class='', sizes=None, element_id=None):
@@ -42,6 +56,22 @@ def responsive_image(image_path, alt='', css_class='', sizes=None, element_id=No
         rel = image_url[len(media_url):]
     else:
         rel = image_url.lstrip('/')
+
+    if not default_storage.exists(rel):
+        placeholder_svg = (
+            '<svg xmlns="http://www.w3.org/2000/svg" width="640" height="480" viewBox="0 0 640 480">'
+            '<rect width="640" height="480" fill="#f1f3f5"/>'
+            '<path d="M250 190h140v100H250z" fill="none" stroke="#87909a" stroke-width="12"/>'
+            '<circle cx="290" cy="225" r="10" fill="#87909a"/>'
+            '<path d="m260 275 40-35 25 22 22-18 33 31" fill="none" stroke="#87909a" stroke-width="10"/>'
+            '</svg>'
+        )
+        placeholder_url = f'data:image/svg+xml,{quote(placeholder_svg)}'
+        return format_html(
+            '<img src="{}" class="{}" alt="Image indisponible" loading="lazy">',
+            placeholder_url,
+            css_class,
+        )
 
     base, ext = os.path.splitext(rel)
     webp_rel = base + '.webp'

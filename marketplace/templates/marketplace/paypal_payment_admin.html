@@ -1,0 +1,159 @@
+{% extends 'marketplace/base.html' %}
+
+{% block title %}Gestion Carte Visa et PayPal{% endblock %}
+
+{% block content %}
+<style>
+    .paypal-admin { max-width: 1180px; margin: 24px auto; padding: 0 16px 36px; color: #172033; }
+    .paypal-admin h1, .paypal-admin h2 { color: #102a56; }
+    .paypal-admin h1 { font-size: clamp(1.45rem, 4vw, 2rem); }
+    .paypal-admin-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
+    .paypal-admin-card { background: #fff; border: 1px solid #dce5f1; border-radius: 12px; padding: 16px; box-shadow: 0 3px 12px #16345b12; }
+    .paypal-admin-card h2 { margin: 0 0 12px; font-size: 1.1rem; }
+    .paypal-admin-status { font-weight: 700; }
+    .paypal-admin-ok { color: #137547; }
+    .paypal-admin-warning { color: #9a5b00; }
+    .paypal-admin-error { color: #a32727; }
+    .paypal-admin-table-wrap { overflow-x: auto; }
+    .paypal-admin table { width: 100%; border-collapse: collapse; min-width: 620px; }
+    .paypal-admin th, .paypal-admin td { padding: 10px 8px; border-bottom: 1px solid #e7edf5; text-align: left; vertical-align: top; }
+    .paypal-admin th { color: #344a68; font-size: .9rem; }
+    .paypal-admin-note { color: #52627a; line-height: 1.5; }
+    .paypal-admin-button { border: 0; border-radius: 7px; padding: 10px 15px; color: #fff; background: #1456a0; font-weight: 700; cursor: pointer; }
+    .paypal-admin-button:hover { background: #0e427f; }
+    .paypal-admin-section { margin-top: 20px; }
+</style>
+
+<main class="paypal-admin">
+    <h1>⭐ Gestion Carte Visa</h1>
+    <p class="paypal-admin-note">
+        Tableau de suivi en lecture seule. Les identifiants restent dans la configuration serveur;
+        cette page ne permet pas de modifier les secrets ni les statuts des paiements.
+    </p>
+
+    <div class="paypal-admin-grid">
+        <section class="paypal-admin-card">
+            <h2>Mode PayPal</h2>
+            <p class="paypal-admin-status">
+                {% if paypal_mode == 'sandbox' %}Sandbox{% elif paypal_mode == 'live' %}Live{% else %}Configuration invalide{% endif %}
+            </p>
+            <p class="paypal-admin-note">
+                Checkout :
+                {% if paypal_checkout_enabled %}<span class="paypal-admin-ok">activé</span>{% else %}<span class="paypal-admin-warning">non activé / configuration incomplète</span>{% endif %}
+            </p>
+        </section>
+        <section class="paypal-admin-card">
+            <h2>Configuration (présence seulement)</h2>
+            <p>Client ID : {% if client_id_configured %}configuré{% else %}manquant{% endif %}</p>
+            <p>Secret PayPal : {% if client_secret_configured %}configuré, valeur masquée{% else %}manquant{% endif %}</p>
+            <p>Webhook ID : {% if webhook_id_configured %}configuré, valeur masquée{% else %}manquant{% endif %}</p>
+        </section>
+        <section class="paypal-admin-card">
+            <h2>Connexion et webhook</h2>
+            {% if connection_result %}
+                <p class="paypal-admin-status {% if connection_result.ok %}paypal-admin-ok{% else %}paypal-admin-error{% endif %}">
+                    {{ connection_result.message }}
+                </p>
+            {% else %}
+                <p class="paypal-admin-note">La connexion n'a pas encore été testée.</p>
+            {% endif %}
+            {% if remote_webhook %}
+                <p>URL : {{ remote_webhook.url }}</p>
+                <p>Événements : {% for event in remote_webhook.event_types %}{{ event.name }}{% if not forloop.last %}, {% endif %}{% endfor %}</p>
+            {% endif %}
+            <form method="post">
+                {% csrf_token %}
+                <button class="paypal-admin-button" type="submit">Tester la connexion PayPal</button>
+            </form>
+        </section>
+    </div>
+
+    <section class="paypal-admin-card paypal-admin-section">
+        <h2>Transactions PayPal récentes</h2>
+        {% if payments %}
+            <div class="paypal-admin-table-wrap">
+                <table>
+                    <thead><tr><th>Commande</th><th>Acheteur</th><th>Montant</th><th>Statut</th><th>Créé le</th><th>Capturé le</th></tr></thead>
+                    <tbody>
+                    {% for payment in payments %}
+                        <tr>
+                            <td>#{{ payment.order_id }}</td>
+                            <td>{{ payment.order.buyer.username }}</td>
+                            <td>{{ payment.amount }} {{ payment.currency }}</td>
+                            <td>{{ payment.get_status_display }}</td>
+                            <td>{{ payment.created_at|date:"Y-m-d H:i" }}</td>
+                            <td>{{ payment.captured_at|date:"Y-m-d H:i"|default:"—" }}</td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <p class="paypal-admin-note">Aucune transaction PayPal enregistrée.</p>
+        {% endif %}
+    </section>
+
+    <section class="paypal-admin-card paypal-admin-section">
+        <h2>Événements webhook reçus</h2>
+        {% if webhook_events %}
+            <div class="paypal-admin-table-wrap">
+                <table>
+                    <thead><tr><th>Événement</th><th>Reçu le</th><th>Traité le</th><th>Résultat</th></tr></thead>
+                    <tbody>
+                    {% for event in webhook_events %}
+                        <tr>
+                            <td>{{ event.event_type }}</td>
+                            <td>{{ event.received_at|date:"Y-m-d H:i" }}</td>
+                            <td>{{ event.processed_at|date:"Y-m-d H:i"|default:"—" }}</td>
+                            <td>{% if event.processed_at %}Traité{% else %}En attente / à vérifier{% endif %}</td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <p class="paypal-admin-note">Aucun événement webhook reçu pour le moment.</p>
+        {% endif %}
+    </section>
+
+    <section class="paypal-admin-card paypal-admin-section">
+        <h2>Commandes payées par carte</h2>
+        <p class="paypal-admin-note">
+            L'intégration PayPal existante gère PayPal Checkout. Elle n'enregistre pas de capture Visa
+            directe; PayPal peut proposer une carte en paiement invité selon l'éligibilité du compte et du pays.
+            La liste ci-dessous montre uniquement les commandes choisies avec un moyen carte dans SDI STORE,
+            sans prétendre qu'un paiement carte a été traité par PayPal.
+        </p>
+        {% if card_orders %}
+            <div class="paypal-admin-table-wrap">
+                <table>
+                    <thead><tr><th>Commande</th><th>Acheteur</th><th>Moyen choisi</th><th>Statut paiement</th><th>Statut commande</th><th>Date</th></tr></thead>
+                    <tbody>
+                    {% for order in card_orders %}
+                        <tr>
+                            <td>#{{ order.pk }}</td>
+                            <td>{{ order.buyer.username }}</td>
+                            <td>{{ order.get_payment_method_display }}</td>
+                            <td>{{ order.get_payment_status_display }}</td>
+                            <td>{{ order.get_status_display }}</td>
+                            <td>{{ order.created_at|date:"Y-m-d H:i" }}</td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <p class="paypal-admin-note">Aucune commande avec moyen de paiement carte.</p>
+        {% endif %}
+    </section>
+
+    <section class="paypal-admin-card paypal-admin-section">
+        <h2>Paramètres autorisés</h2>
+        <p class="paypal-admin-note">
+            Cette interface est volontairement en lecture seule pour les paramètres sensibles.
+            Le mode et les identifiants se configurent côté serveur dans les variables d'environnement.
+            Aucun paiement ne peut être confirmé ou modifié manuellement depuis cette page.
+        </p>
+    </section>
+</main>
+{% endblock %}

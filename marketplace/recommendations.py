@@ -21,7 +21,8 @@ try:
 except ImportError:
     warnings.warn(
         "Scikit-learn n'est pas installée. Le système de recommandations IA sera désactivé. "
-        "Installez les dépendances avec: pip install -r requirements.txt",
+        "Le mode de secours par prix reste actif. Pour activer les recommandations IA, "
+        "installez Scikit-learn avec: pip install scikit-learn",
         RuntimeWarning
     )
     np = None
