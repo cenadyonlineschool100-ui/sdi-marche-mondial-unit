@@ -1,0 +1,157 @@
+name: Deploy 1SDI category configuration
+
+on:
+  push:
+    branches:
+      - deploy/sdi-local-20261118
+    paths:
+      - marketplace/migrations/0120_seed_default_categories.py
+      - .github/workflows/deploy-1sdi-categories.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pythonanywhere-1sdi-categories
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      EXPECTED_BRANCH: deploy/sdi-local-20261118
+      EXPECTED_REPOSITORY: cenadyonlineschool100-ui/sdi-marche-mondial-unit
+      BASE_COMMIT: ${{ github.event.before }}
+      TARGET_COMMIT: ${{ github.sha }}
+      PA_SSH_PRIVATE_KEY: ${{ secrets.PA_SSH_PRIVATE_KEY }}
+      PA_SSH_KNOWN_HOSTS: ${{ secrets.PA_SSH_KNOWN_HOSTS }}
+      PA_API_TOKEN: ${{ secrets.PA_API_TOKEN }}
+    steps:
+      - name: Check out the target commit
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate branch and category-only change
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REPOSITORY" = "$EXPECTED_REPOSITORY"
+          test "$GITHUB_REF" = "refs/heads/$EXPECTED_BRANCH"
+          [[ "$BASE_COMMIT" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$TARGET_COMMIT" =~ ^[0-9a-f]{40}$ ]]
+          git merge-base --is-ancestor "$BASE_COMMIT" "$TARGET_COMMIT"
+
+          changed_files="$(git diff --name-only "$BASE_COMMIT" "$TARGET_COMMIT")"
+          grep -Fxq 'marketplace/migrations/0120_seed_default_categories.py' <<<"$changed_files"
+          while IFS= read -r file; do
+            case "$file" in
+              marketplace/migrations/0120_seed_default_categories.py|.github/workflows/deploy-1sdi-categories.yml|PYTHONANYWHERE_1SDI_CATEGORIES.md)
+                ;;
+              *)
+                echo "::error::Unexpected file in category deployment: $file"
+                exit 1
+                ;;
+            esac
+          done <<<"$changed_files"
+
+      - name: Validate PythonAnywhere credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "$PA_SSH_PRIVATE_KEY" || -z "$PA_SSH_KNOWN_HOSTS" || -z "$PA_API_TOKEN" ]]; then
+            echo "::error::Configure PA_SSH_PRIVATE_KEY, PA_SSH_KNOWN_HOSTS, and PA_API_TOKEN."
+            exit 1
+          fi
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Validate and test the migration
+        run: |
+          python -m pip install -r requirements.txt
+          python manage.py check
+          python manage.py makemigrations --check --dry-run
+          python manage.py migrate marketplace 0120_seed_default_categories --noinput
+          python manage.py shell -c "from marketplace.models import Category; expected = {'electronique', 'mode', 'maison-deco', 'beaute', 'alimentation'}; actual = set(Category.objects.filter(is_active=True, parent__isnull=True, slug__in=expected).values_list('slug', flat=True)); assert actual == expected, f'Missing active main categories: {expected - actual}'"
+
+      - name: Start SSH agent
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.PA_SSH_PRIVATE_KEY }}
+
+      - name: Pin PythonAnywhere SSH host key
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.ssh"
+          chmod 700 "$HOME/.ssh"
+          printf '%s\n' "$PA_SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/known_hosts"
+
+      - name: Fast-forward and apply the data migration
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf -v remote_command \
+            'EXPECTED_BRANCH=%q EXPECTED_REPOSITORY=%q BASE_COMMIT=%q TARGET_COMMIT=%q bash -s' \
+            "$EXPECTED_BRANCH" "$EXPECTED_REPOSITORY" "$BASE_COMMIT" "$TARGET_COMMIT"
+
+          ssh -o StrictHostKeyChecking=yes "1sdi@ssh.pythonanywhere.com" "$remote_command" <<'REMOTE'
+          set -euo pipefail
+
+          REMOTE_DIR=/home/1sdi/sdi-market
+          VENV_PATH=/home/1sdi/.virtualenvs/sdi-market
+          cd "$REMOTE_DIR"
+          test "$(git rev-parse --show-toplevel)" = "$REMOTE_DIR"
+          test "$(git branch --show-current)" = "$EXPECTED_BRANCH"
+          test "$(git rev-parse HEAD)" = "$BASE_COMMIT"
+
+          origin_url="$(git remote get-url origin)"
+          case "$origin_url" in
+            https://github.com/*) origin_url="${origin_url#https://github.com/}" ;;
+            http://github.com/*) origin_url="${origin_url#http://github.com/}" ;;
+            git@github.com:*) origin_url="${origin_url#git@github.com:}" ;;
+            ssh://git@github.com/*) origin_url="${origin_url#ssh://git@github.com/}" ;;
+            *)
+              echo "Production origin is not the expected GitHub repository." >&2
+              exit 1
+              ;;
+          esac
+          origin_url="${origin_url%.git}"
+          test "$origin_url" = "$EXPECTED_REPOSITORY"
+
+          for file in \
+            marketplace/migrations/0120_seed_default_categories.py \
+            .github/workflows/deploy-1sdi-categories.yml
+          do
+            if ! git diff --quiet HEAD -- "$file"; then
+              echo "Production has local changes to $file; refusing deployment." >&2
+              exit 1
+            fi
+            if [ -e "$file" ] && ! git ls-files --error-unmatch "$file" >/dev/null 2>&1; then
+              echo "Production has an untracked file at $file; refusing deployment." >&2
+              exit 1
+            fi
+          done
+
+          git fetch origin "$EXPECTED_BRANCH"
+          fetched_commit="$(git rev-parse FETCH_HEAD)"
+          test "$fetched_commit" = "$TARGET_COMMIT"
+          git merge-base --is-ancestor HEAD "$TARGET_COMMIT"
+          git merge --ff-only "$TARGET_COMMIT"
+
+          source "$VENV_PATH/bin/activate"
+          python manage.py migrate marketplace 0120_seed_default_categories --noinput
+          python manage.py shell -c "from marketplace.models import Category; expected = {'electronique', 'mode', 'maison-deco', 'beaute', 'alimentation'}; actual = set(Category.objects.filter(is_active=True, parent__isnull=True, slug__in=expected).values_list('slug', flat=True)); assert actual == expected, f'Missing active main categories: {expected - actual}'"
+          REMOTE
+
+      - name: Reload 1sdi web app
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --request POST \
+            --header "Authorization: Token $PA_API_TOKEN" \
+            https://www.pythonanywhere.com/api/v0/user/1sdi/webapps/1sdi.pythonanywhere.com/reload/
